@@ -1,0 +1,45 @@
+name: Public Pages DevOps
+
+on:
+  push:
+    branches: ["main"]
+    paths:
+      - "python/andyria/static/**"
+      - ".github/workflows/public-pages.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build static artifact
+        run: |
+          mkdir -p _site
+          cp -R python/andyria/static/. _site/
+          touch _site/.nojekyll
+          if [ -n "${PAGES_CNAME:-}" ]; then echo "${PAGES_CNAME}" > _site/CNAME; fi
+        env:
+          PAGES_CNAME: ${{ vars.PAGES_CNAME }}
+
+      - uses: actions/configure-pages@v5
+
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: _site
+
+      - id: deployment
+        uses: actions/deploy-pages@v4
