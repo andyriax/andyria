@@ -250,6 +250,24 @@ def create_app(coordinator: Coordinator) -> FastAPI:
         except Exception:
             return []
 
+    # ── Agent Presets ──────────────────────────────────────────────────────
+    _PRESET_PATHS = [
+        Path(__file__).parent.parent.parent / "deploy" / "presets" / "agents.json",
+        Path("/data/andyria/presets/agents.json"),
+        Path.home() / ".andyria" / "presets" / "agents.json",
+    ]
+
+    @app.get("/v1/agents/presets", response_model=List[Dict[str, Any]])
+    async def list_agent_presets() -> List[Dict[str, Any]]:
+        """Return available agent preset templates."""
+        for p in _PRESET_PATHS:
+            if p.exists():
+                try:
+                    return json.loads(p.read_text())
+                except Exception:
+                    pass
+        return []
+
     @app.get("/v1/agents", response_model=List[AgentDefinition])
     async def list_agents(include_inactive: bool = False) -> List[AgentDefinition]:
         if _coordinator is None:

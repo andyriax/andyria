@@ -748,6 +748,34 @@
       border-top: 1px solid var(--border);
     }
     .modal-status { font-size: 0.82rem; color: var(--danger); min-height: 1.2em; padding: 0 18px 10px; }
+    /* ── Agent template picker ── */
+    .modal-tabs { display: flex; border-bottom: 1px solid var(--border); }
+    .modal-tab {
+      flex: 1; padding: 10px 0; font-size: 0.85rem; font-weight: 600;
+      background: none; border: none; color: var(--muted); cursor: pointer;
+      border-bottom: 2px solid transparent; margin-bottom: -1px; transition: color .15s, border-color .15s;
+    }
+    .modal-tab.active { color: var(--accent); border-bottom-color: var(--accent); }
+    .preset-grid {
+      display: grid; grid-template-columns: 1fr 1fr; gap: 8px;
+      max-height: 320px; overflow-y: auto; padding: 2px;
+    }
+    .preset-card {
+      background: var(--bg); border: 1px solid var(--border); border-radius: 10px;
+      padding: 12px 12px 10px; cursor: pointer; transition: border-color .15s, background .15s;
+      display: flex; flex-direction: column; gap: 4px;
+    }
+    .preset-card:hover { border-color: var(--accent-dim); background: var(--surface-2); }
+    .preset-card.selected { border-color: var(--accent); background: rgba(124,106,245,0.08); }
+    .preset-card-header { display: flex; align-items: center; gap: 7px; }
+    .preset-icon { font-size: 1.2rem; flex-shrink: 0; }
+    .preset-name { font-size: 0.88rem; font-weight: 700; }
+    .preset-desc { font-size: 0.76rem; color: var(--muted); line-height: 1.45; }
+    .preset-tags { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 4px; }
+    .preset-tag {
+      font-size: 0.65rem; padding: 1px 6px; border-radius: 4px;
+      background: rgba(124,106,245,0.1); color: var(--accent2); font-weight: 600;
+    }
 
     /* ── Demo Mode ── */
     .demo-banner {
@@ -1008,19 +1036,31 @@
 
   <!-- New Agent Modal -->
   <div class="modal-overlay" id="new-agent-modal">
-    <div class="modal">
+    <div class="modal" style="width:min(520px,96vw)">
       <div class="modal-header">
         <span>New Agent</span>
         <button class="modal-close" id="btn-close-agent-modal">✕</button>
       </div>
-      <div class="modal-body">
+      <div class="modal-tabs">
+        <button class="modal-tab active" id="tab-templates" onclick="switchAgentTab('templates')">Templates</button>
+        <button class="modal-tab" id="tab-custom" onclick="switchAgentTab('custom')">Custom</button>
+      </div>
+      <!-- Templates pane -->
+      <div id="agent-tab-templates" class="modal-body" style="padding:14px">
+        <div class="preset-grid" id="preset-grid">
+          <div style="color:var(--muted);font-size:0.85rem;grid-column:1/-1;text-align:center;padding:24px 0">Loading templates…</div>
+        </div>
+        <div style="font-size:0.75rem;color:var(--muted);text-align:center">Select a template then click Create — you can customise it afterwards.</div>
+      </div>
+      <!-- Custom pane -->
+      <div id="agent-tab-custom" class="modal-body" style="display:none">
         <div class="modal-field">
           <label for="agent-name-input">Name <span style="color:var(--danger)">*</span></label>
           <input id="agent-name-input" type="text" placeholder="My Agent" maxlength="80" />
         </div>
         <div class="modal-field">
           <label for="agent-system-prompt">System prompt</label>
-          <textarea id="agent-system-prompt" rows="3" placeholder="You are a helpful assistant."></textarea>
+          <textarea id="agent-system-prompt" rows="4" placeholder="You are a helpful assistant."></textarea>
         </div>
       </div>
       <div class="modal-status" id="agent-modal-status"></div>
@@ -2038,12 +2078,63 @@
     }
 
     // ── New Agent Modal ────────────────────────────────────────────────────
+    let _selectedPreset = null;
+    let _agentModalTab = 'templates';
+
+    function switchAgentTab(tab) {
+      _agentModalTab = tab;
+      document.getElementById('tab-templates').classList.toggle('active', tab === 'templates');
+      document.getElementById('tab-custom').classList.toggle('active', tab === 'custom');
+      document.getElementById('agent-tab-templates').style.display = tab === 'templates' ? '' : 'none';
+      document.getElementById('agent-tab-custom').style.display = tab === 'custom' ? '' : 'none';
+      if (tab === 'custom') document.getElementById('agent-name-input').focus();
+    }
+
+    async function loadPresets() {
+      const grid = document.getElementById('preset-grid');
+      try {
+        const res = await fetch('/v1/agents/presets');
+        const presets = res.ok ? await res.json() : [];
+        if (!presets.length) {
+          grid.innerHTML = `<div style="color:var(--muted);font-size:0.85rem;grid-column:1/-1;text-align:center;padding:24px 0">No templates found — use Custom tab.</div>`;
+          return;
+        }
+        grid.innerHTML = '';
+        presets.forEach(p => {
+          const card = document.createElement('div');
+          card.className = 'preset-card';
+          card.dataset.presetId = p.id;
+          card.innerHTML = `
+            <div class="preset-card-header">
+              <span class="preset-icon">${p.icon || '🤖'}</span>
+              <span class="preset-name">${escHtml(p.name)}</span>
+            </div>
+            <div class="preset-desc">${escHtml(p.description || '')}</div>
+            <div class="preset-tags">${(p.tags||[]).map(t=>`<span class="preset-tag">${escHtml(t)}</span>`).join('')}</div>`;
+          card.addEventListener('click', () => {
+            document.querySelectorAll('.preset-card').forEach(c => c.classList.remove('selected'));
+            card.classList.add('selected');
+            _selectedPreset = p;
+          });
+          grid.appendChild(card);
+        });
+        // auto-select first
+        if (presets.length) {
+          grid.querySelector('.preset-card').click();
+        }
+      } catch {
+        grid.innerHTML = `<div style="color:var(--muted);font-size:0.85rem;grid-column:1/-1;text-align:center;padding:24px 0">Could not load templates.</div>`;
+      }
+    }
+
     function openNewAgentModal() {
+      _selectedPreset = null;
       document.getElementById("agent-name-input").value = "";
       document.getElementById("agent-system-prompt").value = "";
       document.getElementById("agent-modal-status").textContent = "";
+      switchAgentTab('templates');
       document.getElementById("new-agent-modal").classList.add("open");
-      document.getElementById("agent-name-input").focus();
+      loadPresets();
     }
 
     function closeNewAgentModal() {
@@ -2051,10 +2142,19 @@
     }
 
     async function createAgent() {
-      const name = document.getElementById("agent-name-input").value.trim();
-      const systemPrompt = document.getElementById("agent-system-prompt").value.trim();
       const statusEl = document.getElementById("agent-modal-status");
-      if (!name) { statusEl.textContent = "Name is required."; return; }
+      let payload;
+      if (_agentModalTab === 'templates' && _selectedPreset) {
+        payload = {
+          name: _selectedPreset.name,
+          system_prompt: _selectedPreset.system_prompt || '',
+        };
+      } else {
+        const name = document.getElementById("agent-name-input").value.trim();
+        const systemPrompt = document.getElementById("agent-system-prompt").value.trim();
+        if (!name) { statusEl.textContent = "Name is required."; return; }
+        payload = { name, system_prompt: systemPrompt };
+      }
       const btn = document.getElementById("btn-create-agent");
       btn.disabled = true;
       statusEl.textContent = "";
@@ -2062,7 +2162,7 @@
         const res = await fetch("/v1/agents", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ name, system_prompt: systemPrompt }),
+          body: JSON.stringify(payload),
         });
         if (!res.ok) { const d = await res.json().catch(() => ({})); throw new Error(d.detail || "HTTP " + res.status); }
         const agent = await res.json();

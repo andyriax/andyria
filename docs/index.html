@@ -637,26 +637,26 @@
   <div class="section-inner">
     <div class="section-label">Get Started</div>
     <h2>Up in 60 seconds</h2>
-    <p class="section-desc">Clone, configure, and launch. No API keys, no cloud account, no credit card.</p>
+    <p class="section-desc">One command. No API keys, no cloud account, no credit card.</p>
     <div class="code-block">
-      <div><span class="cmt"># Clone the repository</span></div>
-      <div><span class="cmd">git clone</span> <span class="str">https://github.com/andyriax/andyria.git</span></div>
-      <div><span class="cmd">cd</span> andyria</div>
+      <div><span class="cmt"># One-liner installer (Linux / macOS / WSL / Termux / Raspberry Pi)</span></div>
+      <div><span class="cmd">curl</span> -fsSL https://andyriax.github.io/andyria/install.sh | bash</div>
       <br/>
-      <div><span class="cmt"># Launch with Docker Compose (recommended)</span></div>
-      <div><span class="cmd">docker compose up</span> -d</div>
-      <br/>
-      <div><span class="cmt"># Or run directly with Python</span></div>
-      <div><span class="cmd">pip install</span> -e python/</div>
-      <div><span class="cmd">python -m andyria serve</span> <span class="str">--port 7700</span></div>
-      <br/>
-      <div><span class="cmt"># Andyria is now running at http://localhost:7700</span></div>
+      <div><span class="cmt"># With options: pick a preset agent, custom port, Python-only mode</span></div>
+      <div><span class="cmd">curl</span> -fsSL https://andyriax.github.io/andyria/install.sh | bash -s -- \</div>
+      <div>  --agent coder --port 7700 --python</div>
     </div>
     <br/>
     <div class="code-block">
-      <div><span class="cmt"># Optional: connect a local Ollama model (free, private)</span></div>
+      <div><span class="cmt"># Or clone and run manually</span></div>
+      <div><span class="cmd">git clone</span> <span class="str">https://github.com/andyriax/andyria.git</span> <span class="cmd">&&</span> cd andyria</div>
+      <div><span class="cmd">docker compose up</span> -d  <span class="cmt"># → http://localhost:7700</span></div>
+    </div>
+    <br/>
+    <div class="code-block">
+      <div><span class="cmt"># Optional: connect Ollama for a free local LLM</span></div>
       <div><span class="cmd">ollama pull</span> <span class="str">llama3</span></div>
-      <div><span class="cmt"># Andyria auto-detects Ollama — no config needed</span></div>
+      <div><span class="cmt"># Andyria auto-detects it — no config needed</span></div>
     </div>
   </div>
 </section>

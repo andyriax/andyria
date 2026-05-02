@@ -4,15 +4,19 @@ services:
       context: .
       dockerfile: deploy/Dockerfile
     ports:
-      - "7700:7700"
+      - "${ANDYRIA_PORT:-7700}:7700"
     volumes:
       - andyria-data:/data/andyria
       - /dev/urandom:/dev/urandom:ro
+    env_file:
+      - .env.example
+      - path: .env
+        required: false
     environment:
       - ANDYRIA_DATA_DIR=/data/andyria
       - ANDYRIA_NODE_ID=${ANDYRIA_NODE_ID:-andyria-node-0}
-      - ANDYRIA_ENTROPY_SOURCES=os_urandom,clock_jitter,thermal,system_stats
-      - ANDYRIA_DEPLOYMENT_CLASS=server
+      - ANDYRIA_ENTROPY_SOURCES=${ANDYRIA_ENTROPY_SOURCES:-os_urandom,clock_jitter,thermal,system_stats}
+      - ANDYRIA_DEPLOYMENT_CLASS=${ANDYRIA_DEPLOYMENT_CLASS:-server}
       - ANDYRIA_OLLAMA_URL=${ANDYRIA_OLLAMA_URL:-http://host.docker.internal:11434}
       - ANDYRIA_OLLAMA_MODEL=${ANDYRIA_OLLAMA_MODEL:-phi3}
     extra_hosts:
@@ -35,14 +39,18 @@ services:
       andyria:
         condition: service_healthy
     ports:
-      - "7701:7700"
+      - "${ANDYRIA_PEER_PORT:-7701}:7700"
     volumes:
       - andyria-peer-data:/data/andyria
       - /dev/urandom:/dev/urandom:ro
+    env_file:
+      - .env.example
+      - path: .env
+        required: false
     environment:
       - ANDYRIA_DATA_DIR=/data/andyria
       - ANDYRIA_NODE_ID=${ANDYRIA_PEER_NODE_ID:-andyria-node-1}
-      - ANDYRIA_ENTROPY_SOURCES=os_urandom,clock_jitter
+      - ANDYRIA_ENTROPY_SOURCES=${ANDYRIA_ENTROPY_SOURCES:-os_urandom,clock_jitter}
       - ANDYRIA_PEERS=http://andyria:7700
       - ANDYRIA_OLLAMA_URL=${ANDYRIA_OLLAMA_URL:-http://host.docker.internal:11434}
       - ANDYRIA_OLLAMA_MODEL=${ANDYRIA_OLLAMA_MODEL:-phi3}
