@@ -405,126 +405,128 @@ class AutoLearnEntry(BaseModel):
     recorded_at: int  # timestamp_ns
 
 
-    # ---------------------------------------------------------------------------
-    # Hermes-agent feature models
-    # ---------------------------------------------------------------------------
-
-    class MemoryOp(str, Enum):
-        ADD    = "add"
-        REMOVE = "remove"
-        UPDATE = "update"
-        READ   = "read"
-        CLEAR  = "clear"
 
 
-    class MemoryOpRequest(BaseModel):
-        """Body for /v1/memory endpoints."""
-        file: str = "MEMORY"          # "MEMORY" or "USER"
-        op: MemoryOp = MemoryOp.READ
-        text: Optional[str] = None    # entry text (add / remove)
-        old_text: Optional[str] = None
-        new_text: Optional[str] = None
+# ---------------------------------------------------------------------------
+# Hermes-agent feature models
+# ---------------------------------------------------------------------------
+
+class MemoryOp(str, Enum):
+    ADD    = "add"
+    REMOVE = "remove"
+    UPDATE = "update"
+    READ   = "read"
+    CLEAR  = "clear"
 
 
-    class MemoryOpResponse(BaseModel):
-        file: str
-        op: str
-        success: bool
-        content: Optional[str] = None  # returned for READ ops
-        stats: Optional[Dict[str, Any]] = None
+class MemoryOpRequest(BaseModel):
+    """Body for /v1/memory endpoints."""
+    file: str = "MEMORY"          # "MEMORY" or "USER"
+    op: MemoryOp = MemoryOp.READ
+    text: Optional[str] = None    # entry text (add / remove)
+    old_text: Optional[str] = None
+    new_text: Optional[str] = None
 
 
-    class SkillAction(str, Enum):
-        CREATE = "create"
-        UPDATE = "update"
-        DELETE = "delete"
-        VIEW   = "view"
-        LIST   = "list"
-        SEARCH = "search"
+class MemoryOpResponse(BaseModel):
+    file: str
+    op: str
+    success: bool
+    content: Optional[str] = None  # returned for READ ops
+    stats: Optional[Dict[str, Any]] = None
 
 
-    class SkillRequest(BaseModel):
-        action: SkillAction = SkillAction.LIST
-        name: Optional[str] = None
-        content: Optional[str] = None
-        description: str = ""
-        tags: List[str] = Field(default_factory=list)
-        category: Optional[str] = None  # filter for list
-        query: Optional[str] = None     # for search
+class SkillAction(str, Enum):
+    CREATE = "create"
+    UPDATE = "update"
+    DELETE = "delete"
+    VIEW   = "view"
+    LIST   = "list"
+    SEARCH = "search"
 
 
-    class SkillResponse(BaseModel):
-        action: str
-        success: bool
-        name: Optional[str] = None
-        content: Optional[str] = None
-        skills: Optional[List[Dict[str, Any]]] = None
-        message: str = ""
+class SkillRequest(BaseModel):
+    action: SkillAction = SkillAction.LIST
+    name: Optional[str] = None
+    content: Optional[str] = None
+    description: str = ""
+    tags: List[str] = Field(default_factory=list)
+    category: Optional[str] = None  # filter for list
+    query: Optional[str] = None     # for search
 
 
-    class CronJobCreate(BaseModel):
-        name: str
-        expression: str      # "every day at 09:00" or "0 9 * * *"
-        task: str
-        platform: str = "andyria"
+class SkillResponse(BaseModel):
+    action: str
+    success: bool
+    name: Optional[str] = None
+    content: Optional[str] = None
+    skills: Optional[List[Dict[str, Any]]] = None
+    message: str = ""
 
 
-    class CronJobInfo(BaseModel):
-        id: str
-        name: str
-        expression: str
-        task: str
-        platform: str
-        active: bool
-        last_run: float
+class CronJobCreate(BaseModel):
+    name: str
+    expression: str      # "every day at 09:00" or "0 9 * * *"
+    task: str
+    platform: str = "andyria"
 
 
-    class DelegateRequest(BaseModel):
-        prompt: str
-        tools: List[str] = Field(default_factory=list)
-        config: Dict[str, Any] = Field(default_factory=dict)
-        wait: bool = False        # if True, block until complete (up to timeout_s)
-        timeout_s: float = 30.0
+class CronJobInfo(BaseModel):
+    id: str
+    name: str
+    expression: str
+    task: str
+    platform: str
+    active: bool
+    last_run: float
 
 
-    class DelegateResponse(BaseModel):
-        task_id: str
-        status: str                    # "spawned" | "done" | "error"
-        result: Optional[str] = None
-        error: Optional[str] = None
+class DelegateRequest(BaseModel):
+    prompt: str
+    tools: List[str] = Field(default_factory=list)
+    config: Dict[str, Any] = Field(default_factory=dict)
+    wait: bool = False        # if True, block until complete (up to timeout_s)
+    timeout_s: float = 30.0
 
 
-    class TodoAction(str, Enum):
-        ADD     = "add"
-        UPDATE  = "update"
-        DONE    = "done"
-        CANCEL  = "cancel"
-        REMOVE  = "remove"
-        LIST    = "list"
-        CLEAR   = "clear"
+class DelegateResponse(BaseModel):
+    task_id: str
+    status: str                    # "spawned" | "done" | "error"
+    result: Optional[str] = None
+    error: Optional[str] = None
 
 
-    class TodoRequest(BaseModel):
-        action: TodoAction = TodoAction.LIST
-        text: Optional[str] = None
-        item_id: Optional[str] = None
-        status: Optional[str] = None
-        status_filter: Optional[str] = None
+class TodoAction(str, Enum):
+    ADD     = "add"
+    UPDATE  = "update"
+    DONE    = "done"
+    CANCEL  = "cancel"
+    REMOVE  = "remove"
+    LIST    = "list"
+    CLEAR   = "clear"
 
 
-    class TodoResponse(BaseModel):
-        action: str
-        success: bool
-        item_id: Optional[str] = None
-        items: Optional[List[Dict[str, Any]]] = None
-        message: str = ""
+class TodoRequest(BaseModel):
+    action: TodoAction = TodoAction.LIST
+    text: Optional[str] = None
+    item_id: Optional[str] = None
+    status: Optional[str] = None
+    status_filter: Optional[str] = None
 
 
-    class SessionSearchRequest(BaseModel):
-        query: str
-        limit: int = 10
+class TodoResponse(BaseModel):
+    action: str
+    success: bool
+    item_id: Optional[str] = None
+    items: Optional[List[Dict[str, Any]]] = None
+    message: str = ""
 
 
-    class SessionSearchResponse(BaseModel):
-        results: List[Dict[str, Any]]
-        total: int
+class SessionSearchRequest(BaseModel):
+    query: str
+    limit: int = 10
+
+
+class SessionSearchResponse(BaseModel):
+    results: List[Dict[str, Any]]
+    total: int
