@@ -719,6 +719,55 @@
     }
     .modal-status { font-size: 0.82rem; color: var(--danger); min-height: 1.2em; padding: 0 18px 10px; }
 
+    /* ── Demo Mode ── */
+    .demo-banner {
+      display: none;
+      position: fixed;
+      top: 0; left: 0; right: 0;
+      z-index: 100;
+      background: linear-gradient(90deg, #0d4f3c 0%, #0b3d5c 100%);
+      border-bottom: 2px solid var(--accent);
+      padding: 6px 16px;
+      font-size: 0.82rem;
+      color: var(--accent);
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    .demo-banner.hidden { display: none !important; }
+    .demo-banner-msg { flex: 1; }
+    .demo-stop-btn {
+      background: transparent;
+      border: 1px solid var(--accent-dim);
+      color: var(--accent);
+      border-radius: 6px;
+      padding: 2px 10px;
+      font-size: 0.78rem;
+      cursor: pointer;
+    }
+    .demo-stop-btn:hover { background: var(--accent-dim); color: #fff; }
+    .demo-badge {
+      display: inline-block;
+      background: var(--accent-dim);
+      color: #fff;
+      border-radius: 10px;
+      padding: 1px 8px;
+      font-size: 0.7rem;
+      font-weight: 700;
+      letter-spacing: 0.05em;
+    }
+    .topbar-demo-btn {
+      background: transparent;
+      border: 1px solid var(--accent-dim);
+      color: var(--accent);
+      border-radius: 6px;
+      padding: 2px 10px;
+      font-size: 0.8rem;
+      cursor: pointer;
+      margin-left: 8px;
+    }
+    .topbar-demo-btn:hover { background: var(--accent-dim); color: #fff; }
+
     @media (max-width: 640px) {
       .layout { grid-template-columns: 1fr; }
       .sidebar { display: none; }
@@ -726,12 +775,19 @@
   </style>
 </head>
 <body>
+  <!-- Demo mode banner (shown when demo is active) -->
+  <div class="demo-banner hidden" id="demo-banner">
+    <span class="demo-badge">DEMO</span>
+    <span class="demo-banner-msg" id="demo-banner-msg">Demo mode active — explore the showcase agents below.</span>
+    <button class="demo-stop-btn" id="btn-demo-stop">Stop Demo</button>
+  </div>
   <div class="layout">
     <!-- Topbar -->
     <header class="topbar">
       <h1>Andyria</h1>
       <span id="active-agent-label" class="meta-tag" style="font-size:0.78rem;cursor:default" title="Active agent"></span>
       <span id="ready-badge" class="ready-badge">connecting…</span>
+      <button class="topbar-demo-btn" id="btn-demo-start" title="Launch demo mode">▶ Demo</button>
       <button class="topbar-cp-btn" id="btn-open-cp" title="Control panel">⚙ Panel</button>
     </header>
 
@@ -1655,6 +1711,62 @@
         </div>`;
     }
 
+    // ── Demo Mode ──────────────────────────────────────────────────────────
+    const demoBanner = document.getElementById('demo-banner');
+    const demoBannerMsg = document.getElementById('demo-banner-msg');
+    const btnDemoStart = document.getElementById('btn-demo-start');
+    const btnDemoStop  = document.getElementById('btn-demo-stop');
+
+    async function checkDemoStatus() {
+      try {
+        const r = await fetch('/v1/demo');
+        if (!r.ok) return;
+        const data = await r.json();
+        applyDemoState(data);
+      } catch (_) {}
+    }
+
+    function applyDemoState(data) {
+      if (data.active) {
+        demoBanner.classList.remove('hidden');
+        demoBannerMsg.textContent = data.message || 'Demo mode active.';
+        btnDemoStart.style.display = 'none';
+      } else {
+        demoBanner.classList.add('hidden');
+        btnDemoStart.style.display = '';
+      }
+    }
+
+    btnDemoStart.addEventListener('click', async () => {
+      btnDemoStart.disabled = true;
+      btnDemoStart.textContent = '⏳ Starting…';
+      try {
+        const r = await fetch('/v1/demo/start', { method: 'POST' });
+        const data = await r.json();
+        applyDemoState(data);
+        await loadAgents();  // refresh agent list to show demo agents
+      } catch (e) {
+        showError('Demo start failed: ' + e.message);
+      } finally {
+        btnDemoStart.disabled = false;
+        btnDemoStart.textContent = '▶ Demo';
+      }
+    });
+
+    btnDemoStop.addEventListener('click', async () => {
+      btnDemoStop.disabled = true;
+      try {
+        const r = await fetch('/v1/demo/stop', { method: 'POST' });
+        const data = await r.json();
+        applyDemoState(data);
+        await loadAgents();
+      } catch (e) {
+        showError('Demo stop failed: ' + e.message);
+      } finally {
+        btnDemoStop.disabled = false;
+      }
+    });
+
     // ── Init ───────────────────────────────────────────────────────────────
     loadStatus();
     setInterval(loadStatus, 30_000);
@@ -1662,6 +1774,7 @@
     loadAgents();
     loadTabs();
     updateActiveAgentBadge();
+    checkDemoStatus();
     promptInput.focus();
   </script>
 </body>

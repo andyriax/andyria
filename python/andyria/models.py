@@ -45,6 +45,8 @@ class EventType(str, Enum):
     REFLECTION_COMPLETE = "reflection_complete"
     AGENT_PERSONA_ASSIGNED = "agent_persona_assigned"
     AGENT_DEV_WORKSPACE_PREPARED = "agent_dev_workspace_prepared"
+    DEMO_STARTED = "demo_started"
+    DEMO_STOPPED = "demo_stopped"
 
 
 class EntropyBeacon(BaseModel):
@@ -199,6 +201,17 @@ class AgentDevWorkspace(BaseModel):
     agent_id: str
     workspace_path: str
     ide_url: str
+
+
+class DemoStatus(BaseModel):
+    """Runtime status of demo mode."""
+
+    active: bool
+    started_at: Optional[int] = None
+    stopped_at: Optional[int] = None
+    agent_ids: List[str] = Field(default_factory=list)
+    session_ids: List[str] = Field(default_factory=list)
+    message: str = ""
 
 
 class TabProjection(BaseModel):

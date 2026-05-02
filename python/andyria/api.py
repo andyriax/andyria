@@ -33,6 +33,7 @@ from .models import (
     ChainCreateRequest,
     ChainDefinition,
     ChainRunRequest,
+    DemoStatus,
     Event,
     EventType,
     NodeConfig,
@@ -44,6 +45,7 @@ from .models import (
     TabUpdateRequest,
 )
 from .persona import render_avatar_svg
+from .demo import DemoManager
 
 _coordinator: Optional[Coordinator] = None
 
@@ -84,6 +86,7 @@ def create_app(coordinator: Coordinator) -> FastAPI:
     index_file = static_dir / "index.html"
     default_dev_root = Path(getattr(_coordinator, "_data_dir", Path("."))) / "agent-dev"
     dev_workspace_root = Path(os.environ.get("ANDYRIA_AGENT_DEV_ROOT", str(default_dev_root)))
+    _demo_manager = DemoManager(_coordinator)
     code_server_base = os.environ.get("ANDYRIA_CODE_SERVER_URL", "http://localhost:8080").rstrip("/")
     code_server_folder_root = os.environ.get(
         "ANDYRIA_CODE_SERVER_FOLDER_ROOT",
@@ -645,6 +648,53 @@ def create_app(coordinator: Coordinator) -> FastAPI:
             final_confidence=log.final_confidence,
             total_ms=log.total_ms,
             timestamp_ns=log.timestamp_ns,
+        )
+
+    # ----------------------------------------------------------------
+    # Demo mode
+    # ----------------------------------------------------------------
+
+    @app.get("/v1/demo", response_model=DemoStatus)
+    async def demo_status() -> DemoStatus:
+        """Return the current demo mode state."""
+        s = _demo_manager.status()
+        return DemoStatus(
+            active=s.active,
+            started_at=s.started_at,
+            stopped_at=s.stopped_at,
+            agent_ids=s.agent_ids,
+            session_ids=s.session_ids,
+            message=s.message,
+        )
+
+    @app.post("/v1/demo/start", response_model=DemoStatus, status_code=201)
+    async def demo_start() -> DemoStatus:
+        """Activate demo mode: spawn showcase agents and seed conversation history."""
+        if _coordinator is None:
+            raise HTTPException(status_code=503, detail="Coordinator not initialized")
+        s = _demo_manager.start()
+        return DemoStatus(
+            active=s.active,
+            started_at=s.started_at,
+            stopped_at=s.stopped_at,
+            agent_ids=s.agent_ids,
+            session_ids=s.session_ids,
+            message=s.message,
+        )
+
+    @app.post("/v1/demo/stop", response_model=DemoStatus)
+    async def demo_stop() -> DemoStatus:
+        """Deactivate demo mode: retire demo agents and clear demo sessions."""
+        if _coordinator is None:
+            raise HTTPException(status_code=503, detail="Coordinator not initialized")
+        s = _demo_manager.stop()
+        return DemoStatus(
+            active=s.active,
+            started_at=s.started_at,
+            stopped_at=s.stopped_at,
+            agent_ids=s.agent_ids,
+            session_ids=s.session_ids,
+            message=s.message,
         )
 
     return app

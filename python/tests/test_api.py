@@ -438,3 +438,57 @@ class TestChains:
             json={"input": "test"},
         )
         assert res.status_code == 404
+
+
+class TestDemo:
+    @pytest.mark.asyncio
+    async def test_demo_status_initially_inactive(self, client: AsyncClient):
+        res = await client.get("/v1/demo")
+        assert res.status_code == 200
+        data = res.json()
+        assert data["active"] is False
+
+    @pytest.mark.asyncio
+    async def test_demo_start_creates_agents(self, client: AsyncClient):
+        res = await client.post("/v1/demo/start")
+        assert res.status_code == 201
+        data = res.json()
+        assert data["active"] is True
+        assert len(data["agent_ids"]) == 3
+        assert len(data["session_ids"]) == 3
+        assert "Demo" in data["message"]
+
+    @pytest.mark.asyncio
+    async def test_demo_status_active_after_start(self, client: AsyncClient):
+        await client.post("/v1/demo/start")
+        res = await client.get("/v1/demo")
+        assert res.status_code == 200
+        assert res.json()["active"] is True
+
+    @pytest.mark.asyncio
+    async def test_demo_start_idempotent(self, client: AsyncClient):
+        r1 = await client.post("/v1/demo/start")
+        r2 = await client.post("/v1/demo/start")
+        assert r1.status_code == 201
+        assert r2.status_code == 201
+        # Second call returns same state (already active)
+        assert r1.json()["active"] is True
+        assert r2.json()["active"] is True
+
+    @pytest.mark.asyncio
+    async def test_demo_stop(self, client: AsyncClient):
+        await client.post("/v1/demo/start")
+        res = await client.post("/v1/demo/stop")
+        assert res.status_code == 200
+        data = res.json()
+        assert data["active"] is False
+
+    @pytest.mark.asyncio
+    async def test_demo_agents_have_personas(self, client: AsyncClient):
+        start = await client.post("/v1/demo/start")
+        agent_ids = start.json()["agent_ids"]
+        for agent_id in agent_ids:
+            agent_res = await client.get(f"/v1/agents/{agent_id}")
+            assert agent_res.status_code == 200
+            agent = agent_res.json()
+            assert agent["persona"] is not None
