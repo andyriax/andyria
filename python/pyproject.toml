@@ -1,0 +1,54 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "andyria"
+version = "0.1.0"
+description = "Edge-first hybrid intelligence platform with physical-entropy-anchored state"
+readme = "../README.md"
+requires-python = ">=3.11"
+dependencies = [
+    "fastapi>=0.110.0",
+    "uvicorn[standard]>=0.27.0",
+    "pydantic>=2.0.0",
+    "httpx>=0.27.0",
+    "typer>=0.12.0",
+    "rich>=13.0.0",
+    "cryptography>=42.0.0",
+    "aiofiles>=23.0.0",
+    "pyyaml>=6.0",
+    "psutil>=5.9.0",
+]
+
+[project.optional-dependencies]
+llm = [
+    "llama-cpp-python>=0.2.50",
+]
+dev = [
+    "pytest>=8.0.0",
+    "pytest-asyncio>=0.23.0",
+    "ruff>=0.3.0",
+    "mypy>=1.8.0",
+]
+
+[project.scripts]
+andyria = "andyria.cli:app"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["andyria*"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "N", "S"]
+ignore = [
+    "S101",   # assert is fine in tests
+    "S603",   # subprocess checked at call sites
+]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

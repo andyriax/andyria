@@ -1,0 +1,91 @@
+# docker-compose.dev.yml
+# ──────────────────────────────────────────────────────────────────────────────
+# Development override — live source editing + hot-reload + code-server (VS Code
+# in the browser at http://localhost:8080).
+#
+# Usage:
+#   docker compose -f docker-compose.yml -f docker-compose.dev.yml up --build
+#   # or via Makefile:
+#   make dev
+#
+# What changes vs production:
+#   • ./python is bind-mounted into the container — edits on your host are
+#     instantly visible inside the running container.
+#   • Uvicorn runs with --reload, so saving a .py file restarts the server
+#     automatically (no rebuild needed).
+#   • code-server runs at http://localhost:8080 with the full project open —
+#     this is the "VS Code clone backdoor" for editing in runtime.
+# ──────────────────────────────────────────────────────────────────────────────
+
+services:
+  andyria:
+    # Override the entrypoint to use uvicorn --reload with the dev app module.
+    # The module-level `app` in andyria._dev reads all config from env vars.
+    entrypoint: []
+    command:
+      - python
+      - -m
+      - uvicorn
+      - andyria._dev:app
+      - --reload
+      - --reload-dir
+      - /app/python
+      - --host
+      - 0.0.0.0
+      - --port
+      - "7700"
+    volumes:
+      # Live source mount — edits on the host appear instantly in the container
+      - ./python:/app/python:rw
+      - andyria-data:/data/andyria
+      - /dev/urandom:/dev/urandom:ro
+    environment:
+      - ANDYRIA_DEV=1
+      - ANDYRIA_DEPLOYMENT_CLASS=server
+      - ANDYRIA_AGENT_DEV_ROOT=/app/python/.agent-dev
+      - ANDYRIA_CODE_SERVER_FOLDER_ROOT=/home/coder/project/python/.agent-dev
+      - ANDYRIA_CODE_SERVER_URL=http://localhost:8080
+
+  andyria-peer:
+    entrypoint: []
+    command:
+      - python
+      - -m
+      - uvicorn
+      - andyria._dev:app
+      - --reload
+      - --reload-dir
+      - /app/python
+      - --host
+      - 0.0.0.0
+      - --port
+      - "7700"
+    volumes:
+      - ./python:/app/python:rw
+      - andyria-peer-data:/data/andyria
+      - /dev/urandom:/dev/urandom:ro
+    environment:
+      - ANDYRIA_DEV=1
+      - ANDYRIA_AGENT_DEV_ROOT=/app/python/.agent-dev
+      - ANDYRIA_CODE_SERVER_FOLDER_ROOT=/home/coder/project/python/.agent-dev
+      - ANDYRIA_CODE_SERVER_URL=http://localhost:8080
+
+  # ── code-server (VS Code in the browser) ──────────────────────────────────
+  # Open http://localhost:8080 — no password in dev mode.
+  # The entire project root is mounted at /home/coder/project.
+  code-server:
+    image: codercom/code-server:latest
+    ports:
+      - "8080:8080"
+    volumes:
+      # Full project available inside the IDE
+      - .:/home/coder/project:rw
+      # Persist VS Code extensions across container restarts
+      - code-server-extensions:/home/coder/.local/share/code-server
+    environment:
+      - PASSWORD=  # empty = no password
+    command: ["--auth", "none", "--bind-addr", "0.0.0.0:8080", "/home/coder/project"]
+    restart: unless-stopped
+
+volumes:
+  code-server-extensions:

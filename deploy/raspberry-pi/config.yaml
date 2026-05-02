@@ -1,0 +1,32 @@
+# Andyria edge deployment profile (Raspberry Pi 4 / Zero 2W)
+# Optimised for < 4 GB RAM, 4 cores, no GPU.
+
+node_id: "andyria-edge-0"
+deployment_class: "edge"
+data_dir: "/home/pi/.andyria"
+
+# Physical entropy sources available on Raspberry Pi
+entropy_sources:
+  - "os_urandom"
+  - "hwrng"          # BCM hardware TRNG — requires rng-tools: rngd -r /dev/hwrng
+  - "clock_jitter"
+  - "thermal"
+
+# Quantized GGUF model — Q2_K keeps RAM under 700 MB
+# Download: make model-tiny (see Makefile)
+model_path: "/home/pi/.andyria/models/tinyllama-1.1b-chat-v1.0.Q2_K.gguf"
+# Alternative: route through local Ollama instead of llama.cpp
+# ollama_url: "http://localhost:11434"
+
+api:
+  host: "0.0.0.0"
+  port: 7700
+
+performance:
+  max_tasks: 2
+  model_ctx_tokens: 512
+  beacon_interval_ms: 5000
+
+peers: []
+# peers:
+#   - "http://192.168.1.20:7700"

@@ -1,0 +1,18 @@
+[package]
+name        = "andyria-ledger"
+version     = "0.1.0"
+edition     = "2021"
+description = "Low-power signed event log with physical-entropy-anchored state for Andyria"
+
+[dependencies]
+serde         = { workspace = true }
+serde_json    = { workspace = true }
+blake3        = { workspace = true }
+ed25519-dalek = { workspace = true }
+rand_core     = { workspace = true }
+thiserror     = { workspace = true }
+hex           = { workspace = true }
+sha3          = { workspace = true }
+
+[dev-dependencies]
+tempfile = "3"

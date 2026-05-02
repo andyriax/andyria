@@ -1,0 +1,1668 @@
+<!doctype html>
+<!-- Andyria Console v2 — chat-style assistant interface -->
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Andyria</title>
+  <style>
+    :root {
+      --bg: #0b1216;
+      --surface: #111a20;
+      --surface-2: #152028;
+      --text: #d6e7ef;
+      --muted: #7a9fb5;
+      --accent: #20c997;
+      --accent-dim: #0d8f6b;
+      --user-bubble: #1a3040;
+      --assistant-bubble: #0f2230;
+      --border: #1d3040;
+      --danger: #ff6b6b;
+      --warning: #f0a940;
+      --radius: 12px;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    html, body {
+      height: 100%;
+      font-family: "Segoe UI", system-ui, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      font-size: 15px;
+    }
+
+    .layout {
+      display: grid;
+      grid-template-columns: 260px 1fr;
+      grid-template-rows: 48px 1fr;
+      height: 100vh;
+    }
+
+    /* ── Topbar ── */
+    .topbar {
+      grid-column: 1 / -1;
+      background: var(--surface);
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 0 16px;
+    }
+    .topbar h1 { font-size: 1rem; font-weight: 600; letter-spacing: 0.5px; flex: 1; }
+    .ready-badge {
+      font-size: 0.78rem;
+      padding: 3px 10px;
+      border-radius: 999px;
+      border: 1px solid var(--border);
+      color: var(--muted);
+    }
+    .ready-badge.ok   { color: var(--accent);  border-color: var(--accent-dim); }
+    .ready-badge.warn { color: var(--warning); border-color: #7a5000; }
+    .ready-badge.bad  { color: var(--danger);  border-color: #6e2020; }
+
+    /* ── Sidebar ── */
+    .sidebar {
+      background: var(--surface);
+      border-right: 1px solid var(--border);
+      display: flex;
+      flex-direction: column;
+      padding: 14px 10px;
+      gap: 6px;
+      overflow-y: auto;
+    }
+    .sidebar-label {
+      font-size: 0.72rem;
+      text-transform: uppercase;
+      letter-spacing: 0.8px;
+      color: var(--muted);
+      padding: 4px 6px 2px;
+    }
+    .sidebar-btn {
+      background: none;
+      border: none;
+      color: var(--text);
+      font: inherit;
+      font-size: 0.88rem;
+      padding: 8px 10px;
+      border-radius: 8px;
+      text-align: left;
+      cursor: pointer;
+      width: 100%;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .sidebar-btn:hover { background: var(--surface-2); }
+    .sidebar-btn.active { background: var(--surface-2); color: var(--accent); }
+
+    .sidebar-section { margin-top: 8px; }
+    .node-info {
+      font-size: 0.8rem;
+      color: var(--muted);
+      padding: 6px 10px;
+      line-height: 1.6;
+    }
+    .node-info strong { color: var(--text); }
+
+    /* ── Chat main area ── */
+    .main {
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+
+    .chat-area {
+      flex: 1;
+      overflow-y: auto;
+      padding: 24px 20px;
+      display: flex;
+      flex-direction: column;
+      gap: 18px;
+      scroll-behavior: smooth;
+    }
+
+    .turn { display: flex; flex-direction: column; gap: 6px; }
+
+    .bubble {
+      max-width: 80%;
+      border-radius: var(--radius);
+      padding: 12px 16px;
+      line-height: 1.55;
+      font-size: 0.95rem;
+      word-break: break-word;
+    }
+    .bubble.user {
+      background: var(--user-bubble);
+      border: 1px solid var(--border);
+      align-self: flex-end;
+    }
+    .bubble.assistant {
+      background: var(--assistant-bubble);
+      border: 1px solid var(--border);
+      align-self: flex-start;
+      white-space: pre-wrap;
+    }
+
+    .turn-meta {
+      font-size: 0.76rem;
+      color: var(--muted);
+      display: flex;
+      gap: 10px;
+      align-items: center;
+      flex-wrap: wrap;
+    }
+    .turn-meta.user { justify-content: flex-end; }
+    .turn-meta.assistant { justify-content: flex-start; }
+
+    .meta-tag {
+      background: rgba(255,255,255,0.04);
+      border: 1px solid var(--border);
+      border-radius: 5px;
+      padding: 1px 6px;
+    }
+
+    .typing-indicator {
+      display: flex;
+      gap: 4px;
+      align-items: center;
+      padding: 12px 16px;
+      background: var(--assistant-bubble);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      align-self: flex-start;
+    }
+    .dot {
+      width: 7px; height: 7px;
+      border-radius: 50%;
+      background: var(--muted);
+      animation: bounce 1.4s infinite;
+    }
+    .dot:nth-child(2) { animation-delay: 0.2s; }
+    .dot:nth-child(3) { animation-delay: 0.4s; }
+    @keyframes bounce {
+      0%, 80%, 100% { transform: translateY(0); opacity: 0.5; }
+      40% { transform: translateY(-5px); opacity: 1; }
+    }
+
+    .empty-state {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 10px;
+      color: var(--muted);
+      text-align: center;
+    }
+    .empty-state h2 { font-size: 1.1rem; color: var(--text); }
+    .empty-state p  { font-size: 0.9rem; max-width: 360px; line-height: 1.5; }
+    .suggestion-pills {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+      justify-content: center;
+      margin-top: 8px;
+    }
+    .pill {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 999px;
+      padding: 6px 14px;
+      font-size: 0.85rem;
+      cursor: pointer;
+      transition: border-color 0.15s;
+    }
+    .pill:hover { border-color: var(--accent); color: var(--accent); }
+
+    /* ── Input bar ── */
+    .input-bar {
+      padding: 12px 16px;
+      background: var(--surface);
+      border-top: 1px solid var(--border);
+      display: flex;
+      gap: 10px;
+      align-items: flex-end;
+    }
+    textarea {
+      flex: 1;
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      color: var(--text);
+      font: inherit;
+      font-size: 0.95rem;
+      padding: 10px 14px;
+      resize: none;
+      min-height: 44px;
+      max-height: 180px;
+      line-height: 1.4;
+      outline: none;
+    }
+    textarea:focus { border-color: var(--accent-dim); }
+
+    .send-btn {
+      background: var(--accent);
+      border: none;
+      border-radius: 10px;
+      color: #03241a;
+      font-weight: 700;
+      font-size: 0.95rem;
+      padding: 10px 18px;
+      cursor: pointer;
+      align-self: flex-end;
+      height: 44px;
+      transition: opacity 0.15s;
+      white-space: nowrap;
+    }
+    .send-btn:disabled { opacity: 0.4; cursor: default; }
+
+    .error-bar {
+      font-size: 0.85rem;
+      color: var(--danger);
+      padding: 6px 16px 0;
+      min-height: 1.4em;
+    }
+
+    code { font-family: "Fira Code", "Consolas", monospace; font-size: 0.88em; color: #9ce7cf; }
+
+    /* ── Control panel drawer ── */
+    .cp-overlay {
+      display: none;
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,0.45);
+      z-index: 100;
+    }
+    .cp-overlay.open { display: block; }
+
+    .cp-drawer {
+      position: fixed;
+      top: 0; right: 0; bottom: 0;
+      width: min(480px, 100vw);
+      background: var(--surface);
+      border-left: 1px solid var(--border);
+      display: flex;
+      flex-direction: column;
+      transform: translateX(100%);
+      transition: transform 0.22s ease;
+      z-index: 101;
+      overflow: hidden;
+    }
+    .cp-overlay.open .cp-drawer {
+      transform: translateX(0);
+    }
+
+    .cp-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 14px 18px;
+      border-bottom: 1px solid var(--border);
+      font-weight: 600;
+    }
+    .cp-close {
+      background: none;
+      border: none;
+      color: var(--muted);
+      font-size: 1.2rem;
+      cursor: pointer;
+      padding: 4px 8px;
+      border-radius: 6px;
+    }
+    .cp-close:hover { background: var(--surface-2); color: var(--text); }
+
+    .cp-body {
+      flex: 1;
+      overflow-y: auto;
+      padding: 18px;
+      display: flex;
+      flex-direction: column;
+      gap: 22px;
+    }
+
+    .cp-section-title {
+      font-size: 0.72rem;
+      text-transform: uppercase;
+      letter-spacing: 0.8px;
+      color: var(--muted);
+      margin-bottom: 10px;
+    }
+
+    .cp-field {
+      display: flex;
+      flex-direction: column;
+      gap: 5px;
+      margin-bottom: 10px;
+    }
+    .cp-field label {
+      font-size: 0.82rem;
+      color: var(--muted);
+    }
+    .cp-field input {
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      color: var(--text);
+      font: inherit;
+      font-size: 0.9rem;
+      padding: 8px 12px;
+      outline: none;
+    }
+    .cp-field input:focus { border-color: var(--accent-dim); }
+    .cp-field select {
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      color: var(--text);
+      font: inherit;
+      font-size: 0.9rem;
+      padding: 8px 12px;
+      outline: none;
+      appearance: none;
+      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath fill='%237a9fb5' d='M6 8L0 0h12z'/%3E%3C/svg%3E");
+      background-repeat: no-repeat;
+      background-position: right 12px center;
+      padding-right: 32px;
+      cursor: pointer;
+    }
+    .cp-field select:focus { border-color: var(--accent-dim); }
+    .cp-field select option { background: var(--surface); color: var(--text); }
+
+    .cp-row {
+      display: flex;
+      gap: 8px;
+    }
+
+    .cp-btn {
+      background: var(--surface-2);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      color: var(--text);
+      font: inherit;
+      font-size: 0.88rem;
+      padding: 8px 14px;
+      cursor: pointer;
+      flex: 1;
+    }
+    .cp-btn:hover { border-color: var(--accent-dim); }
+    .cp-btn.primary {
+      background: var(--accent);
+      color: #03241a;
+      font-weight: 600;
+      border-color: transparent;
+    }
+    .cp-btn.primary:hover { opacity: 0.9; }
+    .cp-btn:disabled { opacity: 0.45; cursor: default; }
+
+    .cp-status-msg {
+      font-size: 0.82rem;
+      min-height: 1.2em;
+      padding: 2px 0;
+    }
+    .cp-status-msg.ok   { color: var(--accent); }
+    .cp-status-msg.err  { color: var(--danger); }
+    .cp-status-msg.info { color: var(--muted); }
+
+    .cp-stat-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px;
+    }
+    .cp-stat {
+      background: var(--surface-2);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 10px 12px;
+    }
+    .cp-stat-label { font-size: 0.73rem; color: var(--muted); margin-bottom: 2px; }
+    .cp-stat-value { font-size: 1rem; font-weight: 600; }
+
+    .cp-events {
+      list-style: none;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      max-height: 220px;
+      overflow-y: auto;
+    }
+    .cp-events li {
+      background: var(--surface-2);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 7px 10px;
+      font-size: 0.8rem;
+      line-height: 1.5;
+    }
+    .cp-events li code { font-size: 0.75em; }
+
+    .cp-peers-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.8rem;
+    }
+    .cp-peers-table th {
+      text-align: left;
+      padding: 6px;
+      background: var(--surface-2);
+      border-bottom: 1px solid var(--border);
+      font-weight: 600;
+    }
+    .cp-peers-table td {
+      padding: 6px;
+      border-bottom: 1px solid var(--border);
+    }
+    .cp-peers-table .status-dot {
+      display: inline-block;
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      margin-right: 4px;
+    }
+    .cp-peers-table .status-dot.ok { background: #20c997; }
+    .cp-peers-table .status-dot.err { background: #ff6b6b; }
+
+    .topbar-cp-btn {
+      background: none;
+      border: 1px solid var(--border);
+      border-radius: 7px;
+      color: var(--muted);
+      font-size: 0.85rem;
+      padding: 4px 10px;
+      cursor: pointer;
+    }
+    .topbar-cp-btn:hover { color: var(--text); border-color: var(--accent-dim); }
+
+    /* ── Agents sidebar ── */
+    .sidebar-new-btn {
+      background: none;
+      border: 1px dashed var(--border);
+      border-radius: 8px;
+      color: var(--muted);
+      font: inherit;
+      font-size: 0.82rem;
+      padding: 6px 10px;
+      cursor: pointer;
+      width: 100%;
+      text-align: left;
+      margin-top: 4px;
+    }
+    .sidebar-new-btn:hover { border-color: var(--accent-dim); color: var(--accent); }
+
+    .agent-item {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 7px 10px;
+      border-radius: 8px;
+      cursor: pointer;
+      font-size: 0.88rem;
+    }
+    .agent-item:hover { background: var(--surface-2); }
+    .agent-item.active { background: var(--surface-2); }
+    .agent-dot {
+      width: 8px; height: 8px;
+      border-radius: 50%;
+      background: var(--muted);
+      flex-shrink: 0;
+    }
+    .agent-item.active .agent-dot { background: var(--accent); }
+    .agent-avatar {
+      width: 22px;
+      height: 22px;
+      border-radius: 7px;
+      border: 1px solid var(--border);
+      flex-shrink: 0;
+      object-fit: cover;
+      background: var(--surface);
+    }
+    .agent-main {
+      display: flex;
+      flex-direction: column;
+      min-width: 0;
+      flex: 1;
+      gap: 1px;
+    }
+    .agent-name { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .agent-name.active { color: var(--accent); }
+    .agent-persona {
+      font-size: 0.69rem;
+      color: var(--muted);
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .agent-model { font-size: 0.73rem; color: var(--muted); flex-shrink: 0; }
+    .agent-dev-btn {
+      border: 1px solid var(--border);
+      background: rgba(32, 201, 151, 0.08);
+      color: var(--accent);
+      border-radius: 6px;
+      font-size: 0.68rem;
+      padding: 2px 6px;
+      cursor: pointer;
+      margin-left: 8px;
+      flex: 0 0 auto;
+    }
+    .agent-dev-btn:hover {
+      border-color: var(--accent-dim);
+      background: rgba(32, 201, 151, 0.14);
+    }
+
+    /* ── Tab bar ── */
+    .tab-bar {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      padding: 6px 12px;
+      background: var(--surface);
+      border-bottom: 1px solid var(--border);
+      overflow-x: auto;
+    }
+    .tab-bar::-webkit-scrollbar { height: 3px; }
+    .tab-bar::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+    .tab-chip {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      background: var(--surface-2);
+      border: 1px solid var(--border);
+      border-radius: 7px;
+      padding: 4px 10px;
+      font-size: 0.82rem;
+      cursor: pointer;
+      white-space: nowrap;
+      flex-shrink: 0;
+    }
+    .tab-chip.active { border-color: var(--accent-dim); color: var(--accent); }
+    .tab-chip-close {
+      background: none;
+      border: none;
+      color: var(--muted);
+      cursor: pointer;
+      font-size: 0.8rem;
+      padding: 0;
+      line-height: 1;
+    }
+    .tab-chip-close:hover { color: var(--danger); }
+    .tab-btn-new {
+      background: none;
+      border: 1px dashed var(--border);
+      border-radius: 7px;
+      color: var(--muted);
+      font-size: 0.88rem;
+      padding: 3px 10px;
+      cursor: pointer;
+      flex-shrink: 0;
+    }
+    .tab-btn-new:hover { border-color: var(--accent-dim); color: var(--accent); }
+
+    /* ── ATM Panel ── */
+    .atm-btn {
+      background: none;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      color: var(--muted);
+      font: inherit;
+      font-size: 0.82rem;
+      padding: 6px 10px;
+      cursor: pointer;
+      width: 100%;
+      text-align: left;
+      margin-top: 2px;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .atm-btn:hover { border-color: var(--accent-dim); color: var(--accent); }
+    .atm-result {
+      background: var(--surface-2);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 10px 12px;
+      font-size: 0.82rem;
+      margin-top: 6px;
+      line-height: 1.5;
+      max-height: 220px;
+      overflow-y: auto;
+    }
+    .atm-step {
+      border-left: 2px solid var(--accent-dim);
+      padding-left: 8px;
+      margin-bottom: 10px;
+    }
+    .atm-step-header {
+      font-size: 0.74rem;
+      color: var(--accent);
+      margin-bottom: 3px;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .atm-step-critique {
+      font-size: 0.76rem;
+      color: var(--muted);
+      margin-top: 3px;
+    }
+    .atm-input {
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      color: var(--text);
+      font: inherit;
+      font-size: 0.85rem;
+      padding: 7px 10px;
+      outline: none;
+      width: 100%;
+      box-sizing: border-box;
+      resize: vertical;
+    }
+    .atm-input:focus { border-color: var(--accent-dim); }
+    .meta-tag.reflection {
+      border-color: #6366f1;
+      color: #818cf8;
+    }
+
+    /* ── Modal ── */
+    .modal-overlay {
+      display: none;
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,0.55);
+      z-index: 200;
+      align-items: center;
+      justify-content: center;
+    }
+    .modal-overlay.open { display: flex; }
+    .modal {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      width: min(440px, 96vw);
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+    .modal-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 14px 18px;
+      border-bottom: 1px solid var(--border);
+      font-weight: 600;
+    }
+    .modal-close {
+      background: none; border: none;
+      color: var(--muted); font-size: 1.1rem; cursor: pointer;
+      padding: 4px 8px; border-radius: 6px;
+    }
+    .modal-close:hover { background: var(--surface-2); color: var(--text); }
+    .modal-body { padding: 18px; display: flex; flex-direction: column; gap: 14px; }
+    .modal-field { display: flex; flex-direction: column; gap: 5px; }
+    .modal-field label { font-size: 0.82rem; color: var(--muted); }
+    .modal-field input, .modal-field textarea {
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      color: var(--text);
+      font: inherit;
+      font-size: 0.9rem;
+      padding: 8px 12px;
+      outline: none;
+    }
+    .modal-field input:focus, .modal-field textarea:focus { border-color: var(--accent-dim); }
+    .modal-footer {
+      display: flex;
+      gap: 8px;
+      padding: 14px 18px;
+      border-top: 1px solid var(--border);
+    }
+    .modal-status { font-size: 0.82rem; color: var(--danger); min-height: 1.2em; padding: 0 18px 10px; }
+
+    @media (max-width: 640px) {
+      .layout { grid-template-columns: 1fr; }
+      .sidebar { display: none; }
+    }
+  </style>
+</head>
+<body>
+  <div class="layout">
+    <!-- Topbar -->
+    <header class="topbar">
+      <h1>Andyria</h1>
+      <span id="active-agent-label" class="meta-tag" style="font-size:0.78rem;cursor:default" title="Active agent"></span>
+      <span id="ready-badge" class="ready-badge">connecting…</span>
+      <button class="topbar-cp-btn" id="btn-open-cp" title="Control panel">⚙ Panel</button>
+    </header>
+
+    <!-- Sidebar -->
+    <aside class="sidebar">
+      <div class="sidebar-label">Session</div>
+      <button class="sidebar-btn" id="btn-new-session">＋ New session</button>
+      <button class="sidebar-btn" id="btn-clear-session">✕ Clear current</button>
+
+      <div class="sidebar-section">
+        <div class="sidebar-label">Suggestions</div>
+        <button class="sidebar-btn suggestion" data-text="Explain entropy in 2 sentences.">Explain entropy</button>
+        <button class="sidebar-btn suggestion" data-text="Calculate (42 * 7) / 3">Math: (42 × 7) ÷ 3</button>
+        <button class="sidebar-btn suggestion" data-text="What makes a good distributed system?">Distributed systems</button>
+        <button class="sidebar-btn suggestion" data-text="Summarize what you know about this session so far.">Recap session</button>
+      </div>
+
+      <div class="sidebar-section" id="agents-section">
+        <div style="display:flex;align-items:center;justify-content:space-between;padding:4px 6px 2px">
+          <div class="sidebar-label" style="padding:0">Agents</div>
+          <button class="sidebar-new-btn" id="btn-new-agent" style="width:auto;border:none;padding:2px 6px;font-size:0.8rem">＋ New</button>
+        </div>
+        <div id="agent-list"></div>
+      </div>
+
+      <!-- ATM Section -->
+      <div class="sidebar-section" id="atm-section">
+        <div class="sidebar-label">ATM — Thought Machine</div>
+        <textarea id="atm-prompt-input" class="atm-input" rows="2" placeholder="Ask ATM to think…"></textarea>
+        <div style="display:flex;gap:6px;margin-top:4px">
+          <button class="atm-btn" id="btn-atm-think" style="flex:1">🧠 Think</button>
+          <button class="atm-btn" id="btn-atm-reflect" style="flex:1">🔄 Reflect</button>
+        </div>
+        <div id="atm-result" style="display:none" class="atm-result"></div>
+      </div>
+
+      <div class="sidebar-section" style="flex:1"></div>
+
+      <div class="sidebar-label">Node</div>
+      <div id="node-info" class="node-info">Loading…</div>
+    </aside>
+
+    <!-- Chat main -->
+    <main class="main">
+      <div class="tab-bar" id="tab-bar">
+        <button class="tab-btn-new" id="btn-new-tab" title="Open new tab">＋</button>
+      </div>
+      <div id="chat-area" class="chat-area">
+        <div class="empty-state" id="empty-state">
+          <h2>Andyria ready</h2>
+          <p>Edge-first intelligence platform. Type a prompt below or pick a suggestion to get started.</p>
+          <div class="suggestion-pills">
+            <div class="pill" data-text="Explain entropy in 2 sentences.">Explain entropy</div>
+            <div class="pill" data-text="Calculate (42 * 7) / 3">Math: (42 × 7) ÷ 3</div>
+            <div class="pill" data-text="What makes a good distributed system?">Distributed systems</div>
+          </div>
+        </div>
+      </div>
+
+      <div id="error-bar" class="error-bar"></div>
+
+      <div class="input-bar">
+        <textarea id="prompt" rows="1" placeholder="Message Andyria…"></textarea>
+        <button class="send-btn" id="send-btn">Send</button>
+      </div>
+    </main>
+  </div>
+
+  <!-- New Agent Modal -->
+  <div class="modal-overlay" id="new-agent-modal">
+    <div class="modal">
+      <div class="modal-header">
+        <span>New Agent</span>
+        <button class="modal-close" id="btn-close-agent-modal">✕</button>
+      </div>
+      <div class="modal-body">
+        <div class="modal-field">
+          <label for="agent-name-input">Name <span style="color:var(--danger)">*</span></label>
+          <input id="agent-name-input" type="text" placeholder="My Agent" maxlength="80" />
+        </div>
+        <div class="modal-field">
+          <label for="agent-system-prompt">System prompt</label>
+          <textarea id="agent-system-prompt" rows="3" placeholder="You are a helpful assistant."></textarea>
+        </div>
+      </div>
+      <div class="modal-status" id="agent-modal-status"></div>
+      <div class="modal-footer">
+        <button class="cp-btn" id="btn-cancel-agent" style="flex:1">Cancel</button>
+        <button class="cp-btn primary" id="btn-create-agent" style="flex:2">Create Agent</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Control Panel Drawer -->
+  <div class="cp-overlay" id="cp-overlay">
+    <div class="cp-drawer" id="cp-drawer">
+      <div class="cp-header">
+        <span>Control Panel</span>
+        <button class="cp-close" id="btn-close-cp" title="Close">✕</button>
+      </div>
+      <div class="cp-body">
+
+        <!-- Node Stats -->
+        <section>
+          <div class="cp-section-title">Node Status</div>
+          <div class="cp-stat-grid" id="cp-stats">
+            <div class="cp-stat"><div class="cp-stat-label">Node ID</div><div class="cp-stat-value" id="cp-node-id">—</div></div>
+            <div class="cp-stat"><div class="cp-stat-label">Mode</div><div class="cp-stat-value" id="cp-mode">—</div></div>
+            <div class="cp-stat"><div class="cp-stat-label">Requests</div><div class="cp-stat-value" id="cp-reqs">—</div></div>
+            <div class="cp-stat"><div class="cp-stat-label">Uptime</div><div class="cp-stat-value" id="cp-uptime">—</div></div>
+            <div class="cp-stat"><div class="cp-stat-label">Beacons</div><div class="cp-stat-value" id="cp-beacons">—</div></div>
+            <div class="cp-stat"><div class="cp-stat-label">Events</div><div class="cp-stat-value" id="cp-events-count">—</div></div>
+          </div>
+        </section>
+
+        <!-- Model Config -->
+        <section>
+          <div class="cp-section-title">Model Configuration</div>
+          <div class="cp-field">
+            <label for="cp-ollama-url">Ollama URL</label>
+            <input id="cp-ollama-url" type="url" placeholder="http://host.docker.internal:11434" />
+          </div>
+          <div class="cp-field">
+            <label for="cp-ollama-model">Ollama model</label>
+            <select id="cp-ollama-model">
+              <option value="">— enter URL and click Refresh —</option>
+            </select>
+            <button class="cp-btn" id="cp-btn-refresh-models" style="margin-top:6px">↻ Refresh models</button>
+          </div>
+          <div class="cp-row">
+            <button class="cp-btn" id="cp-btn-test">Test connection</button>
+            <button class="cp-btn primary" id="cp-btn-save">Save &amp; apply</button>
+          </div>
+          <div class="cp-status-msg info" id="cp-config-status"></div>
+        </section>
+
+        <!-- Peers -->
+        <section>
+          <div class="cp-section-title">Mesh Peers</div>
+          <table class="cp-peers-table" id="cp-peers-table">
+            <thead>
+              <tr>
+                <th style="width:60%">URL</th>
+                <th>Status</th>
+              </tr>
+            </thead>
+            <tbody id="cp-peers-list">
+              <tr><td colspan="2" style="color:var(--muted)">No peers</td></tr>
+            </tbody>
+          </table>
+          <div class="cp-field" style="margin-top:12px">
+            <label for="cp-add-peer">Add peer</label>
+            <div class="cp-row" style="gap:6px">
+              <input id="cp-add-peer" type="url" placeholder="http://peer:7700" style="flex:1" />
+              <button class="cp-btn primary" id="cp-btn-add-peer" style="flex:0">＋</button>
+            </div>
+          </div>
+        </section>
+
+        <!-- Session -->
+        <section>
+          <div class="cp-section-title">Current Session</div>
+          <div class="cp-field">
+            <label>Session ID</label>
+            <input id="cp-session-id" type="text" readonly style="opacity:0.6;cursor:default" />
+          </div>
+          <div class="cp-row">
+            <button class="cp-btn" id="cp-btn-new-session">New session</button>
+            <button class="cp-btn" id="cp-btn-clear-session">Clear &amp; reset</button>
+          </div>
+        </section>
+
+        <!-- Recent Events -->
+        <section>
+          <div class="cp-section-title" style="display:flex;justify-content:space-between;align-items:center">
+            Recent Events
+            <button class="cp-btn" style="flex:none;padding:3px 10px;font-size:0.78rem" id="cp-btn-refresh-events">↻ Refresh</button>
+          </div>
+          <ul class="cp-events" id="cp-events-list">
+            <li style="color:var(--muted)">No events yet.</li>
+          </ul>
+        </section>
+
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // ── State ──────────────────────────────────────────────────────────────
+    let sessionId = crypto.randomUUID();
+    let busy = false;
+    let eventStream = null;
+    let eventStreamRetryTimer = null;
+    let activeAgentId = null;
+    let agents = [];
+    let tabs = [];
+
+    // ── DOM refs ───────────────────────────────────────────────────────────
+    const chatArea    = document.getElementById("chat-area");
+    const emptyState  = document.getElementById("empty-state");
+    const promptInput = document.getElementById("prompt");
+    const sendBtn     = document.getElementById("send-btn");
+    const errorBar    = document.getElementById("error-bar");
+    const readyBadge  = document.getElementById("ready-badge");
+    const nodeInfo    = document.getElementById("node-info");
+
+    // ── Utilities ──────────────────────────────────────────────────────────
+    function setError(msg) { errorBar.textContent = msg || ""; }
+
+    function setBusy(b) {
+      busy = b;
+      sendBtn.disabled = b;
+      sendBtn.textContent = b ? "…" : "Send";
+    }
+
+    function scrollBottom() {
+      chatArea.scrollTop = chatArea.scrollHeight;
+    }
+
+    function autoGrow(el) {
+      el.style.height = "auto";
+      el.style.height = Math.min(el.scrollHeight, 180) + "px";
+    }
+
+    function hideEmpty() {
+      if (emptyState && emptyState.parentNode === chatArea) {
+        chatArea.removeChild(emptyState);
+      }
+    }
+
+    function renderUser(text) {
+      hideEmpty();
+      const turn = document.createElement("div");
+      turn.className = "turn";
+      turn.innerHTML = `
+        <div class="bubble user">${escHtml(text)}</div>
+        <div class="turn-meta user"><span class="meta-tag">you</span></div>`;
+      chatArea.appendChild(turn);
+      scrollBottom();
+      return turn;
+    }
+
+    function addTypingIndicator() {
+      hideEmpty();
+      const el = document.createElement("div");
+      el.className = "typing-indicator";
+      el.innerHTML = `<div class="dot"></div><div class="dot"></div><div class="dot"></div>`;
+      chatArea.appendChild(el);
+      scrollBottom();
+      return el;
+    }
+
+    function renderAssistant(text, meta) {
+      const turn = document.createElement("div");
+      turn.className = "turn";
+      const metaTags = [
+        meta.agent_name ? `<span class="meta-tag">🤖 ${escHtml(meta.agent_name)}</span>` : "",
+        meta.model_used ? `<span class="meta-tag">${escHtml(meta.model_used)}</span>` : "",
+        meta.processing_ms != null ? `<span class="meta-tag">${meta.processing_ms}ms</span>` : "",
+        meta.confidence != null ? `<span class="meta-tag">${Math.round(meta.confidence * 100)}% conf</span>` : "",
+        meta.turn_number ? `<span class="meta-tag">turn ${meta.turn_number}</span>` : "",
+        meta.reflection ? `<span class="meta-tag reflection" title="ATM reflected: ${meta.reflection.revised ? 'revised' : 'no change'} — ${meta.reflection.critique ? escHtml(meta.reflection.critique.slice(0,120)) : ''}">&#x1F9E0; ATM${meta.reflection.revised ? ' ✓' : ''}</span>` : "",
+      ].filter(Boolean).join("");
+
+      turn.innerHTML = `
+        <div class="bubble assistant">${escHtml(text)}</div>
+        <div class="turn-meta assistant">${metaTags}</div>`;
+      chatArea.appendChild(turn);
+      scrollBottom();
+    }
+
+    function escHtml(s) {
+      return String(s)
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;");
+    }
+
+    function updateBadge(status) {
+      readyBadge.className = "ready-badge";
+      if (!status) { readyBadge.textContent = "unknown"; return; }
+      const detail = status.readiness_detail || status.detail || "";
+      if (status.ready === false) {
+        readyBadge.classList.add("bad");
+        readyBadge.textContent = "degraded";
+        readyBadge.title = detail;
+      } else if (detail && detail !== "ok") {
+        readyBadge.classList.add("warn");
+        readyBadge.textContent = "stub mode";
+        readyBadge.title = detail;
+      } else {
+        readyBadge.classList.add("ok");
+        readyBadge.textContent = "ready";
+        readyBadge.title = "";
+      }
+    }
+
+    function updateNodeInfo(s) {
+      if (!s) { nodeInfo.textContent = "unavailable"; return; }
+      nodeInfo.innerHTML = `
+        <strong>${escHtml(s.node_id)}</strong><br>
+        ${escHtml(s.deployment_class)} · ${s.requests_processed} req<br>
+        ${s.entropy_beacons_generated} beacons · ${s.events_stored} events<br>
+        ${s.detail && s.detail !== "ok" ? `<span style="color:var(--warning)">${escHtml(s.detail)}</span>` : ""}
+      `;
+    }
+
+    // ── API calls ──────────────────────────────────────────────────────────
+    async function loadStatus() {
+      try {
+        const res = await fetch("/v1/status");
+        if (!res.ok) throw new Error("status " + res.status);
+        const data = await res.json();
+        updateBadge(data);
+        updateNodeInfo(data);
+      } catch {
+        readyBadge.className = "ready-badge bad";
+        readyBadge.textContent = "offline";
+      }
+    }
+
+    async function send() {
+      const text = promptInput.value.trim();
+      if (!text || busy) return;
+      setError("");
+      setBusy(true);
+
+      renderUser(text);
+      promptInput.value = "";
+      promptInput.style.height = "auto";
+
+      const typing = addTypingIndicator();
+
+      try {
+        const res = await fetch("/v1/infer", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            input: text,
+            session_id: sessionId,
+            ...(activeAgentId ? { agent_id: activeAgentId } : {}),
+          }),
+        });
+
+        chatArea.removeChild(typing);
+
+        if (!res.ok) {
+          const body = await res.json().catch(() => ({}));
+          const detail = body.detail || `HTTP ${res.status}`;
+          renderAssistant(`⚠ Error: ${detail}`, {});
+          setError(detail);
+        } else {
+          const data = await res.json();
+          const agentDef = agents.find(a => a.agent_id === data.agent_id);
+          renderAssistant(data.output, {
+            agent_name:     agentDef ? agentDef.name : data.agent_id,
+            model_used:     data.model_used,
+            processing_ms:  data.processing_ms,
+            confidence:     data.confidence,
+            turn_number:    data.turn_number,
+            reflection:     data.reflection || null,
+          });
+        }
+
+        loadStatus();
+      } catch (err) {
+        if (chatArea.contains(typing)) chatArea.removeChild(typing);
+        const msg = err.message || "Network error";
+        renderAssistant(`⚠ ${msg}`, {});
+        setError(msg);
+      } finally {
+        setBusy(false);
+        promptInput.focus();
+      }
+    }
+
+    // ── Control Panel ─────────────────────────────────────────────────────
+    const cpOverlay      = document.getElementById("cp-overlay");
+    const cpConfigStatus = document.getElementById("cp-config-status");
+
+    function cpSetStatus(msg, kind = "info") {
+      cpConfigStatus.textContent = msg;
+      cpConfigStatus.className = `cp-status-msg ${kind}`;
+    }
+
+    function openPanel() {
+      cpOverlay.classList.add("open");
+      document.getElementById("cp-session-id").value = sessionId;
+      refreshCpStatus();
+      refreshCpEvents();
+      loadCpConfig();
+    }
+
+    function closePanel() {
+      cpOverlay.classList.remove("open");
+    }
+
+    async function refreshCpStatus() {
+      try {
+        const s = await fetch("/v1/status").then(r => r.json());
+        document.getElementById("cp-node-id").textContent  = s.node_id || "—";
+        document.getElementById("cp-mode").textContent     = s.model_loaded ? "LLM" : "stub";
+        document.getElementById("cp-reqs").textContent     = s.requests_processed ?? "—";
+        document.getElementById("cp-uptime").textContent   = s.uptime_s != null ? Math.round(s.uptime_s) + "s" : "—";
+        document.getElementById("cp-beacons").textContent  = s.entropy_beacons_generated ?? "—";
+        document.getElementById("cp-events-count").textContent = s.events_stored ?? "—";
+        updateBadge(s);
+        updateNodeInfo(s);
+        refreshCpPeers();
+      } catch { /* silent */ }
+    }
+
+    async function refreshCpPeers() {
+      const tbody = document.getElementById("cp-peers-list");
+      try {
+        const peers = await fetch("/v1/peers").then(r => r.json());
+        if (!peers.length) {
+          tbody.innerHTML = `<tr><td colspan="2" style="color:var(--muted)">No peers</td></tr>`;
+          return;
+        }
+        tbody.innerHTML = peers.map(p => {
+          const status = p.reachable ? "ok" : "err";
+          const lastSeen = p.last_seen_ns > 0 ? Math.round((Date.now() * 1e6 - p.last_seen_ns) / 1e9) + "s ago" : "—";
+          return `
+            <tr>
+              <td><code style="font-size:0.75rem">${escHtml(p.url)}</code></td>
+              <td><span class="status-dot ${status}"></span>${escHtml(p.node_id || "?")}</td>
+            </tr>`;
+        }).join("");
+      } catch {
+        tbody.innerHTML = `<tr><td colspan="2" style="color:var(--danger)">Failed to load peers</td></tr>`;
+      }
+    }
+
+    async function loadModels(selectedModel) {
+      const sel = document.getElementById("cp-ollama-model");
+      sel.disabled = true;
+      sel.innerHTML = `<option value="">Loading…</option>`;
+      try {
+        const models = await fetch("/v1/models").then(r => r.json());
+        if (!models.length) {
+          sel.innerHTML = `<option value="">No models found</option>`;
+        } else {
+          sel.innerHTML = models.map(m =>
+            `<option value="${escHtml(m)}"${m === selectedModel ? " selected" : ""}>${escHtml(m)}</option>`
+          ).join("");
+          if (selectedModel && !models.includes(selectedModel)) {
+            sel.innerHTML = `<option value="${escHtml(selectedModel)}" selected>${escHtml(selectedModel)} (current)</option>` + sel.innerHTML;
+          }
+        }
+      } catch {
+        sel.innerHTML = `<option value="">Failed to load</option>`;
+      } finally {
+        sel.disabled = false;
+      }
+    }
+
+    async function loadCpConfig() {
+      try {
+        const cfg = await fetch("/v1/config").then(r => r.json());
+        document.getElementById("cp-ollama-url").value = cfg.ollama_url || "";
+        await loadModels(cfg.ollama_model || "");
+        await refreshCpPeers();
+      } catch { /* silent */ }
+    }
+
+    async function refreshCpEvents() {
+      const list = document.getElementById("cp-events-list");
+      try {
+        const evts = await fetch("/v1/events").then(r => r.json());
+        if (!evts.length) {
+          list.innerHTML = `<li style="color:var(--muted)">No events yet.</li>`;
+          return;
+        }
+        list.innerHTML = evts.slice(-12).reverse().map(e => `
+          <li>
+            <strong>${escHtml(e.event_type)}</strong><br>
+            <code>${escHtml(e.id)}</code>
+          </li>`).join("");
+      } catch {
+        list.innerHTML = `<li style="color:var(--danger)">Failed to load events.</li>`;
+      }
+    }
+
+    function connectEventStream() {
+      if (eventStream) return;
+      const protocol = window.location.protocol === "https:" ? "wss" : "ws";
+      const url = `${protocol}://${window.location.host}/v1/stream`;
+      eventStream = new WebSocket(url);
+
+      eventStream.onmessage = (ev) => {
+        if (cpOverlay.classList.contains("open")) {
+          refreshCpEvents();
+          refreshCpStatus();
+        }
+        try {
+          const msg = JSON.parse(ev.data);
+          const et = (msg.event_type || "").toLowerCase();
+          if (et.startsWith("agent_") || et.startsWith("tab_")) {
+            loadAgents();
+            loadTabs();
+          }
+        } catch { /* non-JSON heartbeat, ignore */ }
+      };
+
+      eventStream.onclose = () => {
+        eventStream = null;
+        if (eventStreamRetryTimer) clearTimeout(eventStreamRetryTimer);
+        eventStreamRetryTimer = setTimeout(connectEventStream, 2000);
+      };
+
+      eventStream.onerror = () => {
+        if (eventStream) {
+          eventStream.close();
+        }
+      };
+    }
+
+    document.getElementById("btn-open-cp").addEventListener("click", openPanel);
+    document.getElementById("btn-close-cp").addEventListener("click", closePanel);
+    cpOverlay.addEventListener("click", (e) => { if (e.target === cpOverlay) closePanel(); });
+    document.addEventListener("keydown", (e) => {
+      if (e.key === "Escape") { closePanel(); closeNewAgentModal(); }
+    });
+
+    document.getElementById("btn-new-agent").addEventListener("click", openNewAgentModal);
+    document.getElementById("btn-close-agent-modal").addEventListener("click", closeNewAgentModal);
+    document.getElementById("btn-cancel-agent").addEventListener("click", closeNewAgentModal);
+    document.getElementById("btn-create-agent").addEventListener("click", createAgent);
+    document.getElementById("new-agent-modal").addEventListener("click", (e) => {
+      if (e.target === document.getElementById("new-agent-modal")) closeNewAgentModal();
+    });
+    document.getElementById("btn-new-tab").addEventListener("click", openNewTab);
+    document.getElementById("btn-atm-think").addEventListener("click", atmThink);
+    document.getElementById("btn-atm-reflect").addEventListener("click", atmReflect);
+
+    document.getElementById("cp-btn-refresh-events").addEventListener("click", refreshCpEvents);
+
+    document.getElementById("cp-btn-refresh-models").addEventListener("click", async () => {
+      const sel = document.getElementById("cp-ollama-model");
+      const current = sel.value;
+      await loadModels(current);
+    });
+
+    document.getElementById("cp-btn-save").addEventListener("click", async () => {
+      const url   = document.getElementById("cp-ollama-url").value.trim();
+      const model = document.getElementById("cp-ollama-model").value.trim();
+      const saveBtn = document.getElementById("cp-btn-save");
+      saveBtn.disabled = true;
+      cpSetStatus("Saving…", "info");
+      try {
+        const res = await fetch("/v1/config", {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ ollama_url: url || null, ollama_model: model || null }),
+        });
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        cpSetStatus("Saved. Refreshing status…", "ok");
+        await refreshCpStatus();
+        cpSetStatus("Configuration applied.", "ok");
+      } catch (err) {
+        cpSetStatus("Save failed: " + (err.message || "unknown"), "err");
+      } finally {
+        saveBtn.disabled = false;
+      }
+    });
+
+    document.getElementById("cp-btn-test").addEventListener("click", async () => {
+      const url   = document.getElementById("cp-ollama-url").value.trim();
+      const model = document.getElementById("cp-ollama-model").value.trim() || "phi3";
+      if (!url) { cpSetStatus("Enter an Ollama URL first.", "err"); return; }
+      const testBtn = document.getElementById("cp-btn-test");
+      testBtn.disabled = true;
+      cpSetStatus("Testing connection…", "info");
+      try {
+        const res = await fetch("/v1/infer", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ input: "ping", context: { _ollama_test: true, _ollama_url: url, _ollama_model: model } }),
+        });
+        const data = await res.json();
+        const m = data.model_used || "unknown";
+        if (m.startsWith("ollama") || m.startsWith("llama")) {
+          cpSetStatus(`Connected ✓ (${m})`, "ok");
+        } else {
+          cpSetStatus(`Responded via ${m} — Ollama may not be reachable yet`, "info");
+        }
+      } catch (err) {
+        cpSetStatus("Connection test failed: " + (err.message || "error"), "err");
+      } finally {
+        testBtn.disabled = false;
+      }
+    });
+
+    document.getElementById("cp-btn-add-peer").addEventListener("click", async () => {
+      const peerUrl = document.getElementById("cp-add-peer").value.trim();
+      if (!peerUrl) { cpSetStatus("Enter a peer URL.", "err"); return; }
+      const btn = document.getElementById("cp-btn-add-peer");
+      btn.disabled = true;
+      try {
+        const res = await fetch("/v1/peers", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ url: peerUrl }),
+        });
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        cpSetStatus("Peer added.", "ok");
+        document.getElementById("cp-add-peer").value = "";
+        await refreshCpPeers();
+      } catch (err) {
+        cpSetStatus("Add peer failed: " + (err.message || "error"), "err");
+      } finally {
+        btn.disabled = false;
+      }
+    });
+
+    // CP session controls mirror the sidebar
+    document.getElementById("cp-btn-new-session").addEventListener("click", () => {
+      sessionId = crypto.randomUUID();
+      chatArea.innerHTML = "";
+      chatArea.appendChild(emptyState);
+      setError("");
+      document.getElementById("cp-session-id").value = sessionId;
+    });
+    document.getElementById("cp-btn-clear-session").addEventListener("click", async () => {
+      try {
+        await fetch(`/v1/session/${sessionId}`, { method: "DELETE" });
+        sessionId = crypto.randomUUID();
+        chatArea.innerHTML = "";
+        chatArea.appendChild(emptyState);
+        setError("");
+        document.getElementById("cp-session-id").value = sessionId;
+      } catch (err) {
+        cpSetStatus("Clear failed: " + (err.message || "error"), "err");
+      }
+    });
+
+    // ── Event wiring ───────────────────────────────────────────────────────
+    sendBtn.addEventListener("click", send);
+
+    promptInput.addEventListener("input", () => autoGrow(promptInput));
+    promptInput.addEventListener("keydown", (e) => {
+      if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); send(); }
+    });
+
+    document.getElementById("btn-new-session").addEventListener("click", () => {
+      sessionId = crypto.randomUUID();
+      // Clear visual history
+      chatArea.innerHTML = "";
+      chatArea.appendChild(emptyState);
+      setError("");
+    });
+
+    document.getElementById("btn-clear-session").addEventListener("click", async () => {
+      try {
+        await fetch(`/v1/session/${sessionId}`, { method: "DELETE" });
+        sessionId = crypto.randomUUID();
+        chatArea.innerHTML = "";
+        chatArea.appendChild(emptyState);
+        setError("");
+      } catch (err) {
+        setError("Failed to clear session: " + (err.message || "unknown error"));
+      }
+    });
+
+    // Sidebar suggestion clicks
+    document.querySelectorAll(".sidebar-btn.suggestion, .pill").forEach((el) => {
+      el.addEventListener("click", () => {
+        promptInput.value = el.dataset.text || el.textContent;
+        autoGrow(promptInput);
+        promptInput.focus();
+      });
+    });
+
+    // ── Agents ─────────────────────────────────────────────────────────────
+    async function loadAgents() {
+      try {
+        const res = await fetch("/v1/agents");
+        agents = await res.json();
+        renderAgentList();
+      } catch { /* silent */ }
+    }
+
+    function renderAgentList() {
+      const list = document.getElementById("agent-list");
+      if (!agents.length) {
+        list.innerHTML = `<div class="node-info" style="padding:6px 10px">No agents</div>`;
+        return;
+      }
+      list.innerHTML = agents.map(a => `
+        <div class="agent-item${a.agent_id === activeAgentId ? " active" : ""}"
+             data-id="${escHtml(a.agent_id)}" title="${escHtml((a.persona && a.persona.mission) || a.system_prompt || a.name)}">
+          <div class="agent-dot"></div>
+          <img class="agent-avatar" src="/v1/agents/${encodeURIComponent(a.agent_id)}/avatar.svg" alt="${escHtml(a.name)} avatar" loading="lazy" />
+          <div class="agent-main">
+            <span class="agent-name${a.agent_id === activeAgentId ? " active" : ""}"
+                  >${escHtml(a.name)}</span>
+            <span class="agent-persona">${escHtml((a.persona && a.persona.codename) || "persona pending")}</span>
+          </div>
+          <span class="agent-model">${escHtml(a.model)}</span>
+          <button class="agent-dev-btn" data-agent-id="${escHtml(a.agent_id)}" title="Open unique dev IDE workspace for this agent">IDE</button>
+        </div>`).join("");
+      list.querySelectorAll(".agent-item").forEach(el => {
+        el.addEventListener("click", () => setActiveAgent(el.dataset.id));
+      });
+      list.querySelectorAll(".agent-dev-btn").forEach(btn => {
+        btn.addEventListener("click", (e) => {
+          e.stopPropagation();
+          openAgentIDE(btn.dataset.agentId);
+        });
+      });
+    }
+
+    async function openAgentIDE(agentId) {
+      try {
+        const res = await fetch(`/v1/agents/${encodeURIComponent(agentId)}/dev`);
+        if (!res.ok) {
+          const body = await res.json().catch(() => ({}));
+          throw new Error(body.detail || `HTTP ${res.status}`);
+        }
+        const payload = await res.json();
+        window.open(payload.ide_url, "_blank", "noopener,noreferrer");
+      } catch (err) {
+        setError("Failed to open agent IDE: " + (err.message || "unknown error"));
+      }
+    }
+
+    function setActiveAgent(id) {
+      activeAgentId = (activeAgentId === id) ? null : id;
+      renderAgentList();
+      updateActiveAgentBadge();
+    }
+
+    function updateActiveAgentBadge() {
+      const label = document.getElementById("active-agent-label");
+      if (activeAgentId) {
+        const a = agents.find(ag => ag.agent_id === activeAgentId);
+        label.textContent = a ? a.name : activeAgentId;
+        label.style.display = "";
+      } else {
+        label.textContent = "";
+        label.style.display = "none";
+      }
+    }
+
+    // ── Tabs ───────────────────────────────────────────────────────────────
+    async function loadTabs() {
+      try {
+        const res = await fetch("/v1/tabs");
+        tabs = await res.json();
+        renderTabBar();
+      } catch { /* silent */ }
+    }
+
+    function getActiveTabId() {
+      const chip = document.querySelector(".tab-chip.active");
+      return chip ? chip.dataset.tabId : null;
+    }
+
+    function renderTabBar() {
+      const bar = document.getElementById("tab-bar");
+      const newBtn = document.getElementById("btn-new-tab");
+      // Remove existing tab chips, keep the + button
+      bar.querySelectorAll(".tab-chip").forEach(el => el.remove());
+
+      tabs.forEach(t => {
+        const agentDef = agents.find(a => a.agent_id === t.agent_id);
+        const label = agentDef ? agentDef.name : t.agent_id;
+        const chip = document.createElement("div");
+        chip.className = "tab-chip" + (t.tab_id === getActiveTabId() ? " active" : "");
+        chip.dataset.tabId = t.tab_id;
+        chip.dataset.agentId = t.agent_id;
+        chip.innerHTML = `
+          <span>${escHtml(label)}</span>
+          <button class="tab-chip-close" title="Close tab">✕</button>`;
+        chip.addEventListener("click", (e) => {
+          if (!e.target.classList.contains("tab-chip-close")) activateTab(t.tab_id, t.agent_id);
+        });
+        chip.querySelector(".tab-chip-close").addEventListener("click", () => closeTab(t.tab_id));
+        bar.insertBefore(chip, newBtn);
+      });
+    }
+
+    function activateTab(tabId, agentId) {
+      document.querySelectorAll(".tab-chip").forEach(el => {
+        el.classList.toggle("active", el.dataset.tabId === tabId);
+      });
+      if (agentId) setActiveAgent(agentId);
+    }
+
+    async function openNewTab() {
+      try {
+        const body = activeAgentId ? { agent_id: activeAgentId } : {};
+        const res = await fetch("/v1/tabs", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(body),
+        });
+        if (!res.ok) throw new Error("HTTP " + res.status);
+        const tab = await res.json();
+        await loadTabs();
+        activateTab(tab.tab_id, tab.agent_id);
+      } catch (err) {
+        setError("Failed to open tab: " + err.message);
+      }
+    }
+
+    async function closeTab(tabId) {
+      try {
+        await fetch(`/v1/tabs/${tabId}`, { method: "DELETE" });
+        await loadTabs();
+      } catch (err) {
+        setError("Failed to close tab: " + err.message);
+      }
+    }
+
+    // ── New Agent Modal ────────────────────────────────────────────────────
+    function openNewAgentModal() {
+      document.getElementById("agent-name-input").value = "";
+      document.getElementById("agent-system-prompt").value = "";
+      document.getElementById("agent-modal-status").textContent = "";
+      document.getElementById("new-agent-modal").classList.add("open");
+      document.getElementById("agent-name-input").focus();
+    }
+
+    function closeNewAgentModal() {
+      document.getElementById("new-agent-modal").classList.remove("open");
+    }
+
+    async function createAgent() {
+      const name = document.getElementById("agent-name-input").value.trim();
+      const systemPrompt = document.getElementById("agent-system-prompt").value.trim();
+      const statusEl = document.getElementById("agent-modal-status");
+      if (!name) { statusEl.textContent = "Name is required."; return; }
+      const btn = document.getElementById("btn-create-agent");
+      btn.disabled = true;
+      statusEl.textContent = "";
+      try {
+        const res = await fetch("/v1/agents", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ name, system_prompt: systemPrompt }),
+        });
+        if (!res.ok) { const d = await res.json().catch(() => ({})); throw new Error(d.detail || "HTTP " + res.status); }
+        const agent = await res.json();
+        closeNewAgentModal();
+        await loadAgents();
+        setActiveAgent(agent.agent_id);
+      } catch (err) {
+        statusEl.textContent = err.message || "Failed to create agent";
+      } finally {
+        btn.disabled = false;
+      }
+    }
+
+    // ── ATM (Automated Thought Machine) ────────────────────────────────────
+    async function atmThink() {
+      const prompt = document.getElementById("atm-prompt-input").value.trim();
+      if (!prompt) return;
+      const resultEl = document.getElementById("atm-result");
+      resultEl.innerHTML = `<span style="color:var(--muted)">Thinking…</span>`;
+      resultEl.style.display = "block";
+      try {
+        const res = await fetch("/v1/atm/think", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ prompt, max_iterations: 3 }),
+        });
+        if (!res.ok) throw new Error("HTTP " + res.status);
+        const data = await res.json();
+        renderATMResult(data, resultEl);
+      } catch (err) {
+        resultEl.innerHTML = `<span style="color:var(--danger)">Error: ${escHtml(err.message)}</span>`;
+      }
+    }
+
+    async function atmReflect() {
+      const prompt = document.getElementById("atm-prompt-input").value.trim();
+      if (!prompt) return;
+      const resultEl = document.getElementById("atm-result");
+      resultEl.innerHTML = `<span style="color:var(--muted)">Reflecting…</span>`;
+      resultEl.style.display = "block";
+      // Reflect on the last assistant message in the chat as the "draft"
+      const lastBubble = [...document.querySelectorAll(".bubble.assistant")].pop();
+      const draft = lastBubble ? lastBubble.textContent : "";
+      try {
+        const res = await fetch("/v1/atm/reflect", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ prompt, max_iterations: 1, context: { draft } }),
+        });
+        if (!res.ok) throw new Error("HTTP " + res.status);
+        const data = await res.json();
+        renderATMResult(data, resultEl);
+      } catch (err) {
+        resultEl.innerHTML = `<span style="color:var(--danger)">Error: ${escHtml(err.message)}</span>`;
+      }
+    }
+
+    function renderATMResult(data, el) {
+      const steps = (data.steps || []).map(s => `
+        <div class="atm-step">
+          <div class="atm-step-header">
+            <span>Step ${s.step}</span>
+            <span class="meta-tag" style="font-size:0.72rem">${Math.round(s.confidence * 100)}%</span>
+            <span style="color:var(--muted);font-size:0.72rem">${s.model_used}</span>
+            <span style="color:var(--muted);font-size:0.72rem">${s.elapsed_ms}ms</span>
+          </div>
+          <div>${escHtml(s.output)}</div>
+          ${s.critique ? `<div class="atm-step-critique">🔍 ${escHtml(s.critique)}</div>` : ""}
+        </div>`).join("");
+      el.innerHTML = `
+        <div style="font-size:0.76rem;color:var(--accent);margin-bottom:6px">
+          🧠 Thought ID: <code>${escHtml(data.thought_id)}</code> — ${data.steps.length} step(s), ${data.total_ms}ms
+        </div>
+        ${steps}
+        <div style="border-top:1px solid var(--border);margin-top:8px;padding-top:8px">
+          <div style="font-size:0.76rem;color:var(--muted);margin-bottom:3px">Final output</div>
+          <div>${escHtml(data.final_output)}</div>
+        </div>`;
+    }
+
+    // ── Init ───────────────────────────────────────────────────────────────
+    loadStatus();
+    setInterval(loadStatus, 30_000);
+    connectEventStream();
+    loadAgents();
+    loadTabs();
+    updateActiveAgentBadge();
+    promptInput.focus();
+  </script>
+</body>
+</html>

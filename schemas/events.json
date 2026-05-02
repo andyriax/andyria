@@ -1,0 +1,56 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://andyria.local/schemas/events.json",
+  "title": "Andyria Event Schema",
+  "description": "Portable schema for Andyria signed event log entries and entropy beacons",
+  "$defs": {
+    "EntropyBeacon": {
+      "type": "object",
+      "description": "Signed physical-entropy beacon. Event hashes include beacon.id, not raw bytes.",
+      "required": ["id", "timestamp_ns", "sources", "raw_entropy_hash", "nonce", "node_id", "signature"],
+      "properties": {
+        "id":               { "type": "string", "description": "BLAKE3 hash of (raw_entropy_hash|nonce|timestamp_ns|node_id)" },
+        "timestamp_ns":     { "type": "integer", "minimum": 0 },
+        "sources":          { "type": "array", "items": { "type": "string" } },
+        "raw_entropy_hash": { "type": "string", "description": "BLAKE3 hex of mixed+bound raw entropy bytes" },
+        "nonce":            { "type": "string", "description": "32-byte whitened entropy, hex; usable as salt/IV" },
+        "node_id":          { "type": "string" },
+        "signature":        { "type": "string", "description": "Ed25519 hex signature over canonical JSON" }
+      },
+      "additionalProperties": false
+    },
+    "Event": {
+      "type": "object",
+      "description": "A signed, immutable entry in the Andyria append-only event log.",
+      "required": ["id", "parent_ids", "event_type", "payload_hash", "entropy_beacon_id", "timestamp_ns", "node_id", "signature"],
+      "properties": {
+        "id":                { "type": "string", "description": "BLAKE3 hash of (sorted_parent_ids|payload_hash|entropy_beacon_id|timestamp_ns|node_id)" },
+        "parent_ids":        { "type": "array", "items": { "type": "string" } },
+        "event_type":        { "type": "string", "enum": ["request", "plan", "task_result", "response", "entropy_beacon", "node_identity", "checkpoint"] },
+        "payload_hash":      { "type": "string", "description": "BLAKE3 hex of canonical payload bytes" },
+        "entropy_beacon_id": { "type": "string", "description": "References a signed EntropyBeacon" },
+        "timestamp_ns":      { "type": "integer", "minimum": 0 },
+        "node_id":           { "type": "string" },
+        "signature":         { "type": "string", "description": "Ed25519 hex signature" }
+      },
+      "additionalProperties": false
+    },
+    "NodeIdentity": {
+      "type": "object",
+      "required": ["node_id", "public_key", "created_at", "deployment_class", "capabilities"],
+      "properties": {
+        "node_id":          { "type": "string" },
+        "public_key":       { "type": "string", "description": "Ed25519 public key, raw bytes hex (32 bytes)" },
+        "created_at":       { "type": "integer" },
+        "deployment_class": { "type": "string", "enum": ["edge", "server", "cluster"] },
+        "capabilities":     { "type": "array", "items": { "type": "string" } }
+      },
+      "additionalProperties": false
+    }
+  },
+  "oneOf": [
+    { "$ref": "#/$defs/EntropyBeacon" },
+    { "$ref": "#/$defs/Event" },
+    { "$ref": "#/$defs/NodeIdentity" }
+  ]
+}

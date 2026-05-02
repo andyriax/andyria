@@ -1,0 +1,55 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+.Python
+*.egg-info/
+dist/
+build/
+.eggs/
+*.egg
+.venv/
+venv/
+env/
+.env
+pip-wheel-metadata/
+.ruff_cache/
+.mypy_cache/
+.pytest_cache/
+htmlcov/
+.coverage
+*.cover
+
+# Rust
+rust/target/
+*.rlib
+Cargo.lock
+
+# Andyria runtime data
+.andyria/
+.agent-dev/
+*.pem
+identity.pem
+
+# Models (large binary files)
+*.gguf
+*.bin
+*.safetensors
+
+# Docker
+.dockerignore
+
+# IDE
+.vscode/settings.json
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+logs/

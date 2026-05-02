@@ -1,0 +1,10 @@
+[package]
+name        = "andyria-runtime"
+version     = "0.1.0"
+edition     = "2021"
+description = "Hardware capability detection and deployment profiling for Andyria"
+
+[dependencies]
+serde      = { workspace = true }
+serde_json = { workspace = true }
+thiserror  = { workspace = true }
