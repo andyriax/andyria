@@ -109,12 +109,29 @@ async function _gemini(messages, cfg, maxTokens) {
   const key = cfg.api_key;
   if (!key) throw new Error('no key');
   const model = cfg.model || 'gemini-1.5-flash';
-  // Flatten messages → Gemini parts format
-  const parts = messages.map(m => ({ text: `[${m.role}] ${m.content}` }));
+
+  // Extract system instruction (Gemini keeps it separate)
+  const systemMsg = messages.find(m => m.role === 'system');
+  const conv      = messages.filter(m => m.role !== 'system');
+
+  // Build proper multi-turn contents array: user/model alternation
+  const contents = conv.map(m => ({
+    role : m.role === 'assistant' ? 'model' : 'user',
+    parts: [{ text: m.content }],
+  }));
+
+  const body = {
+    contents,
+    generationConfig: { maxOutputTokens: maxTokens, temperature: 0.8 },
+  };
+  if (systemMsg) {
+    body.systemInstruction = { parts: [{ text: systemMsg.content }] };
+  }
+
   const res = await _post(
     `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${key}`,
     {},
-    { contents: [{ parts }], generationConfig: { maxOutputTokens: maxTokens, temperature: 0.8 } }
+    body
   );
   return res.candidates[0].content.parts[0].text.trim();
 }
@@ -152,13 +169,27 @@ async function _openrouter(messages, cfg, maxTokens) {
 async function _ollama(messages, cfg, maxTokens) {
   const baseUrl = cfg.base_url || 'http://localhost:11434';
   const model   = cfg.model || 'llama3.2';
-  const prompt  = messages.map(m => `${m.role}: ${m.content}`).join('\n') + '\nassistant:';
-  const res = await _post(
-    `${baseUrl}/api/generate`,
-    {},
-    { model, prompt, stream: false, options: { num_predict: maxTokens } }
-  );
-  return (res.response || '').trim();
+  // Use /api/chat (multi-turn) when available; fall back to /api/generate
+  try {
+    const res = await _post(
+      `${baseUrl}/api/chat`,
+      {},
+      { model, messages, stream: false, options: { num_predict: maxTokens } }
+    );
+    // /api/chat returns { message: { role, content } }
+    const text = res.message?.content || res.response || '';
+    if (text) return text.trim();
+    throw new Error('empty chat response');
+  } catch (chatErr) {
+    // Older Ollama builds only have /api/generate
+    const prompt = messages.map(m => `${m.role}: ${m.content}`).join('\n') + '\nassistant:';
+    const res = await _post(
+      `${baseUrl}/api/generate`,
+      {},
+      { model, prompt, stream: false, options: { num_predict: maxTokens } }
+    );
+    return (res.response || '').trim();
+  }
 }
 
 async function _huggingface(messages, cfg, maxTokens) {
@@ -222,33 +253,22 @@ function configure(llmConfig) {
 }
 
 /**
- * Call the LLM waterfall — returns a string response.
- * Falls back through all providers; always returns something.
+ * Run the LLM waterfall with a fully-constructed messages array.
+ * This is the core of full conversationalist mode — all call sites
+ * that want multi-turn context should use this directly.
  *
- * @param {string} userMessage
- * @param {{ user?: string, history?: Array }} [opts]
+ * @param {Array<{role:string, content:string}>} messages
+ * @param {{ user?: string }} [opts]
  * @returns {Promise<string>}
  */
-async function chat(userMessage, opts = {}) {
+async function thread(messages, opts = {}) {
   const maxTokens   = _llmConfig.max_tokens || 120;
-  const systemText  = _llmConfig.system_prompt || _buildSystemPrompt();
   const providerCfg = _llmConfig.providers || {};
-
-  const messages = [
-    { role: 'system', content: systemText },
-    ...(opts.history || []).slice(-6),          // last 3 turns context
-    { role: 'user', content: userMessage },
-  ];
 
   for (const { name, fn } of PROVIDERS) {
     const cfg = providerCfg[name] || {};
-
-    // Skip if explicitly disabled
     if (cfg.enabled === false) continue;
-
-    // Skip if key required but missing (non-local providers)
     if (name !== 'ollama' && !cfg.api_key) continue;
-
     try {
       const reply = await fn(messages, cfg, maxTokens);
       if (reply) {
@@ -262,13 +282,48 @@ async function chat(userMessage, opts = {}) {
     }
   }
 
-  // Ultimate fallback — always works
   _lastProvider = 'static';
   appendEvent('llm:call', 'LLM_STATIC_FALLBACK', { user: opts.user });
-  return _staticFallback(userMessage);
+  const lastUser = [...messages].reverse().find(m => m.role === 'user');
+  return _staticFallback(lastUser?.content || '');
+}
+
+/**
+ * Convenience wrapper — builds the messages array from a single user message
+ * plus optional history, then calls thread().
+ *
+ * @param {string} userMessage
+ * @param {{ user?: string, history?: Array, systemPrompt?: string, maxHistory?: number }} [opts]
+ * @returns {Promise<string>}
+ */
+async function chat(userMessage, opts = {}) {
+  const maxHistory  = opts.maxHistory || _llmConfig.max_history || 20;
+  const systemText  = opts.systemPrompt || _llmConfig.system_prompt || _buildSystemPrompt();
+
+  const messages = [
+    { role: 'system', content: systemText },
+    ...(opts.history || []).slice(-maxHistory),
+    { role: 'user', content: userMessage },
+  ];
+
+  return thread(messages, { user: opts.user });
 }
 
 function getLastProvider() { return _lastProvider; }
+
+// ---------------------------------------------------------------------------
+// Convenience: build a system+history+user messages array
+// Useful for callers that want to inspect the array before sending.
+// ---------------------------------------------------------------------------
+function buildMessages(userMessage, opts = {}) {
+  const maxHistory = opts.maxHistory || _llmConfig.max_history || 20;
+  const systemText = opts.systemPrompt || _llmConfig.system_prompt || _buildSystemPrompt();
+  return [
+    { role: 'system', content: systemText },
+    ...(opts.history || []).slice(-maxHistory),
+    { role: 'user', content: userMessage },
+  ];
+}
 
 function _buildSystemPrompt() {
   const persona = getPersona();
@@ -279,4 +334,4 @@ function _buildSystemPrompt() {
   ].join(' ');
 }
 
-module.exports = { configure, chat, getLastProvider };
+module.exports = { configure, chat, thread, buildMessages, getLastProvider };

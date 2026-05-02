@@ -15,16 +15,45 @@
 
 const { getSkill, loadSkills, listSkills } = require('./skillLoader');
 const { loadPersona, listPersonas }        = require('./persona');
-const { appendEvent }                      = require('./db');
+const { appendEvent, setMemory, getMemory } = require('./db');
 const llm                                  = require('./llm');
 
-// Per-user conversation history (last 6 turns, in-memory)
-const _history = new Map();
-function _getHistory(user) { return _history.get(user) || []; }
+// ---------------------------------------------------------------------------
+// Per-user conversation history — DB-persisted (survives restarts)
+// In-memory write-through cache on top of SQLite memory table
+// ---------------------------------------------------------------------------
+const _historyCache = new Map();
+
+const MAX_HISTORY = 20; // configurable: last 20 turns (10 exchanges)
+
+function _historyKey(user) { return `conv:${user}`; }
+
+function _getHistory(user) {
+  if (_historyCache.has(user)) return _historyCache.get(user);
+  try {
+    const raw = getMemory(_historyKey(user));
+    const h   = raw ? JSON.parse(raw) : [];
+    _historyCache.set(user, h);
+    return h;
+  } catch (_) {
+    return [];
+  }
+}
+
 function _pushHistory(user, role, content) {
   const h = _getHistory(user);
   h.push({ role, content });
-  _history.set(user, h.slice(-6));
+  const trimmed = h.slice(-MAX_HISTORY);
+  _historyCache.set(user, trimmed);
+  try { setMemory(_historyKey(user), JSON.stringify(trimmed)); } catch (_) {}
+}
+
+/**
+ * Clear a user's conversation history (e.g. on /reset).
+ */
+function clearHistory(user) {
+  _historyCache.set(user, []);
+  try { setMemory(_historyKey(user), '[]'); } catch (_) {}
 }
 
 let _ambientHandler = null;
@@ -39,29 +68,46 @@ function setAmbientHandler(fn) {
 }
 
 /**
- * Default ambient handler — routes non-command chat through the LLM waterfall.
- * Falls back through 7 providers, always returns a response.
+ * Default ambient handler — full conversationalist mode.
+ * Builds a complete multi-turn messages array and sends through llm.thread().
+ * Every exchange is persisted to SQLite so context survives restarts.
  */
 async function _llmAmbient(message, ctx) {
-  const user    = ctx.user || 'viewer';
+  const user = ctx.user || 'viewer';
+
+  // Append user message to persistent history
+  _pushHistory(user, 'user', message);
   const history = _getHistory(user);
 
+  // Build fully-constructed messages array for multi-turn context
+  const messages = llm.buildMessages(message, {
+    history        : history.slice(0, -1), // all prior turns (user msg already in history)
+    maxHistory     : MAX_HISTORY,
+    systemPrompt   : ctx.config?.llm?.system_prompt,
+  });
+
+  // Replace last user entry to avoid double-adding the current message
+  // (buildMessages appends it; history already has it)
+  // Actually: buildMessages adds userMessage as final entry — that's correct.
+  // We pass history WITHOUT the current user message (slice(0,-1)) + let buildMessages append it.
+
   try {
-    _pushHistory(user, 'user', message);
-    const reply = await llm.chat(message, { user, history });
+    ctx.dag?.transition('ROUTING', { source: 'ambient' });
+    const reply = await llm.thread(messages, { user });
     _pushHistory(user, 'assistant', reply);
 
-    appendEvent(`router:llm`, 'LLM_AMBIENT_REPLY', {
+    appendEvent('router:llm', 'LLM_AMBIENT_REPLY', {
       user,
-      provider: llm.getLastProvider(),
-      msg_len : message.length,
+      provider  : llm.getLastProvider(),
+      turns     : history.length,
+      msg_len   : message.length,
     });
 
     ctx.dag?.transition('SPEAKING', { source: 'llm' });
     ctx.speak(reply);
     ctx.dag?.state === 'SPEAKING' && ctx.dag?.transition('IDLE');
   } catch (e) {
-    // Should never reach here — llm.chat() has static fallback built in
+    // Should never reach here — llm.thread() has static fallback built in
     console.error('[router:llm] Unexpected error:', e.message);
   }
 }
@@ -123,6 +169,21 @@ function route(message, ctx) {
       const snap = ctx.dag.snapshot();
       ctx.speak(`DAG [${snap.agentId}] state: ${snap.state}`);
     }
+    return;
+  }
+
+  if (cmd === '/reset') {
+    const target = args[0] || ctx.user || 'viewer';
+    clearHistory(target);
+    ctx.speak(`Conversation history cleared for ${target}.`);
+    appendEvent('router:builtin', 'HISTORY_RESET', { target });
+    return;
+  }
+
+  if (cmd === '/history') {
+    const target = args[0] || ctx.user || 'viewer';
+    const h = _getHistory(target);
+    ctx.speak(`${target} has ${h.length} turns in conversation history.`);
     return;
   }
 

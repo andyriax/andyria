@@ -153,28 +153,67 @@ function _buildSnapshot(idleMinutes) {
 // ---------------------------------------------------------------------------
 
 /**
- * Run one analysis cycle. Returns the finding string (also logs to CQRS).
- * @param {number} idleMinutes  - how long the agent has been idle
+ * Run one analysis cycle using a 2-turn multi-input dialogue.
+ *
+ * Turn 1 (analysis): LLM sees the data snapshot and surfaces raw observations.
+ * Turn 2 (refinement): LLM is asked to distil those observations into ONE
+ *   specific, immediately executable action — the actionable finding.
+ *
+ * This gives richer, more contextual output than a single-shot prompt.
+ *
+ * @param {number} idleMinutes
  * @returns {Promise<{ lens: string, finding: string }>}
  */
 async function runCycle(idleMinutes = 0) {
-  const lens     = LENSES[_lensIdx % LENSES.length];
+  const lens = LENSES[_lensIdx % LENSES.length];
   _lensIdx++;
 
-  const snap     = _buildSnapshot(idleMinutes);
-  const prompt   = lens.build(snap);
+  const snap       = _buildSnapshot(idleMinutes);
+  const systemText = `You are an expert TikTok Live strategist embedded in an autonomous agent. Persona in use: "${snap.persona}". Be concise, direct, and actionable.`;
+
+  // ── Turn 1: surface raw observations ─────────────────────────────────────
+  const analysisTurn1 = {
+    role   : 'system',
+    content: systemText,
+  };
+  const analysisTurn2 = {
+    role   : 'user',
+    content: lens.build(snap),
+  };
+
+  let analysisReply;
+  try {
+    analysisReply = await llm.thread(
+      [analysisTurn1, analysisTurn2],
+      { user: 'use-case-finder' }
+    );
+  } catch (_) {
+    analysisReply = 'Gift challenges and countdowns drive coins most reliably.';
+  }
+
+  // ── Turn 2: refine into one immediately actionable instruction ────────────
+  const refineTurn = {
+    role   : 'user',
+    content: `Based on your analysis, give me ONE specific action the host can say or do in the next 30 seconds. One sentence. Start with a verb.`,
+  };
 
   let finding;
   try {
-    finding = await llm.chat(prompt, { user: 'use-case-finder' });
+    finding = await llm.thread(
+      [analysisTurn1, analysisTurn2,
+       { role: 'assistant', content: analysisReply },
+       refineTurn],
+      { user: 'use-case-finder' }
+    );
   } catch (_) {
-    finding = 'Keep engaging viewers and look for gift opportunities.';
+    finding = analysisReply; // fall back to turn-1 output if turn-2 fails
   }
 
   appendEvent('usecasefinder', 'USE_CASE_FOUND', {
-    lens   : lens.id,
+    lens    : lens.id,
+    analysis: analysisReply,
     finding,
-    snap   : { coins: snap.totalCoins, idle: snap.idleMinutes },
+    snap    : { coins: snap.totalCoins, idle: snap.idleMinutes },
     provider: llm.getLastProvider(),
   });
 
