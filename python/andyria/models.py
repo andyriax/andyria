@@ -47,6 +47,29 @@ class EventType(str, Enum):
     AGENT_DEV_WORKSPACE_PREPARED = "agent_dev_workspace_prepared"
     DEMO_STARTED = "demo_started"
     DEMO_STOPPED = "demo_stopped"
+    # Persistent memory
+    MEMORY_UPDATED = "memory_updated"
+    USER_PROFILE_UPDATED = "user_profile_updated"
+    # Skills
+    SKILL_CREATED = "skill_created"
+    SKILL_UPDATED = "skill_updated"
+    SKILL_DELETED = "skill_deleted"
+    # Cron
+    CRON_JOB_ADDED = "cron_job_added"
+    CRON_JOB_FIRED = "cron_job_fired"
+    CRON_JOB_CANCELLED = "cron_job_cancelled"
+    # Delegation
+    DELEGATE_SPAWNED = "delegate_spawned"
+    DELEGATE_COMPLETED = "delegate_completed"
+    DELEGATE_FAILED = "delegate_failed"
+    # Session
+    SESSION_CREATED = "session_created"
+    SESSION_RESUMED = "session_resumed"
+    SESSION_COMPRESSED = "session_compressed"
+    # TODO
+    TODO_ADDED = "todo_added"
+    TODO_UPDATED = "todo_updated"
+    TODO_CLEARED = "todo_cleared"
 
 
 class EntropyBeacon(BaseModel):
@@ -237,6 +260,8 @@ class AndyriaRequest(BaseModel):
     agent_id: Optional[str] = None
     session_id: Optional[str] = None   # omit for stateless single-turn requests
     context: Dict[str, Any] = Field(default_factory=dict)
+    model: Optional[str] = None         # override active model for this request
+    system_context: Optional[str] = None  # extra system-prompt block (e.g. from PromptBuilder)
 
 
 class AndyriaResponse(BaseModel):
@@ -341,3 +366,128 @@ class ReflectionResult(BaseModel):
     revised: bool
     final_confidence: float
     total_ms: int
+
+
+    # ---------------------------------------------------------------------------
+    # Hermes-agent feature models
+    # ---------------------------------------------------------------------------
+
+    class MemoryOp(str, Enum):
+        ADD    = "add"
+        REMOVE = "remove"
+        UPDATE = "update"
+        READ   = "read"
+        CLEAR  = "clear"
+
+
+    class MemoryOpRequest(BaseModel):
+        """Body for /v1/memory endpoints."""
+        file: str = "MEMORY"          # "MEMORY" or "USER"
+        op: MemoryOp = MemoryOp.READ
+        text: Optional[str] = None    # entry text (add / remove)
+        old_text: Optional[str] = None
+        new_text: Optional[str] = None
+
+
+    class MemoryOpResponse(BaseModel):
+        file: str
+        op: str
+        success: bool
+        content: Optional[str] = None  # returned for READ ops
+        stats: Optional[Dict[str, Any]] = None
+
+
+    class SkillAction(str, Enum):
+        CREATE = "create"
+        UPDATE = "update"
+        DELETE = "delete"
+        VIEW   = "view"
+        LIST   = "list"
+        SEARCH = "search"
+
+
+    class SkillRequest(BaseModel):
+        action: SkillAction = SkillAction.LIST
+        name: Optional[str] = None
+        content: Optional[str] = None
+        description: str = ""
+        tags: List[str] = Field(default_factory=list)
+        category: Optional[str] = None  # filter for list
+        query: Optional[str] = None     # for search
+
+
+    class SkillResponse(BaseModel):
+        action: str
+        success: bool
+        name: Optional[str] = None
+        content: Optional[str] = None
+        skills: Optional[List[Dict[str, Any]]] = None
+        message: str = ""
+
+
+    class CronJobCreate(BaseModel):
+        name: str
+        expression: str      # "every day at 09:00" or "0 9 * * *"
+        task: str
+        platform: str = "andyria"
+
+
+    class CronJobInfo(BaseModel):
+        id: str
+        name: str
+        expression: str
+        task: str
+        platform: str
+        active: bool
+        last_run: float
+
+
+    class DelegateRequest(BaseModel):
+        prompt: str
+        tools: List[str] = Field(default_factory=list)
+        config: Dict[str, Any] = Field(default_factory=dict)
+        wait: bool = False        # if True, block until complete (up to timeout_s)
+        timeout_s: float = 30.0
+
+
+    class DelegateResponse(BaseModel):
+        task_id: str
+        status: str                    # "spawned" | "done" | "error"
+        result: Optional[str] = None
+        error: Optional[str] = None
+
+
+    class TodoAction(str, Enum):
+        ADD     = "add"
+        UPDATE  = "update"
+        DONE    = "done"
+        CANCEL  = "cancel"
+        REMOVE  = "remove"
+        LIST    = "list"
+        CLEAR   = "clear"
+
+
+    class TodoRequest(BaseModel):
+        action: TodoAction = TodoAction.LIST
+        text: Optional[str] = None
+        item_id: Optional[str] = None
+        status: Optional[str] = None
+        status_filter: Optional[str] = None
+
+
+    class TodoResponse(BaseModel):
+        action: str
+        success: bool
+        item_id: Optional[str] = None
+        items: Optional[List[Dict[str, Any]]] = None
+        message: str = ""
+
+
+    class SessionSearchRequest(BaseModel):
+        query: str
+        limit: int = 10
+
+
+    class SessionSearchResponse(BaseModel):
+        results: List[Dict[str, Any]]
+        total: int

@@ -44,6 +44,27 @@ from .models import (
     TabProjection,
     TabUpdateRequest,
 )
+from .models import (
+     CronJobCreate,
+     CronJobInfo,
+     DelegateRequest,
+     DelegateResponse,
+     MemoryOpRequest,
+     MemoryOpResponse,
+     SessionSearchRequest,
+     SessionSearchResponse,
+     SkillRequest,
+     SkillResponse,
+     TodoRequest,
+     TodoResponse,
+)
+from .soul              import SoulFile
+from .persistent_memory import PersistentMemory
+from .skills            import SkillRegistry
+from .session_store     import SessionStore
+from .cron              import CronScheduler
+from .todo              import TodoStore
+from .delegation        import DelegationManager
 from .persona import render_avatar_svg
 from .demo import DemoManager
 
@@ -696,5 +717,213 @@ def create_app(coordinator: Coordinator) -> FastAPI:
             session_ids=s.session_ids,
             message=s.message,
         )
+
+        # ------------------------------------------------------------------
+        # Hermes-agent feature endpoints
+        # ------------------------------------------------------------------
+
+        _data_dir_path = Path(getattr(_coordinator, "_data_dir", Path.home() / ".andyria"))
+        _soul          = SoulFile(_data_dir_path)
+        _memory        = PersistentMemory(_data_dir_path)
+        _skill_reg     = SkillRegistry(_data_dir_path)
+        _session_store = SessionStore(_data_dir_path)
+        _cron          = CronScheduler(_data_dir_path)
+        _cron.start()
+        _todo          = TodoStore(_data_dir_path)
+        _delegation    = DelegationManager(
+            coordinator_factory=lambda prompt, tools, cfg: asyncio.run(
+                _coordinator.process(AndyriaRequest(input=prompt))
+            ).output
+        )
+
+        # --- Memory ---
+
+        @app.post("/v1/memory", response_model=MemoryOpResponse)
+        async def memory_op(req: MemoryOpRequest) -> MemoryOpResponse:
+            """CRUD operations on MEMORY.md and USER.md."""
+            file = req.file if req.file in ("MEMORY", "USER") else "MEMORY"
+            from .models import MemoryOp
+            op = req.op
+            if op == MemoryOp.READ:
+                return MemoryOpResponse(
+                    file=file, op="read", success=True,
+                    content=_memory.read(file), stats=_memory.stats(),
+                )
+            if op == MemoryOp.ADD:
+                _memory.add(file, req.text or "")
+                return MemoryOpResponse(file=file, op="add", success=True, stats=_memory.stats())
+            if op == MemoryOp.REMOVE:
+                ok = _memory.remove(file, req.old_text or req.text or "")
+                return MemoryOpResponse(file=file, op="remove", success=ok, stats=_memory.stats())
+            if op == MemoryOp.UPDATE:
+                ok = _memory.update(file, req.old_text or "", req.new_text or "")
+                return MemoryOpResponse(file=file, op="update", success=ok, stats=_memory.stats())
+            if op == MemoryOp.CLEAR:
+                _memory.clear(file)
+                return MemoryOpResponse(file=file, op="clear", success=True, stats=_memory.stats())
+            raise HTTPException(status_code=400, detail=f"Unknown op: {op}")
+
+        @app.get("/v1/memory/{file}", response_model=MemoryOpResponse)
+        async def memory_read(file: str) -> MemoryOpResponse:
+            file = file.upper()
+            if file not in ("MEMORY", "USER"):
+                raise HTTPException(status_code=400, detail="file must be MEMORY or USER")
+            return MemoryOpResponse(
+                file=file, op="read", success=True,
+                content=_memory.read(file), stats=_memory.stats(),
+            )
+
+        # --- SOUL.md ---
+
+        @app.get("/v1/soul", response_model=dict)
+        async def soul_get() -> dict:
+            return {"content": _soul.content, "path": str(_soul.path)}
+
+        @app.put("/v1/soul", response_model=dict)
+        async def soul_update(body: dict) -> dict:
+            content = body.get("content", "")
+            if not content.strip():
+                raise HTTPException(status_code=400, detail="content is required")
+            _soul.save(content)
+            return {"saved": True, "chars": len(content)}
+
+        # --- Skills ---
+
+        @app.post("/v1/skills", response_model=SkillResponse)
+        async def skills_op(req: SkillRequest) -> SkillResponse:
+            from .models import SkillAction
+            if req.action == SkillAction.LIST:
+                return SkillResponse(action="list", success=True, skills=_skill_reg.skills_list(req.category))
+            if req.action == SkillAction.VIEW:
+                content = _skill_reg.skill_view(req.name or "")
+                if content is None:
+                    raise HTTPException(status_code=404, detail=f"Skill '{req.name}' not found")
+                return SkillResponse(action="view", success=True, name=req.name, content=content)
+            if req.action == SkillAction.SEARCH:
+                hits = _skill_reg.search(req.query or "")
+                return SkillResponse(action="search", success=True, skills=[
+                    {"name": s.name, "description": s.description, "tags": s.tags} for s in hits
+                ])
+            if req.action in (SkillAction.CREATE, SkillAction.UPDATE):
+                msg = _skill_reg.skill_manage(req.action.value, req.name or "", req.content or "",
+                                              req.description, req.tags)
+                return SkillResponse(action=req.action.value, success="error" not in msg.lower(),
+                                     name=req.name, message=msg)
+            if req.action == SkillAction.DELETE:
+                msg = _skill_reg.skill_manage("delete", req.name or "")
+                return SkillResponse(action="delete", success="error" not in msg.lower(),
+                                     name=req.name, message=msg)
+            raise HTTPException(status_code=400, detail=f"Unknown action: {req.action}")
+
+        # --- Cron ---
+
+        @app.get("/v1/cron", response_model=List[CronJobInfo])
+        async def cron_list() -> List[CronJobInfo]:
+            return [
+                CronJobInfo(id=j.id, name=j.name, expression=j.expression,
+                            task=j.task, platform=j.platform, active=j.active, last_run=j.last_run)
+                for j in _cron.list()
+            ]
+
+        @app.post("/v1/cron", response_model=dict)
+        async def cron_add(req: CronJobCreate) -> dict:
+            job_id = _cron.add(req.name, req.expression, req.task, req.platform)
+            return {"id": job_id, "status": "created"}
+
+        @app.delete("/v1/cron/{job_id}", response_model=dict)
+        async def cron_delete(job_id: str) -> dict:
+            ok = _cron.delete(job_id)
+            if not ok:
+                raise HTTPException(status_code=404, detail=f"Job '{job_id}' not found")
+            return {"deleted": True}
+
+        # --- TODO ---
+
+        @app.post("/v1/todo", response_model=TodoResponse)
+        async def todo_op(req: TodoRequest) -> TodoResponse:
+            from .models import TodoAction
+            if req.action == TodoAction.LIST:
+                return TodoResponse(action="list", success=True, items=_todo.list(req.status_filter))
+            if req.action == TodoAction.ADD:
+                item_id = _todo.add(req.text or "")
+                return TodoResponse(action="add", success=True, item_id=item_id)
+            if req.action == TodoAction.UPDATE:
+                ok = _todo.update(req.item_id or "", status=req.status, text=req.text)
+                return TodoResponse(action="update", success=ok)
+            if req.action == TodoAction.DONE:
+                ok = _todo.done(req.item_id or "")
+                return TodoResponse(action="done", success=ok)
+            if req.action == TodoAction.CANCEL:
+                ok = _todo.cancel(req.item_id or "")
+                return TodoResponse(action="cancel", success=ok)
+            if req.action == TodoAction.REMOVE:
+                ok = _todo.remove(req.item_id or "")
+                return TodoResponse(action="remove", success=ok)
+            if req.action == TodoAction.CLEAR:
+                n = _todo.clear()
+                return TodoResponse(action="clear", success=True, message=f"{n} items cleared")
+            raise HTTPException(status_code=400, detail=f"Unknown action: {req.action}")
+
+        @app.get("/v1/todo", response_model=TodoResponse)
+        async def todo_list() -> TodoResponse:
+            return TodoResponse(action="list", success=True, items=_todo.list())
+
+        # --- Session search ---
+
+        @app.post("/v1/sessions/search", response_model=SessionSearchResponse)
+        async def session_search(req: SessionSearchRequest) -> SessionSearchResponse:
+            hits = _session_store.search(req.query, req.limit)
+            return SessionSearchResponse(
+                total=len(hits),
+                results=[
+                    {
+                        "session_id": h.session_id,
+                        "session_title": h.session_title,
+                        "turn_id": h.turn_id,
+                        "role": h.role,
+                        "snippet": h.snippet,
+                    }
+                    for h in hits
+                ],
+            )
+
+        @app.get("/v1/sessions", response_model=List[dict])
+        async def session_list(limit: int = 20) -> List[dict]:
+            return [
+                {
+                    "session_id": s.session_id,
+                    "title": s.title,
+                    "turn_count": s.turn_count,
+                    "updated_at": s.updated_at,
+                }
+                for s in _session_store.list_sessions(limit)
+            ]
+
+        # --- Delegation ---
+
+        @app.post("/v1/delegate", response_model=DelegateResponse)
+        async def delegate(req: DelegateRequest) -> DelegateResponse:
+            task_id = _delegation.spawn(req.prompt, req.tools, req.config)
+            if req.wait:
+                task = _delegation.collect(task_id, timeout=req.timeout_s)
+                if task is None:
+                    raise HTTPException(status_code=500, detail="Delegation failed")
+                if task.error:
+                    return DelegateResponse(task_id=task_id, status="error", error=task.error)
+                return DelegateResponse(task_id=task_id, status="done", result=task.result)
+            return DelegateResponse(task_id=task_id, status="spawned")
+
+        @app.get("/v1/delegate/{task_id}", response_model=DelegateResponse)
+        async def delegate_status(task_id: str) -> DelegateResponse:
+            info = _delegation.status(task_id)
+            if info is None:
+                raise HTTPException(status_code=404, detail=f"Task '{task_id}' not found")
+            status_str = "done" if info["finished"] else "running"
+            return DelegateResponse(
+                task_id=task_id,
+                status=status_str,
+                result=info.get("result_preview"),
+                error=info.get("error"),
+            )
 
     return app
