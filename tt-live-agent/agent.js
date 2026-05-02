@@ -10,6 +10,9 @@
  *   node agent.js --promote-capsule        # print sealed capsule identity
  *   node agent.js --dag snapshot           # print DAG states for all agents
  *   node agent.js --revenue stats          # print revenue totals and exit
+ *   node agent.js --self-explorer          # start OpenClaw background self-explorer
+ *   node agent.js --explore                # one-shot gap discovery (dry-run)
+ *   node agent.js --explore --dry-run      # same, no file writes
  */
 
 'use strict';
@@ -31,6 +34,7 @@ const { loadAgents, dispatch, listAgents } = require('./core/orchestrator');
 const { handleGift }                = require('./skills/revenue');
 const { DAGStateMachine }           = require('./core/dag');
 const sleeper                       = require('./core/sleeper');
+const openclaw                      = require('./core/openclaw');
 
 // ── Config ───────────────────────────────────────────────────────────────────
 const config = JSON.parse(
@@ -78,6 +82,15 @@ if (argv['revenue'] === 'stats') {
   process.exit(0);
 }
 
+if (argv['explore']) {
+  // One-shot: discover gaps, print them, exit (--dry-run skips implementation)
+  openclaw.runCycle({ dryRun: argv['dry-run'] !== false }).then(r => {
+    if (r.gaps.length === 0) { console.log('No gaps found.'); }
+    else r.gaps.forEach(g => console.log(`${g.cmd.padEnd(20)} ${g.reason}`));
+    process.exit(0);
+  }).catch(e => { console.error(e.message); process.exit(1); });
+}
+
 if (argv['sleep'] === 'status') {
   // Instantiate sleeper briefly to print status without starting a live session
   const { status } = require('./core/sleeper');
@@ -113,6 +126,14 @@ sleeper.init({
   onSleep: () => { console.log('[agent] 💤 Sleeping — use-case finder active'); },
   onWake : () => { console.log('[agent] ⚡ Awake — resuming live event handling'); },
 });
+
+// ── OpenClaw self-explorer (background, optional) ─────────────────────────────
+if (argv['self-explorer']) {
+  const { push } = require('./core/sleepscreen');
+  openclaw.setPushFn((type, data) => push(type, data));
+  openclaw.start({ dryRun: !!argv['dry-run'] });
+  console.log('[agent] 🦅 OpenClaw self-explorer running in background');
+}
 
 // ── Hot-reload skills ─────────────────────────────────────────────────────────
 const SKILLS_DIR = path.join(__dirname, 'skills');
@@ -275,6 +296,7 @@ tiktok.on('disconnected', () => {
 process.on('SIGINT', () => {
   console.log('\n[agent] Shutting down…');
   sleeper.destroy();
+  openclaw.stop();
   appendEvent('agent:main', 'AGENT_STOPPED', { uptime_ms: process.uptime() * 1000 });
   process.exit(0);
 });

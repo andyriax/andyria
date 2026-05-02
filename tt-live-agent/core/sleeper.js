@@ -16,6 +16,8 @@
 
 const { appendEvent }    = require('./db');
 const { runCycle }       = require('./usecasefinder');
+const sleepscreen        = require('./sleepscreen');
+const llm                = require('./llm');
 
 const SLEEP_AFTER_MS  = 10 * 60 * 1000;   // 10 minutes
 const TICK_INTERVAL_MS = 2 * 60 * 1000;   // run use-case finder every 2 min while sleeping
@@ -45,6 +47,9 @@ function _enterSleep() {
   console.log(`\n[sleeper] 💤 Agent entering SLEEP mode after ${Math.round(_idleMinutes())} min idle`);
   appendEvent('sleeper', 'SLEEP_ENTERED', { idle_minutes: _idleMinutes() });
 
+  // Launch the ambient sleep screen in the browser
+  sleepscreen.launch();
+
   if (_onSleep) _onSleep();
 
   // Start the use-case finder ticker
@@ -59,6 +64,10 @@ async function _runTick() {
     const { lens, finding } = await runCycle(idle);
     console.log(`\n[use-case] ${lens}`);
     console.log(`           ${finding}`);
+
+    // Push to sleep screen display
+    sleepscreen.push('thought', { lens, finding, provider: llm.getLastProvider() });
+    sleepscreen.push('status',  { idleMinutes: _idleMinutes(), provider: llm.getLastProvider() });
 
     // Optionally speak the finding (low-key, single layer)
     if (_speak) {
@@ -106,6 +115,9 @@ function wake() {
     const sleptMs = Date.now() - (_sleepStart || Date.now());
     console.log(`[sleeper] ⚡ Woke up after ${Math.round(sleptMs / 1000)}s sleep`);
     appendEvent('sleeper', 'SLEEP_EXITED', { slept_ms: sleptMs });
+
+    // Fade out the sleep screen
+    sleepscreen.shutdown();
 
     if (_onWake) _onWake();
   }

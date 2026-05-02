@@ -1,0 +1,466 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>⟳ Agent Thinking</title>
+  <style>
+    :root {
+      --sky: #050810;
+      --glow: #4af0b0;
+      --glow2: #7850ff;
+      --text: #b0c8e0;
+      --dim: #4a6070;
+      --panel: rgba(6,10,20,0.72);
+      --border: rgba(74,240,176,0.15);
+    }
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    html, body { width: 100%; height: 100%; overflow: hidden; background: var(--sky); font-family: 'Courier New', monospace; }
+
+    #scene { position: fixed; inset: 0; z-index: 0; }
+
+    /* ── Layout ── */
+    #ui {
+      position: fixed; inset: 0; z-index: 1;
+      display: grid;
+      grid-template-columns: 240px 1fr 210px;
+      grid-template-rows: 1fr 52px;
+      padding: 28px 32px 20px;
+      gap: 20px;
+    }
+
+    /* ── Glass panel base ── */
+    .panel {
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      backdrop-filter: blur(8px);
+      padding: 20px;
+    }
+
+    /* ── Clock ── */
+    #clock-panel {
+      display: flex; flex-direction: column; align-items: center; justify-content: center;
+      gap: 14px;
+    }
+    #clock-svg { filter: drop-shadow(0 0 14px rgba(74,240,176,0.25)); }
+    #time-txt  { color: var(--text); font-size: 22px; letter-spacing: 6px; font-variant-numeric: tabular-nums; }
+    #date-txt  { color: var(--dim);  font-size: 10px; letter-spacing: 3px; text-transform: uppercase; text-align: center; }
+    #idle-badge {
+      margin-top: 6px; padding: 4px 12px;
+      border: 1px solid var(--border); border-radius: 20px;
+      color: var(--glow); font-size: 10px; letter-spacing: 2px;
+      animation: pulse 3s ease-in-out infinite;
+    }
+
+    /* ── Thoughts ── */
+    #thought-panel { display: flex; flex-direction: column; overflow: hidden; }
+    #thought-hdr {
+      color: var(--glow); font-size: 10px; letter-spacing: 3px;
+      text-transform: uppercase; margin-bottom: 14px;
+      display: flex; align-items: center; gap: 8px;
+    }
+    #thought-hdr::before { content: ''; display: block; width: 6px; height: 6px; border-radius: 50%; background: var(--glow); animation: pulse 2s ease-in-out infinite; }
+    #thought-stream {
+      flex: 1; overflow: hidden; display: flex; flex-direction: column;
+      justify-content: flex-end; gap: 10px;
+    }
+    .t-entry {
+      color: var(--text); font-size: 12.5px; line-height: 1.6;
+      border-left: 2px solid rgba(74,240,176,0.35);
+      padding: 8px 14px; border-radius: 0 6px 6px 0;
+      background: rgba(74,240,176,0.03);
+      animation: slideIn 0.6s ease;
+    }
+    .t-entry .t-lens { color: var(--glow); font-size: 10px; letter-spacing: 1px; display: block; margin-bottom: 4px; text-transform: uppercase; }
+    .t-entry.old { opacity: 0.35; font-size: 11.5px; border-left-color: rgba(74,240,176,0.1); background: transparent; }
+    .t-entry.init { border-left-color: var(--glow2); }
+
+    /* ── Weather ── */
+    #weather-panel { display: flex; flex-direction: column; align-items: flex-end; justify-content: center; gap: 6px; text-align: right; }
+    #wx-icon  { font-size: 52px; line-height: 1; }
+    #wx-temp  { font-size: 40px; color: var(--text); font-weight: 100; letter-spacing: -2px; }
+    #wx-desc  { color: var(--dim); font-size: 11px; letter-spacing: 1px; text-transform: uppercase; }
+    #wx-loc   { color: var(--dim); font-size: 10px; }
+    #wx-extra { color: var(--dim); font-size: 10px; margin-top: 4px; line-height: 1.8; }
+    #wx-time  { color: rgba(74,240,176,0.4); font-size: 9px; margin-top: 8px; }
+
+    /* ── Status bar ── */
+    #statusbar {
+      grid-column: 1 / -1;
+      display: flex; justify-content: space-between; align-items: center;
+      border-top: 1px solid var(--border);
+      padding-top: 12px;
+      color: var(--dim); font-size: 10px; letter-spacing: 1px;
+    }
+    #agent-id  { color: var(--glow); animation: pulse 3s ease-in-out infinite; }
+    #llm-prov  { }
+    #uptime-st { }
+
+    @keyframes pulse {
+      0%, 100% { opacity: 0.6; } 50% { opacity: 1; }
+    }
+    @keyframes slideIn {
+      from { opacity: 0; transform: translateX(-8px); }
+      to   { opacity: 1; transform: translateX(0); }
+    }
+  </style>
+</head>
+<body>
+
+<canvas id="scene"></canvas>
+
+<div id="ui">
+
+  <!-- ── Clock panel ── -->
+  <div class="panel" id="clock-panel">
+    <svg id="clock-svg" width="170" height="170" viewBox="-85 -85 170 170">
+      <!-- Outer glow ring -->
+      <circle r="82" fill="none" stroke="rgba(74,240,176,0.08)" stroke-width="8"/>
+      <!-- Face -->
+      <circle r="78" fill="rgba(5,8,16,0.7)" stroke="rgba(74,240,176,0.2)" stroke-width="0.8"/>
+      <!-- Tick marks -->
+      <g id="g-ticks"></g>
+      <!-- Hands -->
+      <line id="h-hour" x1="0" y1="10" x2="0" y2="-44" stroke="rgba(176,200,224,0.95)" stroke-width="3.5" stroke-linecap="round"/>
+      <line id="h-min"  x1="0" y1="12" x2="0" y2="-60" stroke="rgba(74,240,176,0.95)"  stroke-width="2"   stroke-linecap="round"/>
+      <line id="h-sec"  x1="0" y1="16" x2="0" y2="-68" stroke="rgba(255,110,70,0.8)"   stroke-width="1"   stroke-linecap="round"/>
+      <!-- Pivot -->
+      <circle r="5" fill="rgba(74,240,176,0.9)"/>
+      <circle r="2.5" fill="#050810"/>
+    </svg>
+    <div id="time-txt">--:--:--</div>
+    <div id="date-txt">Detecting...</div>
+    <div id="idle-badge">◉ SLEEP MODE</div>
+  </div>
+
+  <!-- ── Thought stream ── -->
+  <div class="panel" id="thought-panel">
+    <div id="thought-hdr">Agent is thinking</div>
+    <div id="thought-stream">
+      <div class="t-entry init">
+        <span class="t-lens">🌱 Initializing</span>
+        Sleep mode active. Use-case analysis cycles beginning shortly...
+      </div>
+    </div>
+  </div>
+
+  <!-- ── Weather panel ── -->
+  <div class="panel" id="weather-panel">
+    <div id="wx-icon">🌙</div>
+    <div id="wx-temp">--°</div>
+    <div id="wx-desc">Loading</div>
+    <div id="wx-loc">Detecting location...</div>
+    <div id="wx-extra"></div>
+    <div id="wx-time"></div>
+  </div>
+
+  <!-- ── Status bar ── -->
+  <div id="statusbar">
+    <span id="agent-id">◉ JETSTREAMIN AGENT · SLEEP MODE</span>
+    <span id="llm-prov">LLM: —</span>
+    <span id="idle-st">Idle: 0m</span>
+    <span id="uptime-st"></span>
+  </div>
+
+</div>
+
+<script>
+// ─────────────────────────────────────────────────────────────────────────────
+// Procedural Night Sky + Forest Scene
+// ─────────────────────────────────────────────────────────────────────────────
+(function() {
+  const canvas = document.getElementById('scene');
+  const ctx    = canvas.getContext('2d');
+  let W, H, stars = [], trees = [], shoots = [], t = 0;
+
+  const rnd = (a, b) => Math.random() * (b - a) + a;
+
+  function resize() {
+    W = canvas.width  = window.innerWidth;
+    H = canvas.height = window.innerHeight;
+    buildScene();
+  }
+
+  function buildScene() {
+    // Stars
+    stars = Array.from({ length: 220 }, () => ({
+      x: rnd(0, W), y: rnd(0, H * 0.74),
+      r: rnd(0.2, 1.6),
+      b: rnd(0.3, 1),
+      ts: rnd(0.4, 2.2),
+      tp: rnd(0, Math.PI * 2),
+    }));
+
+    // Forest silhouette trees
+    trees = [];
+    let x = -30;
+    while (x < W + 60) {
+      const h = rnd(H * 0.12, H * 0.27);
+      const w = rnd(20, 52);
+      trees.push({ x, w, h, pine: Math.random() < 0.65, depth: Math.random() < 0.45 });
+      x += rnd(w * 0.35, w * 0.85);
+    }
+  }
+
+  function drawAurora() {
+    const bands = [
+      { c: '64,255,180', yo: 0.14, amp: 0.055, freq: 1 / 170, speed: 0.28 },
+      { c: '120,80,255', yo: 0.20, amp: 0.045, freq: 1 / 220, speed: 0.19 },
+      { c: '50,190,255', yo: 0.09, amp: 0.04,  freq: 1 / 140, speed: 0.35 },
+    ];
+    bands.forEach(({ c, yo, amp, freq, speed }) => {
+      const g = ctx.createLinearGradient(0, 0, 0, H * 0.55);
+      g.addColorStop(0,   `rgba(${c},0)`);
+      g.addColorStop(0.25,`rgba(${c},0.07)`);
+      g.addColorStop(0.55,`rgba(${c},0.04)`);
+      g.addColorStop(1,   `rgba(${c},0)`);
+      ctx.fillStyle = g;
+      ctx.beginPath();
+      ctx.moveTo(0, H * (yo - amp));
+      for (let x = 0; x <= W; x += 6) {
+        const y = H * (yo + amp * Math.sin(x * freq * Math.PI * 2 + t * speed));
+        ctx.lineTo(x, y);
+      }
+      ctx.lineTo(W, H * 0.55); ctx.lineTo(0, H * 0.55);
+      ctx.closePath(); ctx.fill();
+    });
+  }
+
+  function drawStar(s) {
+    const tw = 0.4 + 0.6 * (0.5 + 0.5 * Math.sin(t * s.ts + s.tp));
+    ctx.beginPath();
+    ctx.arc(s.x, s.y, s.r * tw, 0, Math.PI * 2);
+    ctx.fillStyle = `rgba(200,220,255,${s.b * tw})`;
+    ctx.fill();
+  }
+
+  function drawPine(x, by, w, h) {
+    ctx.beginPath();
+    ctx.moveTo(x, by);
+    ctx.lineTo(x - w * 0.5, by);
+    ctx.lineTo(x - w * 0.18, by - h * 0.38);
+    ctx.lineTo(x - w * 0.32, by - h * 0.38);
+    ctx.lineTo(x - w * 0.12, by - h * 0.65);
+    ctx.lineTo(x - w * 0.22, by - h * 0.65);
+    ctx.lineTo(x,            by - h);
+    ctx.lineTo(x + w * 0.22, by - h * 0.65);
+    ctx.lineTo(x + w * 0.12, by - h * 0.65);
+    ctx.lineTo(x + w * 0.32, by - h * 0.38);
+    ctx.lineTo(x + w * 0.18, by - h * 0.38);
+    ctx.lineTo(x + w * 0.5, by);
+    ctx.closePath();
+  }
+
+  function drawRound(x, by, w, h) {
+    ctx.beginPath();
+    ctx.rect(x - w * 0.055, by - h * 0.22, w * 0.11, h * 0.22);
+    ctx.arc(x, by - h * 0.58, w * 0.42, 0, Math.PI * 2);
+  }
+
+  function drawTrees() {
+    const gY = H * 0.875;
+    // Ground
+    ctx.fillStyle = 'rgba(3,6,12,0.97)';
+    ctx.fillRect(0, gY, W, H - gY);
+
+    [false, true].forEach(front => {
+      ctx.fillStyle = front ? 'rgba(6,12,20,0.97)' : 'rgba(10,18,30,0.75)';
+      trees.forEach(tr => {
+        if (tr.depth === front) return;
+        const sc  = front ? 1 : 0.78;
+        const off = front ? 0 : 25;
+        if (tr.pine) drawPine(tr.x + off, gY, tr.w * sc, tr.h * sc);
+        else         drawRound(tr.x + off, gY, tr.w * sc, tr.h * sc);
+        ctx.fill();
+      });
+    });
+  }
+
+  function drawMoon() {
+    const mx = W * 0.81, my = H * 0.11;
+    // Glow
+    const g = ctx.createRadialGradient(mx, my, 0, mx, my, 55);
+    g.addColorStop(0, 'rgba(210,225,255,0.07)'); g.addColorStop(1, 'rgba(210,225,255,0)');
+    ctx.fillStyle = g; ctx.beginPath(); ctx.arc(mx, my, 55, 0, Math.PI * 2); ctx.fill();
+    // Face
+    ctx.fillStyle = '#dce8f5'; ctx.beginPath(); ctx.arc(mx, my, 20, 0, Math.PI * 2); ctx.fill();
+    // Crescent shadow
+    ctx.fillStyle = 'rgba(5,8,16,0.88)'; ctx.beginPath(); ctx.arc(mx + 7, my - 3, 15.5, 0, Math.PI * 2); ctx.fill();
+  }
+
+  function spawnShoot() {
+    if (shoots.length < 3 && Math.random() < 0.0018) {
+      shoots.push({ x: rnd(W * 0.1, W * 0.9), y: rnd(H * 0.04, H * 0.3), vx: rnd(3, 8), vy: rnd(1.2, 3), len: rnd(60, 130), a: 1 });
+    }
+  }
+
+  function drawShoots() {
+    shoots = shoots.filter(s => s.a > 0);
+    shoots.forEach(s => {
+      ctx.beginPath(); ctx.moveTo(s.x, s.y);
+      ctx.lineTo(s.x - s.vx * (s.len / 10), s.y - s.vy * (s.len / 10));
+      const g = ctx.createLinearGradient(s.x, s.y, s.x - s.vx * (s.len / 10), s.y - s.vy * (s.len / 10));
+      g.addColorStop(0, `rgba(255,255,255,${s.a})`); g.addColorStop(1, 'rgba(255,255,255,0)');
+      ctx.strokeStyle = g; ctx.lineWidth = 1.5; ctx.stroke();
+      s.x += s.vx; s.y += s.vy; s.a -= 0.018;
+    });
+  }
+
+  function frame() {
+    t += 0.016;
+    ctx.clearRect(0, 0, W, H);
+    // Sky
+    const sky = ctx.createLinearGradient(0, 0, 0, H);
+    sky.addColorStop(0, '#020408'); sky.addColorStop(0.65, '#060812'); sky.addColorStop(1, '#0a0c1a');
+    ctx.fillStyle = sky; ctx.fillRect(0, 0, W, H);
+    drawAurora();
+    stars.forEach(drawStar);
+    spawnShoot(); drawShoots();
+    drawMoon();
+    drawTrees();
+    requestAnimationFrame(frame);
+  }
+
+  window.addEventListener('resize', resize);
+  resize(); frame();
+})();
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Analog Clock
+// ─────────────────────────────────────────────────────────────────────────────
+(function() {
+  const ticks = document.getElementById('g-ticks');
+  for (let i = 0; i < 60; i++) {
+    const a = (i / 60) * 2 * Math.PI - Math.PI / 2;
+    const isHour = i % 5 === 0;
+    const r0 = isHour ? 68 : 72, r1 = 78;
+    const ln = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+    ln.setAttribute('x1', Math.cos(a) * r0); ln.setAttribute('y1', Math.sin(a) * r0);
+    ln.setAttribute('x2', Math.cos(a) * r1); ln.setAttribute('y2', Math.sin(a) * r1);
+    ln.setAttribute('stroke', isHour ? 'rgba(176,200,224,0.7)' : 'rgba(176,200,224,0.2)');
+    ln.setAttribute('stroke-width', isHour ? '1.8' : '0.7');
+    ticks.appendChild(ln);
+  }
+
+  const hH = document.getElementById('h-hour');
+  const hM = document.getElementById('h-min');
+  const hS = document.getElementById('h-sec');
+  const days   = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
+  const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+
+  function tick() {
+    const n = new Date();
+    const h = n.getHours(), m = n.getMinutes(), s = n.getSeconds(), ms = n.getMilliseconds();
+    hH.setAttribute('transform', `rotate(${((h % 12) + m / 60) / 12 * 360 - 90})`);
+    hM.setAttribute('transform', `rotate(${(m + s / 60) / 60 * 360 - 90})`);
+    hS.setAttribute('transform', `rotate(${(s + ms / 1000) / 60 * 360 - 90})`);
+    document.getElementById('time-txt').textContent =
+      String(h).padStart(2,'0') + ':' + String(m).padStart(2,'0') + ':' + String(s).padStart(2,'0');
+    document.getElementById('date-txt').textContent =
+      days[n.getDay()] + '  ·  ' + months[n.getMonth()] + ' ' + n.getDate() + ', ' + n.getFullYear();
+  }
+  setInterval(tick, 50); tick();
+})();
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Weather (via local proxy — no CORS, no API key)
+// ─────────────────────────────────────────────────────────────────────────────
+const WX_ICONS = {
+  'sunny':'+☀️', 'clear':'🌙', 'partly cloudy':'⛅', 'cloudy':'☁️',
+  'overcast':'☁️', 'rain':'🌧️', 'drizzle':'🌦️', 'snow':'❄️',
+  'thunder':'⛈️', 'fog':'🌫️', 'mist':'🌫️', 'blizzard':'🌨️',
+  'sleet':'🌨️', 'wind':'💨', 'haze':'🌁',
+};
+function wxIcon(d) {
+  const s = (d||'').toLowerCase();
+  for (const [k,v] of Object.entries(WX_ICONS)) if (s.includes(k)) return v;
+  return '🌙';
+}
+
+async function loadWeather() {
+  try {
+    const r = await fetch('/weather');
+    if (!r.ok) throw new Error('offline');
+    const d = await r.json();
+    const c = d.current_condition?.[0];
+    const a = d.nearest_area?.[0];
+    if (!c) return;
+    const tempF = Math.round(parseInt(c.temp_C) * 9/5 + 32);
+    const desc  = c.weatherDesc?.[0]?.value || 'Clear';
+    const city  = a?.areaName?.[0]?.value   || '';
+    const reg   = a?.region?.[0]?.value     || '';
+    document.getElementById('wx-icon').textContent  = wxIcon(desc);
+    document.getElementById('wx-temp').textContent  = `${tempF}°F`;
+    document.getElementById('wx-desc').textContent  = desc;
+    document.getElementById('wx-loc').textContent   = city + (reg ? ', ' + reg : '');
+    document.getElementById('wx-extra').innerHTML   =
+      `💧 ${c.humidity}%<br>💨 ${c.windspeedKmph} km/h<br>👁 ${c.visibility || '--'} km`;
+    document.getElementById('wx-time').textContent  =
+      'Updated ' + new Date().toLocaleTimeString([], { hour:'2-digit', minute:'2-digit' });
+  } catch {
+    document.getElementById('wx-desc').textContent = 'Weather offline';
+  }
+}
+loadWeather();
+setInterval(loadWeather, 5 * 60 * 1000);
+
+// ─────────────────────────────────────────────────────────────────────────────
+// SSE — agent thought stream (pushed from sleeper)
+// ─────────────────────────────────────────────────────────────────────────────
+const stream  = document.getElementById('thought-stream');
+const MAX_T   = 6;
+
+function addThought(lens, text) {
+  // Age down existing entries
+  stream.querySelectorAll('.t-entry').forEach((el, i, all) => {
+    if (i < all.length - MAX_T + 1) el.remove();
+    else el.classList.add('old');
+  });
+  const el = document.createElement('div');
+  el.className = 't-entry';
+  el.innerHTML = `<span class="t-lens">${lens}</span>${text}`;
+  stream.appendChild(el);
+}
+
+function connectSSE() {
+  const es = new EventSource('/events');
+  es.onmessage = e => {
+    try {
+      const { type, data } = JSON.parse(e.data);
+      if (type === 'thought') {
+        addThought(data.lens, data.finding);
+        document.getElementById('llm-prov').textContent = `LLM: ${data.provider || '—'}`;
+      }
+      if (type === 'status') {
+        document.getElementById('idle-st').textContent = `Idle: ${Math.round(data.idleMinutes || 0)}m`;
+        if (data.provider) document.getElementById('llm-prov').textContent = `LLM: ${data.provider}`;
+      }
+      if (type === 'openclaw') {
+        addThought('🦅 OpenClaw', data.message);
+      }
+      if (type === 'wake') {
+        document.querySelector('#thought-hdr').textContent = '⚡ Waking up...';
+        document.body.style.transition = 'opacity 1.2s';
+        document.body.style.opacity = '0';
+        setTimeout(() => window.close(), 1400);
+      }
+    } catch (_) {}
+  };
+  es.onerror = () => setTimeout(connectSSE, 3000);
+}
+connectSSE();
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Uptime ticker
+// ─────────────────────────────────────────────────────────────────────────────
+const _startTime = Date.now();
+setInterval(() => {
+  const s = Math.floor((Date.now() - _startTime) / 1000);
+  const m = Math.floor(s / 60), sc = s % 60;
+  document.getElementById('uptime-st').textContent =
+    `Sleep: ${String(m).padStart(2,'0')}:${String(sc).padStart(2,'0')}`;
+}, 1000);
+</script>
+</body>
+</html>
