@@ -1,236 +1,205 @@
-# Andyria
+<div align="center">
 
-Edge-first hybrid intelligence platform that fuses LLM reasoning, symbolic planning,
-signed entropy beacons, and an append-only cryptographic event DAG into one runtime.
+<img src="https://raw.githubusercontent.com/andyriax/andyria/main/docs/logo.svg" alt="Andyria" width="72" height="72" />
 
-## Mission
+# Andyria Foundation
 
-Andyria provides an auditable cognition loop from prompt to response:
+**Edge-first autonomous AI agent platform — open source, self-improving, locally operated.**
 
-1. Plan tasks from input.
-2. Route tasks across language, symbolic, and tool execution paths.
-3. Verify output quality and policy constraints.
-4. Commit all critical state transitions into signed events.
-5. Anchor every event chain to physical entropy beacons.
+[![License](https://img.shields.io/badge/license-Apache%202.0-blue.svg)](LICENSE)
+[![GitHub Stars](https://img.shields.io/github/stars/andyriax/andyria?style=flat)](https://github.com/andyriax/andyria/stargazers)
+[![GitHub Issues](https://img.shields.io/github/issues/andyriax/andyria)](https://github.com/andyriax/andyria/issues)
+[![Python](https://img.shields.io/badge/python-3.11%2B-blue.svg)](python/)
+[![Rust](https://img.shields.io/badge/rust-stable-orange.svg)](rust/)
 
-This enables local-first intelligence that can scale to a mesh while preserving deterministic verification.
+[Website](https://andyriax.github.io/andyria) · [Architecture](docs/architecture.md) · [Roadmap](docs/roadmap.md) · [Contributing](#contributing)
 
-## Current State (May 2026)
+</div>
 
-### Completed foundation
+---
 
-- Entropy collectors and health checks (RCT + APT) are implemented.
-- Signed `EntropyBeacon` flow is implemented and integrated in event lifecycle.
-- Ed25519 node identity and event signing are active.
-- Event DAG store (NDJSON + index) is active.
-- Content-addressed memory is active.
-- Rule-based planning and safe symbolic math are active.
-- Model router fallback chain (symbolic -> local model -> Ollama -> stub) is active.
-- FastAPI API, CLI, and static UI are active.
-- Docker dual-node mesh setup is active (`7700` + `7701`).
+## What is Andyria?
 
-### Completed control-plane and UX expansion
+Andyria is a self-improving, locally-operated AI agent platform. It runs on your hardware — from a Raspberry Pi to a cloud VM — with zero cloud dependency, zero per-token bill, and full cryptographic auditability of every decision.
 
-- Agent registry with create/update/clone/retire lifecycle is implemented.
-- Tab projection system (open/update/close) is implemented.
-- Tool registry and tool dispatch lifecycle events are implemented.
-- Chain registry and chain executor lifecycle events are implemented.
-- Control-plane event stream with filters is implemented.
-- ATM (Automated Thought Machine) is implemented:
-  - Iterative think loop (generate -> critique -> revise).
-  - Reflection pass integrated into every eligible infer response.
-  - ATM event emission (`atm_started`, `atm_step`, `atm_complete`, reflection events).
-- UI ATM panel and reflection badge are implemented.
+The platform fuses **chain-of-thought reasoning**, an **auto-learn loop**, a **cryptographic event DAG**, and a **peer-to-peer mesh** into a single runtime that gets smarter every session.
 
-### Completed runtime developer experience
-
-- Dev overlay stack with hot-reload is implemented (`docker-compose.dev.yml`).
-- Browser IDE via code-server is integrated on `:8080`.
-- Unique per-agent runtime IDE workspace is implemented:
-  - `GET /v1/agents/{agent_id}/dev` returns agent-specific workspace and URL.
-  - UI exposes per-agent `IDE` button to open that unique workspace.
-
-### Validation status
-
-- Python test suite: `77 passed`.
-- Dev stack services: running with API, peer, and code-server.
-
-## System Architecture
-
-```text
-Request
-  -> Coordinator
-      -> Planner
-          -> Router
-              -> Language backend
-              -> Symbolic solver
-              -> Tool registry
-      -> Verifier
-      -> ATM reflection pass
-      -> Signed Event DAG
-      -> Content-addressed Memory
-      -> Response
+```bash
+# Up in 60 seconds
+git clone https://github.com/andyriax/andyria.git && cd andyria
+docker compose up -d
+# → http://localhost:7700
 ```
 
-## Entropy Design Invariant
+---
 
-Raw physical entropy (jitter, thermal, `/dev/hwrng`, OS sources, system stats)
-is mixed and whitened into a signed beacon. Event hashes include the beacon ID,
-not the raw bytes. This preserves deterministic verification across peers while
-anchoring state transitions to physical-world entropy.
+## Core Capabilities
+
+| Capability | Description |
+|---|---|
+| 🧠 **ReasoningEngine** | Decompose → Analyze → Synthesize chain-of-thought, fully local |
+| 📚 **Auto-Learn Loop** | Distils high-confidence responses into persistent memory, injected into future prompts |
+| 🔄 **ATM** | Automated Thought Machine — iterative generate/critique/revise with reasoning escalation |
+| 🌐 **Mesh Networking** | Gossip-based peer sync, no central coordinator, runs on any topology |
+| 🔐 **Cryptographic DAG** | Ed25519-signed, BLAKE3-hashed append-only event ledger (Rust native) |
+| ⚡ **Entropy Beacons** | Physical entropy anchors every event chain to real-world hardware state |
+| 🎛️ **Multi-Model Router** | Local GGUF → Ollama → stub fallback. Cheapest path always first |
+| 🤖 **Multi-Agent Orchestration** | Persona-driven agents with skill profiles, DAG execution chains |
+| 🔋 **Edge-First Runtime** | Runs on 2GB RAM, first-class Raspberry Pi + Termux support |
+
+---
+
+## Architecture
+
+```
+HTTP/WebSocket
+      │
+  Coordinator
+    ├── ReasoningEngine   (decompose → analyze → synthesize)
+    ├── AutomatedThoughtMachine  (generate → critique → revise)
+    ├── AutoLearner       (pattern distillation → MEMORY.md)
+    ├── ModelRouter       (GGUF | Ollama | stub)
+    ├── Planner + Verifier
+    └── MeshManager       (gossip P2P)
+          │
+    EventDAG  ←──── Rust (BLAKE3 + Ed25519)
+          │
+    Memory Layer
+    ├── ContentAddressedMemory  (BLAKE3 content hashing)
+    ├── PersistentMemory        (MEMORY.md + USER.md)
+    └── SessionStore            (turn history)
+```
+
+See [docs/architecture.md](docs/architecture.md) for the full specification.
+
+---
 
 ## Quick Start
 
-### Local (Python)
-
-```bash
-make setup
-python -m andyria ask "What is 42 * 7?"
-```
-
-### Serve with local model config
-
-```bash
-pip install "andyria[llm]"
-python -m andyria serve --config deploy/raspberry-pi/config.yaml
-```
-
-### Docker standard runtime
+### Docker (recommended)
 
 ```bash
 docker compose up -d --build
-curl -X POST http://localhost:7700/v1/infer \
-  -H "Content-Type: application/json" \
-  -d '{"input":"Explain entropy in one sentence."}'
 ```
 
-### Docker dev runtime (hot reload + browser IDE)
+| Service | URL |
+|---|---|
+| Andyria UI + API | http://localhost:7700 |
+| Peer node | http://localhost:7701 |
+| API docs (Swagger) | http://localhost:7700/docs |
+
+### Local Python
+
+```bash
+pip install -e python/
+python -m andyria serve --port 7700
+```
+
+### With Ollama (free local LLM)
+
+```bash
+ollama pull llama3
+# Andyria auto-detects Ollama — no config needed
+python -m andyria serve
+```
+
+### Raspberry Pi / Edge
+
+```bash
+python -m andyria serve --config deploy/raspberry-pi/config.yaml
+```
+
+### Dev mode (hot reload + browser IDE)
 
 ```bash
 make dev
+# → http://localhost:7700  (app)
+# → http://localhost:8080  (code-server IDE)
 ```
 
-- App UI: `http://localhost:7700/`
-- API docs: `http://localhost:7700/docs`
-- Browser IDE (code-server): `http://localhost:8080`
+---
 
-## Illustrated Roadmap
+## Roadmap
 
-### Program tracks
+| Milestone | Status |
+|---|---|
+| v1 — Core DAG + Mesh + ATM | ✅ Shipped |
+| v1.5 — Agent Platform (personas, skills, sessions) | ✅ Shipped |
+| **v2 — ReasoningEngine + Auto-Learn** | 🔄 Active |
+| v2.5 — TT Live Agent + JETS token rewards | ⏳ Next |
+| v3 — Distributed swarm, Rust ARM runtime, WASM sandbox | 📋 Planned |
+| v4 — Foundation governance + community grants | 📋 Planned |
 
-The roadmap is organized into execution tracks. Names prefixed with `--` are
-intentional operator modes that can evolve into explicit CLI/runtime toggles.
+Full roadmap: [docs/roadmap.md](docs/roadmap.md)
 
-- `--mesh-hardening`: causal sync, peer trust, deterministic merge behavior.
-- `--toolsmith`: richer tool protocol, stronger isolation, replay-safe execution.
-- `--atm-depth`: deeper multi-pass thought/reflection, calibrated confidence.
-- `--auto-self-actualize`: bounded self-improvement loop with policy gates and auditability.
-- `--conical-laws`: invariant framework for convergence, causality, safety boundaries, and governance.
-- `--observability`: metrics, tracing, event graph introspection.
-- `--pqc-shift`: dual-signature migration to post-quantum cryptography.
+---
 
-### Timeline view
+## Repository Structure
 
-```text
-Now (v0.x) ---------------------------------------------------------------> Future
-
-[Done]
-  Entropy + signed beacons + event DAG + memory
-  Agent/Tab/Tool/Chain control plane
-  ATM think/reflect + UI integration
-  Dev runtime + per-agent IDE workspaces
-
-[Near]
-  --mesh-hardening
-    - Verified peer identity exchange
-    - Delta sync and reconciliation metrics
-    - Causal gap detection and recovery
-
-  --toolsmith
-    - Structured tool schemas and validation contracts
-    - Sandboxed execution profiles
-    - Deterministic tool replay mode
-
-[Mid]
-  --atm-depth
-    - Reflection memory feedback loops
-    - Failure mode taxonomy and correction prompts
-    - Confidence calibration from historical outcomes
-
-  --auto-self-actualize
-    - Proposal -> verify -> apply loop
-    - Strict policy gate before mutation
-    - Signed self-change events and rollback points
-
-[Strategic]
-  --conical-laws
-    - Formal invariant set for system evolution:
-      C1 Causality preservation
-      C2 Verifiability preservation
-      C3 Safety bounded autonomy
-      C4 Convergence under partial sync
-      C5 Human override supremacy
-
-  --pqc-shift
-    - Ed25519 + ML-DSA dual-sign window
-    - Capability signaling in node identity
-    - Controlled deprecation migration plan
+```
+andyria/
+├── python/andyria/      # Core Python runtime (FastAPI + all agents)
+│   ├── coordinator.py   # Main intelligence loop
+│   ├── reasoning.py     # Chain-of-thought ReasoningEngine
+│   ├── auto_learn.py    # Self-recording AutoLearner
+│   ├── atm.py           # Automated Thought Machine
+│   ├── models.py        # Shared Pydantic models + EventType enum
+│   ├── mesh.py          # P2P gossip networking
+│   └── static/          # Web UI
+├── rust/crates/         # Cryptographic DAG ledger (Rust)
+│   ├── ledger/          # Ed25519 signing + BLAKE3 event DAG
+│   └── runtime/         # Hardware profiling + entropy
+├── tt-live-agent/       # TikTok Live monetization agent (Node.js)
+├── deploy/              # Docker + Raspberry Pi deployment configs
+├── docs/                # GitHub Pages site + architecture docs
+└── schemas/             # JSON event schemas
 ```
 
-### Mermaid roadmap map
+---
 
-```mermaid
-flowchart TD
-    A[Current Platform\nEntropy + DAG + Memory + Agents + ATM] --> B[--mesh-hardening]
-    A --> C[--toolsmith]
-    A --> D[--atm-depth]
-    D --> E[--auto-self-actualize]
-    B --> F[--conical-laws]
-    C --> F
-    D --> F
-    F --> G[--pqc-shift]
-    F --> H[Global Multi-Node Governance]
-```
+## Contributing
 
-## Conical Laws (Proposed)
+Andyria is built in the open. All contributions are welcome.
 
-`--conical-laws` codifies non-negotiable constraints for all autonomous evolution:
+1. **Fork** the repository
+2. Create a branch: `git checkout -b feat/your-feature`
+3. Make your changes and add tests
+4. Open a **Pull Request** against `main`
 
-- **Law 1: Causal Integrity**
-  All state transitions must preserve parent linkage in the DAG.
-- **Law 2: Cryptographic Explainability**
-  Every mutation must remain provable via signed events and beacon anchors.
-- **Law 3: Bounded Autonomy**
-  Autonomous actions require explicit policy envelope and kill-switch compatibility.
-- **Law 4: Reversible Progress**
-  Major self-modifications require rollback checkpoints.
-- **Law 5: Human Supremacy Channel**
-  Human operator directives override autonomous loops.
+See [CONTRIBUTING.md](CONTRIBUTING.md) for code style, commit conventions, and the review process.
 
-## Requirements
+**Good first issues:** look for the [`good first issue`](https://github.com/andyriax/andyria/issues?q=label%3A%22good+first+issue%22) label.
 
-- Python 3.11+
-- Rust 1.75+
-- Docker + Compose (recommended for mesh/dev workflows)
-- 512 MB RAM minimum for edge profile
+---
 
-## Deployment Classes
+## Mission & Governance
 
-| Class | Hardware | Model tier | RAM budget |
-|---|---|---|---|
-| Edge | Raspberry Pi / SBC | tiny < 1B | 512 MB |
-| Server | Laptop / workstation | small 1-3B | 4 GB |
-| Cluster | Multi-node / HPC | medium 3B+ | 16 GB |
+> *Intelligence should not require a cloud account. Andyria exists to prove that autonomous AI can run on hardware you already own, improve itself without external intervention, and remain fully under your control.*
 
-## Non-Goals (v1)
+The **Andyria Foundation** is committed to:
 
-- Training frontier-scale models
-- Unbounded autonomous agency without policy constraints
-- Proof-of-work blockchain consensus
-- On-chain full conversation storage
+- **Open source forever** — Apache 2.0, no open-core, no feature gating
+- **Local-first architecture** — every capability works offline
+- **Radical transparency** — every decision is a signed, auditable event
+- **Community governance** — roadmap driven by contributors, not investors
+
+### 💛 CFF Commitment
+
+**50% of all Andyria Foundation profits are donated to the [Cystic Fibrosis Foundation](https://www.cff.org).**  
+This is a founding commitment. Every commercial license, every sponsored feature — half goes to fighting CF.
+
+---
 
 ## License
 
-Apache 2.0
+Apache 2.0 — see [LICENSE](LICENSE)
 
-Andyria is intended to be freely usable worldwide under the Apache-2.0 terms.
+---
+
+<div align="center">
+
+**[andyriax.github.io/andyria](https://andyriax.github.io/andyria)**
+
+Founded by Michael J. Mahon · Built with ♥ on a NucBox · Runs on a Raspberry Pi
+
+</div>

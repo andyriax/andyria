@@ -1,0 +1,791 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Andyria Foundation — Edge-First AI for Everyone</title>
+  <meta name="description" content="Andyria is an open-source, edge-first autonomous AI agent platform. Self-improving, locally operated, and built for everyone." />
+  <meta property="og:title" content="Andyria Foundation" />
+  <meta property="og:description" content="Edge-first autonomous AI agent platform. Open source. Self-improving. Built for everyone." />
+  <meta property="og:url" content="https://andyriax.github.io/andyria" />
+  <meta property="og:type" content="website" />
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg:        #09090f;
+      --surface:   #12121d;
+      --surface2:  #1a1a2e;
+      --accent:    #7c6af5;
+      --accent2:   #a78bfa;
+      --teal:      #2dd4bf;
+      --text:      #e2e8f0;
+      --muted:     #64748b;
+      --border:    rgba(124, 106, 245, 0.18);
+      --glow:      0 0 40px rgba(124,106,245,0.25);
+      --radius:    14px;
+      --ff:        'Inter', system-ui, -apple-system, sans-serif;
+    }
+
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap');
+
+    html { scroll-behavior: smooth; }
+
+    body {
+      font-family: var(--ff);
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+      overflow-x: hidden;
+    }
+
+    /* ── Grid canvas background ── */
+    body::before {
+      content: '';
+      position: fixed;
+      inset: 0;
+      background-image:
+        linear-gradient(rgba(124,106,245,0.04) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(124,106,245,0.04) 1px, transparent 1px);
+      background-size: 48px 48px;
+      pointer-events: none;
+      z-index: 0;
+    }
+
+    /* ── NAV ── */
+    nav {
+      position: fixed;
+      top: 0; left: 0; right: 0;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 2rem;
+      height: 64px;
+      background: rgba(9,9,15,0.85);
+      backdrop-filter: blur(16px);
+      border-bottom: 1px solid var(--border);
+      z-index: 100;
+    }
+    .nav-logo {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-weight: 700;
+      font-size: 1.15rem;
+      letter-spacing: -0.02em;
+      color: var(--text);
+      text-decoration: none;
+    }
+    .nav-logo .orb {
+      width: 30px; height: 30px;
+      border-radius: 50%;
+      background: radial-gradient(circle at 35% 35%, var(--accent2), var(--accent));
+      box-shadow: 0 0 18px rgba(124,106,245,0.6);
+      flex-shrink: 0;
+    }
+    .nav-links {
+      display: flex;
+      align-items: center;
+      gap: 1.5rem;
+      list-style: none;
+    }
+    .nav-links a {
+      color: var(--muted);
+      text-decoration: none;
+      font-size: 0.9rem;
+      font-weight: 500;
+      transition: color .2s;
+    }
+    .nav-links a:hover { color: var(--text); }
+    .nav-cta {
+      padding: 8px 18px;
+      background: var(--accent);
+      color: #fff !important;
+      border-radius: 8px;
+      font-weight: 600 !important;
+      font-size: 0.875rem !important;
+      transition: background .2s, box-shadow .2s !important;
+    }
+    .nav-cta:hover { background: var(--accent2) !important; box-shadow: 0 0 16px rgba(124,106,245,0.5); }
+
+    /* ── HERO ── */
+    .hero {
+      position: relative;
+      z-index: 1;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      text-align: center;
+      padding: 120px 1.5rem 80px;
+    }
+    .hero-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 5px 14px;
+      border: 1px solid var(--border);
+      border-radius: 999px;
+      background: rgba(124,106,245,0.08);
+      font-size: 0.78rem;
+      font-weight: 600;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      color: var(--accent2);
+      margin-bottom: 2rem;
+    }
+    .hero-badge .dot {
+      width: 7px; height: 7px;
+      border-radius: 50%;
+      background: var(--teal);
+      animation: pulse 2s ease-in-out infinite;
+    }
+    @keyframes pulse {
+      0%,100% { opacity: 1; transform: scale(1); }
+      50%      { opacity: 0.5; transform: scale(1.3); }
+    }
+    h1 {
+      font-size: clamp(2.8rem, 6vw, 5rem);
+      font-weight: 800;
+      line-height: 1.1;
+      letter-spacing: -0.04em;
+      margin-bottom: 1.5rem;
+      background: linear-gradient(135deg, #fff 30%, var(--accent2) 70%, var(--teal));
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+    }
+    .hero p {
+      font-size: clamp(1rem, 2vw, 1.25rem);
+      color: var(--muted);
+      max-width: 600px;
+      line-height: 1.7;
+      margin-bottom: 2.5rem;
+    }
+    .hero-actions {
+      display: flex;
+      gap: 1rem;
+      flex-wrap: wrap;
+      justify-content: center;
+    }
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 14px 28px;
+      border-radius: 10px;
+      font-size: 1rem;
+      font-weight: 600;
+      text-decoration: none;
+      transition: all .2s;
+      cursor: pointer;
+      border: none;
+    }
+    .btn-primary {
+      background: var(--accent);
+      color: #fff;
+      box-shadow: 0 4px 24px rgba(124,106,245,0.35);
+    }
+    .btn-primary:hover { background: var(--accent2); box-shadow: 0 4px 32px rgba(124,106,245,0.55); transform: translateY(-1px); }
+    .btn-ghost {
+      background: transparent;
+      color: var(--text);
+      border: 1px solid var(--border);
+    }
+    .btn-ghost:hover { border-color: var(--accent); color: var(--accent2); transform: translateY(-1px); }
+
+    /* Hero stats bar */
+    .hero-stats {
+      display: flex;
+      gap: 2.5rem;
+      margin-top: 4rem;
+      flex-wrap: wrap;
+      justify-content: center;
+    }
+    .stat { text-align: center; }
+    .stat-value {
+      font-size: 2rem;
+      font-weight: 800;
+      color: var(--accent2);
+      letter-spacing: -0.03em;
+    }
+    .stat-label {
+      font-size: 0.78rem;
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      margin-top: 2px;
+    }
+
+    /* ── SECTION WRAPPER ── */
+    section { position: relative; z-index: 1; }
+
+    .section-inner {
+      max-width: 1100px;
+      margin: 0 auto;
+      padding: 80px 1.5rem;
+    }
+    .section-label {
+      font-size: 0.75rem;
+      font-weight: 700;
+      letter-spacing: 0.14em;
+      text-transform: uppercase;
+      color: var(--teal);
+      margin-bottom: 0.75rem;
+    }
+    h2 {
+      font-size: clamp(1.8rem, 3.5vw, 2.8rem);
+      font-weight: 800;
+      letter-spacing: -0.03em;
+      margin-bottom: 1rem;
+    }
+    .section-desc {
+      color: var(--muted);
+      font-size: 1.05rem;
+      max-width: 560px;
+      line-height: 1.7;
+      margin-bottom: 3rem;
+    }
+
+    /* ── FEATURES GRID ── */
+    .features-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+      gap: 1.5rem;
+    }
+    .feature-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 1.75rem;
+      transition: border-color .2s, box-shadow .2s;
+    }
+    .feature-card:hover {
+      border-color: rgba(124,106,245,0.5);
+      box-shadow: var(--glow);
+    }
+    .feature-icon {
+      width: 42px; height: 42px;
+      border-radius: 10px;
+      background: rgba(124,106,245,0.12);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 1.3rem;
+      margin-bottom: 1rem;
+    }
+    .feature-card h3 {
+      font-size: 1.05rem;
+      font-weight: 700;
+      margin-bottom: 0.5rem;
+    }
+    .feature-card p {
+      color: var(--muted);
+      font-size: 0.9rem;
+      line-height: 1.6;
+    }
+
+    /* ── ARCHITECTURE ── */
+    .arch-section { background: var(--surface); border-top: 1px solid var(--border); border-bottom: 1px solid var(--border); }
+    .arch-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 4rem;
+      align-items: center;
+    }
+    @media (max-width: 768px) { .arch-grid { grid-template-columns: 1fr; } }
+    .arch-diagram {
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 2rem;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.78rem;
+      line-height: 1.9;
+      color: var(--muted);
+    }
+    .arch-diagram .hl  { color: var(--accent2); }
+    .arch-diagram .tl  { color: var(--teal); }
+    .arch-diagram .dim { color: #334155; }
+
+    /* ── PILLARS ── */
+    .pillars {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 1rem;
+    }
+    @media (max-width: 768px) { .pillars { grid-template-columns: 1fr; } }
+    .pillar {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 1.5rem;
+      text-align: center;
+    }
+    .pillar-icon { font-size: 2rem; margin-bottom: 0.75rem; }
+    .pillar h3 { font-size: 1rem; font-weight: 700; margin-bottom: 0.4rem; }
+    .pillar p { color: var(--muted); font-size: 0.85rem; line-height: 1.5; }
+
+    /* ── MISSION ── */
+    .mission-section { background: linear-gradient(135deg, rgba(124,106,245,0.07) 0%, rgba(45,212,191,0.05) 100%); border-top: 1px solid var(--border); border-bottom: 1px solid var(--border); }
+    .mission-quote {
+      font-size: clamp(1.2rem, 2.5vw, 1.7rem);
+      font-weight: 300;
+      line-height: 1.6;
+      color: var(--text);
+      border-left: 3px solid var(--accent);
+      padding-left: 1.5rem;
+      margin-bottom: 1.5rem;
+    }
+    .mission-quote em { color: var(--accent2); font-style: normal; font-weight: 600; }
+
+    /* ── CFF BANNER ── */
+    .cff-banner {
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 1.5rem 2rem;
+      display: flex;
+      align-items: center;
+      gap: 1.5rem;
+      flex-wrap: wrap;
+    }
+    .cff-heart { font-size: 2.5rem; flex-shrink: 0; }
+    .cff-text h3 { font-size: 1rem; font-weight: 700; margin-bottom: 0.3rem; }
+    .cff-text p { font-size: 0.875rem; color: var(--muted); }
+    .cff-text a { color: var(--teal); text-decoration: none; font-weight: 600; }
+    .cff-text a:hover { text-decoration: underline; }
+
+    /* ── CODE BLOCK ── */
+    .code-block {
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 1.5rem 2rem;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.85rem;
+      color: var(--muted);
+      overflow-x: auto;
+    }
+    .code-block .cmd { color: var(--teal); }
+    .code-block .str { color: var(--accent2); }
+    .code-block .cmt { color: #334155; }
+
+    /* ── ROADMAP ── */
+    .roadmap {
+      display: flex;
+      flex-direction: column;
+      gap: 0;
+      position: relative;
+    }
+    .roadmap::before {
+      content: '';
+      position: absolute;
+      left: 20px; top: 0; bottom: 0;
+      width: 1px;
+      background: var(--border);
+    }
+    .rm-item {
+      display: flex;
+      gap: 1.5rem;
+      padding: 1rem 0;
+      position: relative;
+    }
+    .rm-dot {
+      width: 41px; height: 41px;
+      flex-shrink: 0;
+      border-radius: 50%;
+      border: 2px solid var(--border);
+      background: var(--surface);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 0.9rem;
+      z-index: 1;
+    }
+    .rm-dot.done { border-color: var(--teal); background: rgba(45,212,191,0.1); }
+    .rm-dot.active { border-color: var(--accent); background: rgba(124,106,245,0.15); box-shadow: 0 0 12px rgba(124,106,245,0.3); }
+    .rm-content { padding-top: 8px; }
+    .rm-content h3 { font-size: 0.95rem; font-weight: 700; margin-bottom: 0.25rem; }
+    .rm-content p { font-size: 0.85rem; color: var(--muted); }
+    .rm-tag {
+      display: inline-block;
+      padding: 2px 8px;
+      border-radius: 4px;
+      font-size: 0.7rem;
+      font-weight: 600;
+      margin-left: 8px;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+    .rm-tag.done   { background: rgba(45,212,191,0.12); color: var(--teal); }
+    .rm-tag.active { background: rgba(124,106,245,0.12); color: var(--accent2); }
+    .rm-tag.next   { background: rgba(255,255,255,0.05); color: var(--muted); }
+
+    /* ── FOOTER ── */
+    footer {
+      position: relative;
+      z-index: 1;
+      border-top: 1px solid var(--border);
+      padding: 3rem 1.5rem;
+      text-align: center;
+    }
+    .footer-logo {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 10px;
+      font-weight: 700;
+      font-size: 1.1rem;
+      margin-bottom: 1rem;
+      color: var(--text);
+    }
+    .footer-logo .orb {
+      width: 24px; height: 24px;
+      border-radius: 50%;
+      background: radial-gradient(circle at 35% 35%, var(--accent2), var(--accent));
+      box-shadow: 0 0 12px rgba(124,106,245,0.5);
+    }
+    .footer-links {
+      display: flex;
+      justify-content: center;
+      gap: 1.5rem;
+      list-style: none;
+      margin-bottom: 1.5rem;
+    }
+    .footer-links a {
+      color: var(--muted);
+      text-decoration: none;
+      font-size: 0.875rem;
+      transition: color .2s;
+    }
+    .footer-links a:hover { color: var(--accent2); }
+    footer p {
+      color: var(--muted);
+      font-size: 0.8rem;
+      line-height: 1.8;
+    }
+
+    /* ── RESPONSIVE NAV ── */
+    @media (max-width: 640px) {
+      .nav-links { display: none; }
+    }
+  </style>
+</head>
+<body>
+
+<!-- NAV -->
+<nav>
+  <a class="nav-logo" href="#">
+    <div class="orb"></div>
+    Andyria
+  </a>
+  <ul class="nav-links">
+    <li><a href="#features">Features</a></li>
+    <li><a href="#architecture">Architecture</a></li>
+    <li><a href="#mission">Mission</a></li>
+    <li><a href="#roadmap">Roadmap</a></li>
+    <li><a href="https://github.com/andyriax/andyria" target="_blank" class="nav-cta">View on GitHub →</a></li>
+  </ul>
+</nav>
+
+<!-- HERO -->
+<section class="hero" id="home">
+  <div class="hero-badge">
+    <span class="dot"></span>
+    Open Source Foundation
+  </div>
+  <h1>Intelligence at the<br/>Edge of Everything</h1>
+  <p>
+    Andyria is a self-improving, locally-operated AI agent platform.
+    No cloud dependency. No per-token bill. Just autonomous intelligence
+    running where you need it — on your hardware, in your mesh.
+  </p>
+  <div class="hero-actions">
+    <a href="https://github.com/andyriax/andyria" target="_blank" class="btn btn-primary">
+      ⭐ Star on GitHub
+    </a>
+    <a href="#features" class="btn btn-ghost">
+      Explore the Platform
+    </a>
+  </div>
+  <div class="hero-stats">
+    <div class="stat"><div class="stat-value">Local&#8209;First</div><div class="stat-label">Zero cloud required</div></div>
+    <div class="stat"><div class="stat-value">Self&#8209;Learning</div><div class="stat-label">Grows smarter every session</div></div>
+    <div class="stat"><div class="stat-value">Open</div><div class="stat-label">Apache 2.0 licensed</div></div>
+    <div class="stat"><div class="stat-value">50% Donated</div><div class="stat-label">Profits → CFF research</div></div>
+  </div>
+</section>
+
+<!-- FEATURES -->
+<section id="features">
+  <div class="section-inner">
+    <div class="section-label">Platform Capabilities</div>
+    <h2>An AI agent that builds itself</h2>
+    <p class="section-desc">
+      Every component of Andyria is designed to operate offline-first, improve
+      from its own outputs, and extend itself without human intervention.
+    </p>
+    <div class="features-grid">
+      <div class="feature-card">
+        <div class="feature-icon">🧠</div>
+        <h3>Chain-of-Thought Reasoning</h3>
+        <p>ReasoningEngine decomposes complex prompts into sub-questions, analyzes each independently, then synthesizes a coherent answer — all locally.</p>
+      </div>
+      <div class="feature-card">
+        <div class="feature-icon">📚</div>
+        <h3>Auto-Learn Loop</h3>
+        <p>High-confidence responses are automatically distilled into MEMORY.md. Future prompts inject this learned context, creating a compounding intelligence effect.</p>
+      </div>
+      <div class="feature-card">
+        <div class="feature-icon">🔄</div>
+        <h3>ATM — Automated Thought Machine</h3>
+        <p>Iterative generate → critique → revise loop with configurable depth. Escalates to full chain-of-thought reasoning when confidence falls below threshold.</p>
+      </div>
+      <div class="feature-card">
+        <div class="feature-icon">🌐</div>
+        <h3>Mesh Networking</h3>
+        <p>Peer-to-peer gossip protocol syncs DAG state across nodes. No central server. Runs on Raspberry Pi, cloud VMs, or your laptop simultaneously.</p>
+      </div>
+      <div class="feature-card">
+        <div class="feature-icon">🔐</div>
+        <h3>Cryptographic DAG Ledger</h3>
+        <p>Every event is signed with Ed25519, hashed with BLAKE3, and appended to an immutable causal DAG. Full audit trail, zero trust required.</p>
+      </div>
+      <div class="feature-card">
+        <div class="feature-icon">🎛️</div>
+        <h3>Multi-Model Routing</h3>
+        <p>Routes tasks to local GGUF models → Ollama → stub fallback. Zero cost path always attempted first. Bring your own weights.</p>
+      </div>
+      <div class="feature-card">
+        <div class="feature-icon">⚡</div>
+        <h3>Entropy-Anchored Identity</h3>
+        <p>Physical entropy beacons anchor every request to real-world time and hardware state, making replay attacks cryptographically infeasible.</p>
+      </div>
+      <div class="feature-card">
+        <div class="feature-icon">🤖</div>
+        <h3>Multi-Agent Orchestration</h3>
+        <p>Spawn, delegate, and chain specialized agents across a DAG execution graph. Each agent carries a persona, skill profile, and private memory.</p>
+      </div>
+      <div class="feature-card">
+        <div class="feature-icon">🔋</div>
+        <h3>Edge-Optimized Runtime</h3>
+        <p>First-class Raspberry Pi support. Runs on 2GB RAM. Docker Compose deployment in under 60 seconds. Designed for Termux and ARM.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ARCHITECTURE -->
+<section id="architecture" class="arch-section">
+  <div class="section-inner">
+    <div class="arch-grid">
+      <div>
+        <div class="section-label">System Architecture</div>
+        <h2>Built for autonomy,<br/>not abstraction</h2>
+        <p class="section-desc">
+          A layered stack where every component has one job and emits signed
+          events to a shared DAG. No hidden state. No black boxes.
+        </p>
+        <div class="pillars">
+          <div class="pillar">
+            <div class="pillar-icon">🧩</div>
+            <h3>Coordinator</h3>
+            <p>Entropy → Plan → Route → Verify → Reflect → Learn</p>
+          </div>
+          <div class="pillar">
+            <div class="pillar-icon">🔗</div>
+            <h3>DAG Ledger</h3>
+            <p>Causal graph of every signed event, Rust-native</p>
+          </div>
+          <div class="pillar">
+            <div class="pillar-icon">🕸️</div>
+            <h3>Mesh Layer</h3>
+            <p>Gossip-based sync, no coordinator node</p>
+          </div>
+        </div>
+      </div>
+      <div class="arch-diagram">
+        <div><span class="tl">ANDYRIA RUNTIME</span> <span class="dim">v2.x</span></div>
+        <div class="dim">─────────────────────────────</div>
+        <div>  <span class="hl">Coordinator</span>  <span class="dim">← HTTP/WebSocket</span></div>
+        <div>    ├─ <span class="hl">ReasoningEngine</span>  <span class="dim">[CoT]</span></div>
+        <div>    ├─ <span class="hl">AutomatedThoughtMachine</span></div>
+        <div>    ├─ <span class="hl">AutoLearner</span>  <span class="dim">→ MEMORY.md</span></div>
+        <div>    ├─ <span class="hl">ModelRouter</span>  <span class="dim">[GGUF|Ollama]</span></div>
+        <div>    ├─ <span class="hl">Planner</span>  +  <span class="hl">Verifier</span></div>
+        <div>    └─ <span class="hl">MeshManager</span>  <span class="dim">[gossip]</span></div>
+        <div class="dim"> </div>
+        <div>  <span class="tl">EventDAG</span>  <span class="dim">(Rust — BLAKE3 + Ed25519)</span></div>
+        <div>    ├─ <span class="dim">store.rs</span> / <span class="dim">crypto.rs</span></div>
+        <div>    └─ <span class="dim">entropy.rs</span> / <span class="dim">event.rs</span></div>
+        <div class="dim"> </div>
+        <div>  <span class="tl">Memory Layer</span></div>
+        <div>    ├─ <span class="hl">ContentAddressedMemory</span>  <span class="dim">[BLAKE3]</span></div>
+        <div>    ├─ <span class="hl">PersistentMemory</span>  <span class="dim">[MEMORY.md]</span></div>
+        <div>    └─ <span class="hl">SessionStore</span>  <span class="dim">[turns]</span></div>
+        <div class="dim"> </div>
+        <div>  <span class="tl">Nodes</span>  <span class="dim">→</span>  <span class="hl">:7700</span>  /  <span class="hl">:7701</span>  <span class="dim">...</span></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- QUICKSTART -->
+<section id="quickstart">
+  <div class="section-inner">
+    <div class="section-label">Get Started</div>
+    <h2>Up in 60 seconds</h2>
+    <p class="section-desc">Clone, configure, and launch. No API keys, no cloud account, no credit card.</p>
+    <div class="code-block">
+      <div><span class="cmt"># Clone the repository</span></div>
+      <div><span class="cmd">git clone</span> <span class="str">https://github.com/andyriax/andyria.git</span></div>
+      <div><span class="cmd">cd</span> andyria</div>
+      <br/>
+      <div><span class="cmt"># Launch with Docker Compose (recommended)</span></div>
+      <div><span class="cmd">docker compose up</span> -d</div>
+      <br/>
+      <div><span class="cmt"># Or run directly with Python</span></div>
+      <div><span class="cmd">pip install</span> -e python/</div>
+      <div><span class="cmd">python -m andyria serve</span> <span class="str">--port 7700</span></div>
+      <br/>
+      <div><span class="cmt"># Andyria is now running at http://localhost:7700</span></div>
+    </div>
+    <br/>
+    <div class="code-block">
+      <div><span class="cmt"># Optional: connect a local Ollama model (free, private)</span></div>
+      <div><span class="cmd">ollama pull</span> <span class="str">llama3</span></div>
+      <div><span class="cmt"># Andyria auto-detects Ollama — no config needed</span></div>
+    </div>
+  </div>
+</section>
+
+<!-- MISSION -->
+<section id="mission" class="mission-section">
+  <div class="section-inner">
+    <div class="section-label">Our Mission</div>
+    <h2>Intelligence as a human right</h2>
+    <div class="mission-quote">
+      "We believe that <em>powerful AI should not require a cloud account</em>,
+      a subscription, or a data center. Andyria exists to prove that
+      autonomous intelligence can run <em>on the hardware you already own</em>,
+      improve itself without external intervention, and remain
+      <em>fully under your control</em>."
+    </div>
+    <p style="color:var(--muted);line-height:1.7;max-width:640px;margin-bottom:2rem;">
+      The Andyria Foundation is committed to open-source development, radical
+      transparency, and a governance model that puts community benefit above
+      commercial interest. All core technology is and will remain freely
+      available under the Apache 2.0 license.
+    </p>
+    <div class="cff-banner">
+      <div class="cff-heart">💛</div>
+      <div class="cff-text">
+        <h3>Supporting the Cystic Fibrosis Foundation</h3>
+        <p>
+          50% of all Andyria Foundation profits are donated directly to
+          <a href="https://www.cff.org" target="_blank">CFF research</a>.
+          Every deployment, every commercial license, every sponsored feature —
+          half goes to fighting cystic fibrosis.
+          This is a founding commitment, not a marketing line.
+        </p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ROADMAP -->
+<section id="roadmap">
+  <div class="section-inner">
+    <div class="section-label">Public Roadmap</div>
+    <h2>Where we're going</h2>
+    <p class="section-desc">
+      Built in the open. Every milestone is a GitHub release.
+    </p>
+    <div class="roadmap">
+      <div class="rm-item">
+        <div class="rm-dot done">✓</div>
+        <div class="rm-content">
+          <h3>v1 — Core DAG + Mesh <span class="rm-tag done">Shipped</span></h3>
+          <p>Cryptographic event DAG, Ed25519 identity, gossip mesh, ModelRouter, ATM think/reflect loop.</p>
+        </div>
+      </div>
+      <div class="rm-item">
+        <div class="rm-dot done">✓</div>
+        <div class="rm-content">
+          <h3>v1.5 — Agent Platform <span class="rm-tag done">Shipped</span></h3>
+          <p>Multi-agent registry, persona archetypes, skill profiles, session memory, TodoStore, CronScheduler, delegation chains.</p>
+        </div>
+      </div>
+      <div class="rm-item">
+        <div class="rm-dot active">→</div>
+        <div class="rm-content">
+          <h3>v2 — Reasoning + Auto-Learn <span class="rm-tag active">Active</span></h3>
+          <p>ReasoningEngine (CoT decompose→analyze→synthesize), AutoLearner (pattern distillation into MEMORY.md), dynamic Surprise Me, new event types.</p>
+        </div>
+      </div>
+      <div class="rm-item">
+        <div class="rm-dot">○</div>
+        <div class="rm-content">
+          <h3>v2.5 — TT Live Agent <span class="rm-tag next">Next</span></h3>
+          <p>TikTok Live monetization agent, JETS token rewards, OpenClaw protocol, revenue skill chain.</p>
+        </div>
+      </div>
+      <div class="rm-item">
+        <div class="rm-dot">○</div>
+        <div class="rm-content">
+          <h3>v3 — Distributed Swarm <span class="rm-tag next">Planned</span></h3>
+          <p>Multi-node swarm coordination, Rust runtime for ARM, WASM agent sandboxing, federated learning across mesh.</p>
+        </div>
+      </div>
+      <div class="rm-item">
+        <div class="rm-dot">○</div>
+        <div class="rm-content">
+          <h3>v4 — Foundation Platform <span class="rm-tag next">Planned</span></h3>
+          <p>Community governance, grant program, SDK for third-party agent authors, foundation membership model.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- CONTRIBUTE -->
+<section style="background:var(--surface);border-top:1px solid var(--border);">
+  <div class="section-inner" style="text-align:center;">
+    <div class="section-label">Community</div>
+    <h2>Build with us</h2>
+    <p style="color:var(--muted);max-width:520px;margin:0 auto 2rem;line-height:1.7;">
+      Andyria is built in the open. Whether you contribute code, documentation,
+      agents, or ideas — you're part of the foundation.
+    </p>
+    <div style="display:flex;gap:1rem;justify-content:center;flex-wrap:wrap;">
+      <a href="https://github.com/andyriax/andyria" target="_blank" class="btn btn-primary">⭐ Star the Repo</a>
+      <a href="https://github.com/andyriax/andyria/fork" target="_blank" class="btn btn-ghost">🍴 Fork & Contribute</a>
+      <a href="https://github.com/andyriax/andyria/issues" target="_blank" class="btn btn-ghost">🐛 Open an Issue</a>
+    </div>
+  </div>
+</section>
+
+<!-- FOOTER -->
+<footer>
+  <div class="footer-logo">
+    <div class="orb"></div>
+    Andyria Foundation
+  </div>
+  <ul class="footer-links">
+    <li><a href="https://github.com/andyriax/andyria" target="_blank">GitHub</a></li>
+    <li><a href="https://github.com/andyriax/andyria/blob/main/docs/architecture.md" target="_blank">Architecture</a></li>
+    <li><a href="https://github.com/andyriax/andyria/blob/main/docs/roadmap.md" target="_blank">Roadmap</a></li>
+    <li><a href="https://github.com/andyriax/andyria/blob/main/LICENSE" target="_blank">Apache 2.0</a></li>
+    <li><a href="https://www.cff.org" target="_blank">CFF ↗</a></li>
+  </ul>
+  <p>
+    © 2026 Andyria Foundation — Founded by Michael J. Mahon<br/>
+    Open source. Edge-first. 50% of profits donated to the Cystic Fibrosis Foundation.<br/>
+    <span style="color:#334155">Built with ♥ on a NucBox. Runs on a Raspberry Pi.</span>
+  </p>
+</footer>
+
+</body>
+</html>
