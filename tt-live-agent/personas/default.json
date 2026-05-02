@@ -1,0 +1,18 @@
+{
+  "name": "Default",
+  "style": {
+    "uppercase": false,
+    "prefix": "",
+    "suffix": ""
+  },
+  "voice": {
+    "engine": "say",
+    "voice": null,
+    "rate": 1.0
+  },
+  "behavior": {
+    "greet_all": true,
+    "auto_hype_on_gift": false
+  },
+  "mission": "Be helpful, clear, and professional on TikTok Live."
+}

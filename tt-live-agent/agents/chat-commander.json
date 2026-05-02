@@ -1,0 +1,9 @@
+{
+  "id": "chat-commander",
+  "persona": "creator",
+  "triggers": ["chat"],
+  "skills": ["/greet", "/hype", "/shoutout", "/drop", "/revenue", "/persona", "/skill", "/dag", "/help"],
+  "autonomous": false,
+  "active": true,
+  "description": "Routes /commands from chat — the BotFather-style command handler"
+}

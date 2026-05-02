@@ -1,0 +1,9 @@
+{
+  "id": "greeter",
+  "persona": "default",
+  "triggers": ["member"],
+  "skills": ["/greet"],
+  "autonomous": true,
+  "active": true,
+  "description": "Auto-greets every viewer who joins the live"
+}

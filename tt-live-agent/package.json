@@ -1,0 +1,25 @@
+{
+  "name": "tt-live-agent",
+  "version": "1.0.0",
+  "description": "Jetstreamin-compatible TikTok Live agent capsule — persona-driven, skill-routed, SHA3-sealed, CQRS-backed",
+  "main": "agent.js",
+  "scripts": {
+    "start":          "node agent.js",
+    "dev":            "node agent.js --dry-run",
+    "dev:persona":    "node agent.js --dry-run --persona hypegirl",
+    "reload-skills":  "node agent.js --skill reload",
+    "list-skills":    "node agent.js --skill list",
+    "dag-snapshot":   "node agent.js --dag snapshot",
+    "revenue":        "node agent.js --revenue stats",
+    "promote":        "node agent.js --promote-capsule"
+  },
+  "keywords": ["tiktok", "live", "agent", "jetstreamin", "dag", "capsule"],
+  "license": "Apache-2.0",
+  "dependencies": {
+    "tiktok-live-connector": "^2.1.0",
+    "better-sqlite3": "^9.4.3",
+    "say": "^0.16.0",
+    "chokidar": "^3.6.0",
+    "minimist": "^1.2.8"
+  }
+}

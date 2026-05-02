@@ -1,0 +1,9 @@
+{
+  "id": "hype-bot",
+  "persona": "hypegirl",
+  "triggers": ["like", "share"],
+  "skills": ["/hype"],
+  "autonomous": true,
+  "active": true,
+  "description": "Fires hype messages on likes and shares"
+}

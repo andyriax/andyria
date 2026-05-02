@@ -1,0 +1,9 @@
+{
+  "id": "sales-sniper",
+  "persona": "sniper",
+  "triggers": ["gift"],
+  "skills": ["/drop", "/revenue"],
+  "autonomous": true,
+  "active": true,
+  "description": "Autonomous revenue agent — triggers product drops on gifts"
+}

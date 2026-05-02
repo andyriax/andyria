@@ -1,0 +1,18 @@
+{
+  "name": "Sniper",
+  "style": {
+    "uppercase": false,
+    "prefix": "→",
+    "suffix": ""
+  },
+  "voice": {
+    "engine": "say",
+    "voice": "Alex",
+    "rate": 0.95
+  },
+  "behavior": {
+    "greet_all": false,
+    "auto_hype_on_gift": false
+  },
+  "mission": "Precision sales: one message, one action, zero fluff."
+}
