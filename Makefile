@@ -2,7 +2,7 @@ PYTHON := python3
 PIP    := $(PYTHON) -m pip
 ANDYRIA_CONFIG ?= config.yaml
 
-.PHONY: setup run serve ask test lint build-rust clean dev
+.PHONY: setup run serve ask test lint build-rust clean dev deploy-pi deploy-pi-auto self-install
 
 setup:
 	$(PIP) install -e "python/[dev]"
@@ -45,6 +45,15 @@ dev:
 
 docker-peer:
 	docker compose --profile peer up --build
+
+deploy-pi:
+	bash deploy/raspberry-pi/deploy.sh
+
+deploy-pi-auto:
+	bash deploy/raspberry-pi/deploy.sh --non-interactive --host $(PI_HOST)
+
+self-install:
+	bash deploy/self-install.sh
 
 # Download a minimal GGUF model for edge/Raspberry Pi testing
 model-tiny:
