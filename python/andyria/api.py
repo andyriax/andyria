@@ -75,12 +75,16 @@ _coordinator: Optional[Coordinator] = None
 async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     """FastAPI lifespan manager — start/stop mesh on app startup/shutdown."""
     # Startup
+    if _coordinator:
+        await _coordinator.start_background_tasks()
     if _coordinator and _coordinator.mesh:
         await _coordinator.mesh.start()
     yield
     # Shutdown
     if _coordinator and _coordinator.mesh:
         await _coordinator.mesh.stop()
+    if _coordinator:
+        await _coordinator.stop_background_tasks()
 
 
 def create_app(coordinator: Coordinator) -> FastAPI:
@@ -98,7 +102,14 @@ def create_app(coordinator: Coordinator) -> FastAPI:
 
     app.add_middleware(
         CORSMiddleware,
-        allow_origins=["http://localhost", "http://127.0.0.1"],
+        allow_origins=[
+            origin.strip()
+            for origin in os.environ.get(
+                "ANDYRIA_CORS_ORIGINS",
+                "http://localhost,http://127.0.0.1",
+            ).split(",")
+            if origin.strip()
+        ],
         allow_methods=["GET", "POST", "DELETE", "PATCH"],
         allow_headers=["Content-Type"],
     )
@@ -579,6 +590,41 @@ def create_app(coordinator: Coordinator) -> FastAPI:
             "ready": s.ready,
             "detail": s.readiness_detail,
         }
+
+    @app.get("/metrics", include_in_schema=False, response_model=None)
+    async def metrics() -> Response:
+        """Prometheus-compatible text exposition (no external dependency)."""
+        import time
+
+        lines: list[str] = []
+
+        def gauge(name: str, value: float, labels: dict[str, str] | None = None) -> None:
+            label_str = ""
+            if labels:
+                parts = [f'{k}="{v}"' for k, v in labels.items()]
+                label_str = "{" + ",".join(parts) + "}"
+            lines.append(f"# TYPE {name} gauge")
+            lines.append(f"{name}{label_str} {value}")
+
+        now_ms = int(time.time() * 1000)
+        lines.append(f"# HELP andyria_scrape_timestamp_ms Unix timestamp of this scrape in milliseconds")
+        lines.append(f"# TYPE andyria_scrape_timestamp_ms gauge")
+        lines.append(f"andyria_scrape_timestamp_ms {now_ms}")
+
+        if _coordinator is not None:
+            s = _coordinator.status()
+            gauge("andyria_ready", 1.0 if s.ready else 0.0)
+            gauge("andyria_event_log_total", float(len(_coordinator._event_log)))
+            gauge("andyria_agents_total", float(len(_coordinator._agents)))
+            gauge("andyria_sessions_total", float(len(_coordinator._sessions)))
+            if s.entropy_sampler:
+                gauge("andyria_entropy_health", 1.0 if s.entropy_sampler.get("healthy", False) else 0.0)
+                gauge("andyria_entropy_rate_bps", float(s.entropy_sampler.get("rate_bps", 0)))
+        else:
+            gauge("andyria_ready", 0.0)
+
+        body = "\n".join(lines) + "\n"
+        return Response(content=body, media_type="text/plain; version=0.0.4; charset=utf-8")
 
     @app.get("/v1/tools", response_model=List[str])
     async def list_tools() -> List[str]:
