@@ -124,11 +124,13 @@ class AutomatedThoughtMachine:
         emit_event_fn: Optional[Callable[..., Any]] = None,
         max_iterations: int = DEFAULT_MAX_ITERATIONS,
         confidence_threshold: float = DEFAULT_CONFIDENCE_THRESHOLD,
+        reasoning_engine: Optional[Any] = None,
     ) -> None:
         self._infer = inference_fn
         self._emit = emit_event_fn  # coordinator._emit_control_event
         self._max_iter = max_iterations
         self._conf_threshold = confidence_threshold
+        self._reasoning = reasoning_engine  # Optional ReasoningEngine escalation
 
     # ------------------------------------------------------------------
     # Public API
@@ -211,6 +213,17 @@ class AutomatedThoughtMachine:
             current_input = self._build_next_input(prompt, gen_output, critique_text, i)
 
         total_ms = int((time.monotonic() - start) * 1000)
+
+        # Escalate to ReasoningEngine if still low confidence after max iterations
+        if final_confidence < 0.6 and self._reasoning is not None:
+            try:
+                r = self._reasoning.reason(prompt, ctx)
+                if r.final_confidence > final_confidence and not self._is_stub(r.synthesis):
+                    final_output = r.synthesis
+                    final_confidence = r.final_confidence
+                    final_model = r.steps[-1].model_used if r.steps else final_model
+            except Exception:
+                pass
 
         log = ThoughtLog(
             thought_id=tid,
@@ -367,3 +380,16 @@ class AutomatedThoughtMachine:
         # Require at least 10% character change
         diff = abs(len(rev_norm) - len(orig_norm))
         return diff > max(10, len(orig_norm) * 0.05)
+
+    @staticmethod
+    def _is_stub(text: str) -> bool:
+        """Return True if text looks like a stub/offline placeholder response."""
+        if not text:
+            return True
+        lo = text.lower().strip()
+        return (
+            lo.startswith("[")
+            or lo.startswith("received:")
+            or lo.startswith("no language model")
+            or lo.startswith("no llm")
+        )

@@ -779,6 +779,28 @@ def create_app(coordinator: Coordinator) -> FastAPI:
         async def soul_get() -> dict:
             return {"content": _soul.content, "path": str(_soul.path)}
 
+        # --- Surprise Me ---
+
+        @app.get("/v1/prompts/surprise", response_model=dict)
+        async def prompts_surprise() -> dict:
+            """Return a dynamically generated Surprise Me prompt."""
+            prompt = _coordinator.generate_surprise_prompt()
+            return {"prompt": prompt}
+
+        # --- Learned patterns ---
+
+        @app.get("/v1/learned", response_model=dict)
+        async def learned_get() -> dict:
+            """Return all [learned] entries from MEMORY.md."""
+            entries = _coordinator.get_learned_entries()
+            return {"count": len(entries), "entries": entries}
+
+        @app.post("/v1/learn/reset", response_model=dict)
+        async def learn_reset() -> dict:
+            """Remove all learned entries from MEMORY.md."""
+            count = _coordinator.reset_learned()
+            return {"removed": count}
+
         @app.put("/v1/soul", response_model=dict)
         async def soul_update(body: dict) -> dict:
             content = body.get("content", "")

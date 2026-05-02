@@ -16,6 +16,8 @@ _BASE_SKILLS = [
     "mesh.peer_sync_basics",
     "tools.registry_dispatch",
     "chains.multi_agent_execution",
+    "reasoning.chain_of_thought",
+    "auto_learn.self_improvement",
 ]
 
 _ARCHETYPE_SKILL_BOOST = {
@@ -24,6 +26,7 @@ _ARCHETYPE_SKILL_BOOST = {
     "Protocol Alchemist": ["protocol.contract_design", "api.schema_evolution"],
     "Runtime Choreographer": ["runtime.optimization", "dev.hot_reload_workflow"],
     "Ledger Forensic": ["ledger.event_forensics", "signature.verification"],
+    "Reasoning Agent": ["reasoning.deep_decomposition", "auto_learn.pattern_extraction"],
 }
 
 

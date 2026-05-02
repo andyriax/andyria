@@ -1859,8 +1859,8 @@
       });
     });
 
-    // Surprise Me — pick a random prompt and send it immediately
-    const _surprisePrompts = [
+    // Surprise Me — fetch a dynamic prompt from the server, fall back to local pool
+    const _surpriseFallback = [
       "Generate a haiku about distributed systems.",
       "What is the most interesting unsolved problem in computer science?",
       "Invent a name and personality for a new AI assistant.",
@@ -1874,8 +1874,21 @@
       "Invent a board game based on cryptographic hash functions.",
       "Summarize the history of the internet in exactly 4 sentences.",
     ];
-    document.getElementById("btn-surprise-me").addEventListener("click", () => {
-      const pick = _surprisePrompts[Math.floor(Math.random() * _surprisePrompts.length)];
+    const _btnSurprise = document.getElementById("btn-surprise-me");
+    _btnSurprise.addEventListener("click", async () => {
+      const origText = _btnSurprise.textContent;
+      _btnSurprise.textContent = "⏳";
+      _btnSurprise.style.pointerEvents = "none";
+      let pick = _surpriseFallback[Math.floor(Math.random() * _surpriseFallback.length)];
+      try {
+        const res = await fetch("/v1/prompts/surprise", { signal: AbortSignal.timeout(4000) });
+        if (res.ok) {
+          const data = await res.json();
+          if (data.prompt && data.prompt.length > 10) pick = data.prompt;
+        }
+      } catch (_) { /* server unavailable or slow — use fallback */ }
+      _btnSurprise.textContent = origText;
+      _btnSurprise.style.pointerEvents = "";
       promptInput.value = pick;
       autoGrow(promptInput);
       promptInput.focus();

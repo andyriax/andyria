@@ -30,6 +30,9 @@ from .memory import ContentAddressedMemory
 from .mesh import MeshManager
 from .chains import ChainRegistry
 from .atm import AutomatedThoughtMachine
+from .reasoning import ReasoningEngine
+from .auto_learn import AutoLearner
+from .persistent_memory import PersistentMemory
 from .models import (
     AgentCloneRequest,
     AgentCreateRequest,
@@ -397,6 +400,20 @@ class Coordinator:
             gossip_interval_ms=gossip_interval_ms,
         )
 
+        # Reasoning & self-improvement
+        self._pmem = PersistentMemory(self._data_dir)
+        self._reasoning = ReasoningEngine(
+            inference_fn=self._atm_infer,
+            emit_event_fn=self._emit_control_event_str,
+        )
+        self._learner = AutoLearner(
+            persistent_memory=self._pmem,
+            confidence_threshold=0.80,
+            emit_fn=self._emit_control_event_str,
+        )
+        # Give ATM access to ReasoningEngine for low-confidence escalation
+        self._atm._reasoning = self._reasoning
+
     async def process(self, request: AndyriaRequest) -> AndyriaResponse:
         """Execute the full intelligence loop for one request."""
         start_mono = time.monotonic()
@@ -493,6 +510,14 @@ class Coordinator:
         avg_confidence = sum(r.confidence for r in results) / max(len(results), 1)
         final_model = results[-1].model_used if results else "none"
 
+        # 6b. Inject learned context for next iteration (fire-and-forget; safe)
+        try:
+            learned_block = self._learner.learned_context_block()
+            if learned_block:
+                merged_context["_learned"] = learned_block
+        except Exception:
+            pass
+
         # 7. Self-reflection — ATM reflect pass (only when a real LLM backend answered)
         reflection_result: Optional[ReflectionResult] = None
         if self._router.is_model_available() and combined and not combined.startswith("["):
@@ -516,6 +541,18 @@ class Coordinator:
                     avg_confidence = log.final_confidence
             except Exception:
                 pass  # reflection is best-effort; never fail the main response
+
+        # 7b. Auto-learn — record high-quality outputs for future context injection
+        try:
+            self._learner.record(
+                prompt=request.input,
+                output=combined,
+                confidence=avg_confidence,
+                source="reflection" if reflection_result and reflection_result.revised else "direct",
+                model_used=final_model,
+            )
+        except Exception:
+            pass
 
         # 8. Persist session turn
         if request.session_id:
@@ -549,6 +586,59 @@ class Coordinator:
 
     def get_agent(self, agent_id: str) -> Optional[AgentDefinition]:
         return self._registry.get(agent_id)
+
+    def generate_surprise_prompt(self) -> str:
+        """Return a dynamically generated 'Surprise Me' prompt.
+
+        Uses learned context + model if available; otherwise picks from a
+        curated local fallback pool.  Always local-first, zero cost.
+        """
+        import random
+        _FALLBACK = [
+            "Design a self-healing mesh protocol for edge devices with intermittent connectivity.",
+            "Explain why entropy is the foundation of trust in distributed systems.",
+            "What would an AI-native filesystem look like? How would it differ from POSIX?",
+            "Describe the ideal agent handoff protocol for a multi-agent DAG pipeline.",
+            "How could conical mesh topology improve latency for IoT swarm deployments?",
+            "What are the ethical considerations of a self-improving AI agent platform?",
+            "Simulate a 5-step reasoning chain on: 'What makes a great system architecture?'",
+            "Generate a creative brief for an AR experience that rewards community engagement.",
+        ]
+        if not self._router.is_model_available():
+            return random.choice(_FALLBACK)
+        try:
+            ctx = {}
+            learned = self._learner.learned_context_block()
+            if learned:
+                ctx["_learned"] = learned
+            meta_prompt = (
+                "Generate ONE creative, thought-provoking question or task for an AI agent platform. "
+                "It should be specific, intellectually stimulating, and actionable. "
+                "Output ONLY the question/task, nothing else."
+            )
+            output, _, confidence = self._reasoning._infer(meta_prompt, ctx)
+            if output and not output.strip().startswith("[") and len(output.strip()) > 20:
+                return output.strip()
+        except Exception:
+            pass
+        return random.choice(_FALLBACK)
+
+    def get_learned_entries(self) -> list:
+        """Return all current [learned] entries from MEMORY.md."""
+        try:
+            raw = self._pmem.read("MEMORY")
+            from .auto_learn import LEARN_PREFIX
+            return [
+                ln.strip()
+                for ln in raw.splitlines()
+                if ln.strip().startswith(LEARN_PREFIX)
+            ]
+        except Exception:
+            return []
+
+    def reset_learned(self) -> int:
+        """Remove all learned entries.  Returns count removed."""
+        return self._learner.reset()
 
     def create_agent(self, request: AgentCreateRequest) -> AgentDefinition:
         req = request

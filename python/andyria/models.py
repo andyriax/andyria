@@ -70,6 +70,12 @@ class EventType(str, Enum):
     TODO_ADDED = "todo_added"
     TODO_UPDATED = "todo_updated"
     TODO_CLEARED = "todo_cleared"
+    # Reasoning
+    REASONING_STARTED = "reasoning_started"
+    REASONING_STEP = "reasoning_step"
+    REASONING_COMPLETE = "reasoning_complete"
+    # Auto-learn
+    AUTO_LEARN_RECORDED = "auto_learn_recorded"
 
 
 class EntropyBeacon(BaseModel):
@@ -366,6 +372,37 @@ class ReflectionResult(BaseModel):
     revised: bool
     final_confidence: float
     total_ms: int
+
+
+class ReasoningStep(BaseModel):
+    """One sub-question/answer pair inside a ReasoningTrace."""
+    step_number: int
+    question: str
+    answer: str
+    confidence: float
+    model_used: str
+    elapsed_ms: int
+
+
+class ReasoningTrace(BaseModel):
+    """Complete chain-of-thought trace produced by ReasoningEngine."""
+    trace_id: str
+    original_prompt: str
+    steps: List[ReasoningStep]
+    synthesis: str
+    final_confidence: float
+    total_ms: int
+    timestamp_ns: int
+
+
+class AutoLearnEntry(BaseModel):
+    """One learned pattern recorded by AutoLearner."""
+    entry_id: str
+    pattern: str
+    source: str  # 'atm' | 'reflection' | 'reasoning' | 'direct'
+    confidence: float
+    model_used: str
+    recorded_at: int  # timestamp_ns
 
 
     # ---------------------------------------------------------------------------
