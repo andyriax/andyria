@@ -214,6 +214,8 @@
       transition: border-color 0.15s;
     }
     .pill:hover { border-color: var(--accent); color: var(--accent); }
+    .pill-surprise { border-color: var(--accent); background: linear-gradient(135deg, var(--surface) 0%, color-mix(in srgb, var(--accent) 12%, var(--surface)) 100%); }
+    .pill-surprise:hover { background: color-mix(in srgb, var(--accent) 20%, var(--surface)); }
 
     /* ── Input bar ── */
     .input-bar {
@@ -990,6 +992,7 @@
             <div class="pill" data-text="Calculate (42 * 7) / 3">Math: (42 × 7) ÷ 3</div>
             <div class="pill" data-text="What makes a good distributed system?">Distributed systems</div>
             <div class="pill" data-text="Create a game">Create a game</div>
+            <div class="pill pill-surprise" id="btn-surprise-me">✨ Surprise Me</div>
           </div>
         </div>
       </div>
@@ -1848,12 +1851,35 @@
     });
 
     // Sidebar suggestion clicks
-    document.querySelectorAll(".sidebar-btn.suggestion, .pill").forEach((el) => {
+    document.querySelectorAll(".sidebar-btn.suggestion, .pill:not(.pill-surprise)").forEach((el) => {
       el.addEventListener("click", () => {
         promptInput.value = el.dataset.text || el.textContent;
         autoGrow(promptInput);
         promptInput.focus();
       });
+    });
+
+    // Surprise Me — pick a random prompt and send it immediately
+    const _surprisePrompts = [
+      "Generate a haiku about distributed systems.",
+      "What is the most interesting unsolved problem in computer science?",
+      "Invent a name and personality for a new AI assistant.",
+      "Explain quantum entanglement using only food analogies.",
+      "Write a one-paragraph sci-fi story set on a mesh network of AIs.",
+      "What would a day in the life of an entropy beacon look like?",
+      "Give me three contrarian takes on microservices.",
+      "Design a minimal programming language for robots in 5 lines.",
+      "Describe the colour blue to someone who has never seen it.",
+      "What would you do if you had one hour of free compute time?",
+      "Invent a board game based on cryptographic hash functions.",
+      "Summarize the history of the internet in exactly 4 sentences.",
+    ];
+    document.getElementById("btn-surprise-me").addEventListener("click", () => {
+      const pick = _surprisePrompts[Math.floor(Math.random() * _surprisePrompts.length)];
+      promptInput.value = pick;
+      autoGrow(promptInput);
+      promptInput.focus();
+      sendMessage();
     });
 
     // ── Agents ─────────────────────────────────────────────────────────────
