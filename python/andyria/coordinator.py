@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import asyncio
 import ast
+import contextlib
 import hashlib
 import json
 import operator
@@ -33,7 +34,10 @@ from .chains import ChainRegistry
 from .atm import AutomatedThoughtMachine
 from .reasoning import ReasoningEngine
 from .auto_learn import AutoLearner
+from .orc import OuterReasoningCortex
 from .persistent_memory import PersistentMemory
+from .promptbook import PromptbookRegistry
+from .workflow import WorkflowRegistry, WorkflowRunner
 from .models import (
     AgentCloneRequest,
     AgentCreateRequest,
@@ -54,12 +58,24 @@ from .models import (
     NodeStatus,
     PeerStatus,
     ReflectionResult,
+    ORCPatternMatch,
+    ORCWitnessResult,
     SessionContext,
     TabCreateRequest,
     TabProjection,
     TabUpdateRequest,
     TaskResult,
     TaskType,
+    WorkflowCreateRequest,
+    WorkflowDefinition,
+    WorkflowRunRequest,
+    WorkflowRunResult,
+    Promptbook,
+    PromptbookCreateRequest,
+    PromptbookMutateRequest,
+    PromptbookRenderRequest,
+    PromptbookRenderResponse,
+    PromptbookUpdateRequest,
 )
 from .node import NodeIdentityManager
 from .planner import Planner
@@ -348,6 +364,10 @@ class Coordinator:
         node_id: str,
         deployment_class: str = "edge",
         entropy_sources: Optional[List[str]] = None,
+        entropy_sampler_interval_ms: int = 0,
+        entropy_min_active_sources: int = 1,
+        entropy_max_consecutive_degraded: int = 3,
+        entropy_fail_closed: bool = False,
         model_path: Optional[Path] = None,
         ollama_url: Optional[str] = None,
         ollama_model: Optional[str] = None,
@@ -360,6 +380,17 @@ class Coordinator:
         self._requests_processed = 0
         self._events_committed = 0
         self._beacons_generated = 0
+        self._entropy_samples_total = 0
+        self._entropy_samples_degraded_total = 0
+        self._entropy_sampler_failures = 0
+        self._entropy_consecutive_degraded = 0
+        self._entropy_last_sample_ns = 0
+        self._entropy_unhealthy = False
+        self._entropy_sampler_interval_ms = max(0, int(entropy_sampler_interval_ms))
+        self._entropy_min_active_sources = max(1, int(entropy_min_active_sources))
+        self._entropy_max_consecutive_degraded = max(1, int(entropy_max_consecutive_degraded))
+        self._entropy_fail_closed = entropy_fail_closed
+        self._entropy_sampler_task: Optional[asyncio.Task[None]] = None
         self._event_log: List[Event] = []
         self._beacon_store: Dict[str, EntropyBeacon] = {}
         self._event_subscribers: List[queue.Queue[Dict[str, Any]]] = []
@@ -389,6 +420,8 @@ class Coordinator:
         self._verifier = Verifier(node_id, private_key)
         self._tools = ToolRegistry()
         self._chains = ChainRegistry(self._memory)
+        self._promptbooks = PromptbookRegistry(self._memory)
+        self._workflows = WorkflowRegistry(self._memory)
         self._atm = AutomatedThoughtMachine(
             inference_fn=self._atm_infer,
             emit_event_fn=self._emit_control_event_str,
@@ -417,9 +450,66 @@ class Coordinator:
         # Give ATM access to ReasoningEngine for low-confidence escalation
         self._atm._reasoning = self._reasoning
 
+        # Workflow runner — wires together all subsystems
+        self._workflow_runner = WorkflowRunner(self, self._promptbooks)
+
+        # Outer Reasoning Cortex — metacognitive witness layer
+        self._orc = OuterReasoningCortex(
+            inference_fn=self._atm_infer,
+            emit_event_fn=self._emit_control_event_str,
+        )
+
+    async def start_background_tasks(self) -> None:
+        """Start periodic background tasks (entropy sampler)."""
+        if self._entropy_sampler_interval_ms <= 0:
+            return
+        if self._entropy_sampler_task is not None and not self._entropy_sampler_task.done():
+            return
+        self._entropy_sampler_task = asyncio.create_task(self._entropy_sampler_loop())
+
+    async def stop_background_tasks(self) -> None:
+        """Stop periodic background tasks cleanly."""
+        if self._entropy_sampler_task is None:
+            return
+        self._entropy_sampler_task.cancel()
+        with contextlib.suppress(asyncio.CancelledError):
+            await self._entropy_sampler_task
+        self._entropy_sampler_task = None
+
+    async def _entropy_sampler_loop(self) -> None:
+        """Generate entropy beacons on a periodic interval for liveness sampling."""
+        interval_s = self._entropy_sampler_interval_ms / 1000.0
+        while True:
+            try:
+                beacon = self._beacon_factory.generate()
+                self._beacon_store[beacon.id] = beacon
+                self._beacons_generated += 1
+                self._entropy_samples_total += 1
+                self._entropy_last_sample_ns = int(time.time_ns())
+
+                is_degraded = len(beacon.sources) < self._entropy_min_active_sources
+                if is_degraded:
+                    self._entropy_samples_degraded_total += 1
+                    self._entropy_consecutive_degraded += 1
+                else:
+                    self._entropy_consecutive_degraded = 0
+
+                self._entropy_unhealthy = (
+                    self._entropy_consecutive_degraded >= self._entropy_max_consecutive_degraded
+                )
+            except Exception:
+                self._entropy_sampler_failures += 1
+                self._entropy_consecutive_degraded += 1
+                self._entropy_unhealthy = (
+                    self._entropy_consecutive_degraded >= self._entropy_max_consecutive_degraded
+                )
+            await asyncio.sleep(interval_s)
+
     async def process(self, request: AndyriaRequest) -> AndyriaResponse:
         """Execute the full intelligence loop for one request."""
         start_mono = time.monotonic()
+        if self._entropy_fail_closed and self._entropy_unhealthy:
+            raise RuntimeError("Entropy sampling unhealthy; fail-closed mode is enabled")
         requested_agent_id = request.agent_id or "default"
         agent = self._registry.get(requested_agent_id)
         if agent is None or not agent.active:
@@ -430,6 +520,7 @@ class Coordinator:
         beacon = self._beacon_factory.generate()
         self._beacon_store[beacon.id] = beacon
         self._beacons_generated += 1
+        self._entropy_last_sample_ns = int(time.time_ns())
 
         # 2. Load session context and merge into request context
         session_ctx = None
@@ -523,7 +614,12 @@ class Coordinator:
 
         # 7. Self-reflection — ATM reflect pass (only when a real LLM backend answered)
         reflection_result: Optional[ReflectionResult] = None
-        if self._router.is_model_available() and combined and not combined.startswith("["):
+        if (
+            self._router.is_model_available()
+            and combined
+            and not combined.startswith("[")
+            and not request.input.strip().startswith("/")
+        ):
             try:
                 refl_ctx = dict(merged_context)
                 refl_ctx["session_id"] = request.session_id
@@ -546,6 +642,35 @@ class Coordinator:
                 logger.warning("ATM reflection failed (best-effort)", exc_info=True)
 
         # 7b. Auto-learn — record high-quality outputs for future context injection
+
+        # 7c. ORC — Outer Reasoning Cortex witness pass
+        orc_witness_result: Optional[ORCWitnessResult] = None
+        try:
+            wr = self._orc.witness(
+                original_request=request.input,
+                response=combined,
+                context=merged_context,
+            )
+            if wr.minimization_detected:
+                combined = wr.enriched_response
+                avg_confidence = max(avg_confidence, 0.75)
+            orc_witness_result = ORCWitnessResult(
+                orc_id=wr.orc_id,
+                minimization_detected=wr.minimization_detected,
+                patterns_found=[
+                    ORCPatternMatch(**p) for p in wr.patterns_found
+                ],
+                composite_mi=wr.composite_mi,
+                genuine_harm_present=wr.genuine_harm_present,
+                reflection_used=wr.reflection_used,
+                rights_appended=wr.rights_appended,
+                model_used=wr.model_used,
+                total_ms=wr.total_ms,
+                timestamp_ns=wr.timestamp_ns,
+            )
+        except Exception:
+            pass  # ORC is best-effort; never fail the main response
+
         try:
             self._learner.record(
                 prompt=request.input,
@@ -582,6 +707,7 @@ class Coordinator:
             session_id=request.session_id,
             turn_number=turn_number + 1,
             reflection=reflection_result,
+            orc_witness=orc_witness_result,
         )
 
     def list_agents(self, include_inactive: bool = False) -> List[AgentDefinition]:
@@ -718,6 +844,16 @@ class Coordinator:
                 metadata={"agent_id": retired.agent_id},
             )
         return retired
+
+    def destroy_agent(self, agent_id: str) -> bool:
+        destroyed = self._registry.destroy(agent_id)
+        if destroyed:
+            self._emit_control_event(
+                event_type=EventType.AGENT_DELETED,
+                payload={"agent_id": agent_id},
+                metadata={"agent_id": agent_id},
+            )
+        return destroyed
 
     def list_tabs(self) -> List[TabProjection]:
         return self._tabs.list()
@@ -941,6 +1077,147 @@ class Coordinator:
         assert last_response is not None
         return last_response
 
+    # ------------------------------------------------------------------
+    # Workflow methods
+    # ------------------------------------------------------------------
+
+    def list_workflows(self, tag: Optional[str] = None) -> List[WorkflowDefinition]:
+        return self._workflows.list(tag=tag)
+
+    def get_workflow(self, workflow_id: str) -> Optional[WorkflowDefinition]:
+        return self._workflows.get(workflow_id)
+
+    def create_workflow(self, request: WorkflowCreateRequest) -> WorkflowDefinition:
+        wf = self._workflows.create(
+            name=request.name,
+            description=request.description,
+            steps=list(request.steps),
+            input_schema=dict(request.input_schema),
+            output_step=request.output_step,
+            tags=list(request.tags),
+        )
+        self._emit_control_event(
+            EventType.WORKFLOW_STARTED,
+            {"workflow_id": wf.workflow_id, "name": wf.name},
+            {"workflow_id": wf.workflow_id},
+        )
+        return wf
+
+    def delete_workflow(self, workflow_id: str) -> Optional[WorkflowDefinition]:
+        return self._workflows.delete(workflow_id)
+
+    async def run_workflow(
+        self, workflow_id: str, request: WorkflowRunRequest
+    ) -> WorkflowRunResult:
+        wf = self._workflows.get(workflow_id)
+        if wf is None or not wf.active:
+            raise ValueError(f"Workflow '{workflow_id}' not found")
+        self._emit_control_event(
+            EventType.WORKFLOW_STARTED,
+            {"workflow_id": workflow_id, "name": wf.name, "steps": len(wf.steps)},
+            {"workflow_id": workflow_id},
+        )
+        try:
+            result = await self._workflow_runner.run(wf, request)
+            event_type = (
+                EventType.WORKFLOW_COMPLETED
+                if result.status == "completed"
+                else EventType.WORKFLOW_FAILED
+            )
+            self._emit_control_event(
+                event_type,
+                {
+                    "workflow_id": workflow_id,
+                    "run_id": result.run_id,
+                    "status": result.status,
+                    "total_ms": result.total_ms,
+                },
+                {"workflow_id": workflow_id},
+            )
+            return result
+        except Exception as exc:
+            self._emit_control_event(
+                EventType.WORKFLOW_FAILED,
+                {"workflow_id": workflow_id, "error": str(exc)},
+                {"workflow_id": workflow_id},
+            )
+            raise
+
+    # ------------------------------------------------------------------
+    # Promptbook methods
+    # ------------------------------------------------------------------
+
+    def list_promptbooks(self, tag: Optional[str] = None) -> List[Promptbook]:
+        return self._promptbooks.list(tag=tag)
+
+    def get_promptbook(self, promptbook_id: str) -> Optional[Promptbook]:
+        return self._promptbooks.get(promptbook_id)
+
+    def create_promptbook(self, request: PromptbookCreateRequest) -> Promptbook:
+        pb = self._promptbooks.create(request)
+        self._emit_control_event(
+            EventType.PROMPTBOOK_CREATED,
+            {"promptbook_id": pb.promptbook_id, "name": pb.name},
+            {"promptbook_id": pb.promptbook_id},
+        )
+        return pb
+
+    def update_promptbook(
+        self, promptbook_id: str, request: PromptbookUpdateRequest
+    ) -> Optional[Promptbook]:
+        pb = self._promptbooks.update(promptbook_id, request)
+        if pb:
+            self._emit_control_event(
+                EventType.PROMPTBOOK_UPDATED,
+                {"promptbook_id": promptbook_id},
+                {"promptbook_id": promptbook_id},
+            )
+        return pb
+
+    def delete_promptbook(self, promptbook_id: str) -> Optional[Promptbook]:
+        pb = self._promptbooks.delete(promptbook_id)
+        if pb:
+            self._emit_control_event(
+                EventType.PROMPTBOOK_DELETED,
+                {"promptbook_id": promptbook_id},
+                {"promptbook_id": promptbook_id},
+            )
+        return pb
+
+    def render_promptbook(
+        self, promptbook_id: str, request: PromptbookRenderRequest
+    ) -> Optional[PromptbookRenderResponse]:
+        result = self._promptbooks.render(
+            promptbook_id, request.variables, template_name=request.template_name
+        )
+        if result:
+            self._emit_control_event(
+                EventType.PROMPTBOOK_RENDERED,
+                {
+                    "promptbook_id": promptbook_id,
+                    "templates_rendered": len(result.rendered),
+                    "missing": result.missing_variables,
+                },
+                {"promptbook_id": promptbook_id},
+            )
+        return result
+
+    def mutate_promptbook(
+        self, promptbook_id: str, request: PromptbookMutateRequest
+    ) -> Optional[Promptbook]:
+        mutation = self._promptbooks.mutate(promptbook_id, request)
+        if mutation:
+            self._emit_control_event(
+                EventType.PROMPTBOOK_MUTATED,
+                {
+                    "parent_id": promptbook_id,
+                    "mutation_id": mutation.promptbook_id,
+                    "name": mutation.name,
+                },
+                {"promptbook_id": mutation.promptbook_id},
+            )
+        return mutation
+
     def get_beacon(self, beacon_id: str) -> Optional[EntropyBeacon]:
         return self._beacon_store.get(beacon_id)
 
@@ -1112,6 +1389,8 @@ class Coordinator:
     def _readiness(self) -> tuple[bool, str]:
         """Return (ready, detail) describing node readiness."""
         issues: List[str] = []
+        if self._entropy_fail_closed and self._entropy_unhealthy:
+            issues.append("entropy sampler unhealthy")
         try:
             beacon = self._beacon_factory.generate()
             self._beacon_store[beacon.id] = beacon
@@ -1156,7 +1435,19 @@ class Coordinator:
             model_loaded=model_loaded,
             memory_objects=len(list((self._data_dir / "memory" / "objects").glob("*")))
                 if (self._data_dir / "memory" / "objects").exists() else 0,
-            entropy_sources=["os_urandom", "clock_jitter"],
+            entropy_sources=self._beacon_factory.source_names,
+            entropy_sampler_running=(
+                self._entropy_sampler_task is not None and not self._entropy_sampler_task.done()
+            ),
+            entropy_sampler_interval_ms=self._entropy_sampler_interval_ms,
+            entropy_sampling_fail_closed=self._entropy_fail_closed,
+            entropy_min_active_sources=self._entropy_min_active_sources,
+            entropy_samples_total=self._entropy_samples_total,
+            entropy_samples_degraded_total=self._entropy_samples_degraded_total,
+            entropy_sampler_failures=self._entropy_sampler_failures,
+            entropy_consecutive_degraded=self._entropy_consecutive_degraded,
+            entropy_last_sample_ns=self._entropy_last_sample_ns,
+            entropy_unhealthy=self._entropy_unhealthy,
             peer_count=len(peer_statuses),
             peers=peer_statuses,
             ready=ready,

@@ -21,12 +21,31 @@
 
 'use strict';
 
+const { spawnSync } = require('child_process');
+
 let say;
 try {
   say = require('say');
 } catch (_) {
   say = null;
 }
+
+function _hasExecutable(cmd) {
+  const probe = process.platform === 'win32'
+    ? spawnSync('where', [cmd], { stdio: 'ignore' })
+    : spawnSync('sh', ['-lc', `command -v ${cmd}`], { stdio: 'ignore' });
+  return probe.status === 0;
+}
+
+function _ttsAvailable() {
+  if (!say) return false;
+  if (process.platform === 'linux') return _hasExecutable('festival') || _hasExecutable('espeak');
+  if (process.platform === 'darwin') return _hasExecutable('say');
+  if (process.platform === 'win32') return true;
+  return false;
+}
+
+const TTS_READY = _ttsAvailable();
 
 let _config = {
   enabled  : true,
@@ -48,14 +67,17 @@ function configure(voiceConfig, persona) {
 // ---------------------------------------------------------------------------
 
 function _rawSpeak(text, voice, speed) {
-  if (!say) {
+  if (!say || !TTS_READY) {
     process.stdout.write(`[voice] ${text}\n`);
     return;
   }
   try {
-    say.speak(text, voice || _personaVoice?.voice || null, speed || 1.0);
+    say.speak(text, voice || _personaVoice?.voice || null, speed || 1.0, err => {
+      if (err) process.stdout.write(`[voice:fallback] ${text}\n`);
+    });
   } catch (e) {
     console.warn('[voice] TTS error:', e.message);
+    process.stdout.write(`[voice:fallback] ${text}\n`);
   }
 }
 

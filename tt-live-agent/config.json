@@ -56,11 +56,66 @@
     "shop_link": "https://shop.example.com",
     "affiliate_tag": "jetstreamin"
   },
+  "engagement": {
+    "greetRateLimitMs": 90000,
+    "returningPriorityVisits": 2,
+    "highValueCoinsThreshold": 200,
+    "spamWindowMs": 10000,
+    "spamMaxMessages": 6,
+    "duplicateMessageWindowMs": 8000
+  },
+  "commands": {
+    "permissions": {
+      "/help": "viewer",
+      "/stats": "viewer",
+      "/game": "viewer",
+      "/revenue": "viewer",
+      "/shoutout": "mod",
+      "/drop": "mod",
+      "/reset": "mod",
+      "/persona": "admin",
+      "/skill": "admin",
+      "/dag": "admin",
+      "/conversational:on": "mod",
+      "/conversational:off": "mod",
+      "/conversational:toggle": "mod",
+      "/conversational:status": "viewer"
+    }
+  },
+  "runtime": {
+    "queuePriorities": {
+      "gift": 100,
+      "command": 80,
+      "member": 60,
+      "follow": 50,
+      "share": 40,
+      "like": 35,
+      "chat": 20
+    },
+    "reconnect": {
+      "enabled": true,
+      "baseDelayMs": 1500,
+      "maxDelayMs": 30000
+    },
+    "metricsLogIntervalMs": 30000
+  },
   "obs": {
     "enabled": false,
     "websocket_url": "ws://localhost:4455",
     "password": ""
   },
   "dry_run": false,
-  "log_level": "info"
+  "log_level": "info",
+  "conversational": {
+    "default": false,
+    "rateLimitMs": 8000,
+    "globalRateLimitMs": 500
+  },
+  "logging": {
+    "ndjson": {
+      "enabled": true,
+      "dir": "./logs",
+      "maxFileMB": 50
+    }
+  }
 }

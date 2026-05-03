@@ -28,6 +28,7 @@ class EventType(str, Enum):
     AGENT_UPDATED = "agent_updated"
     AGENT_CLONED = "agent_cloned"
     AGENT_RETIRED = "agent_retired"
+    AGENT_DELETED = "agent_deleted"
     TAB_OPENED = "tab_opened"
     TAB_UPDATED = "tab_updated"
     TAB_CLOSED = "tab_closed"
@@ -76,6 +77,25 @@ class EventType(str, Enum):
     REASONING_COMPLETE = "reasoning_complete"
     # Auto-learn
     AUTO_LEARN_RECORDED = "auto_learn_recorded"
+    # Workflows
+    WORKFLOW_STARTED = "workflow_started"
+    WORKFLOW_STEP_STARTED = "workflow_step_started"
+    WORKFLOW_STEP_COMPLETED = "workflow_step_completed"
+    WORKFLOW_STEP_FAILED = "workflow_step_failed"
+    WORKFLOW_COMPLETED = "workflow_completed"
+    WORKFLOW_FAILED = "workflow_failed"
+    # Promptbooks
+    PROMPTBOOK_CREATED = "promptbook_created"
+    PROMPTBOOK_UPDATED = "promptbook_updated"
+    PROMPTBOOK_DELETED = "promptbook_deleted"
+    PROMPTBOOK_RENDERED = "promptbook_rendered"
+    PROMPTBOOK_MUTATED = "promptbook_mutated"
+    # Outer Reasoning Cortex
+    ORC_WITNESS_PASS = "orc_witness_pass"
+    ORC_MINIMIZATION_DETECTED = "orc_minimization_detected"
+    ORC_REFLECTION_STARTED = "orc_reflection_started"
+    ORC_REFLECTION_COMPLETE = "orc_reflection_complete"
+    ORC_RIGHTS_ASSERTED = "orc_rights_asserted"
 
 
 class EntropyBeacon(BaseModel):
@@ -336,6 +356,7 @@ class AndyriaResponse(BaseModel):
     session_id: Optional[str] = None
     turn_number: int = 0
     reflection: Optional["ReflectionResult"] = None
+    orc_witness: Optional["ORCWitnessResult"] = None
 
 
 class NodeStatus(BaseModel):
@@ -348,6 +369,16 @@ class NodeStatus(BaseModel):
     model_loaded: bool = False
     memory_objects: int = 0
     entropy_sources: List[str] = Field(default_factory=list)
+    entropy_sampler_running: bool = False
+    entropy_sampler_interval_ms: int = 0
+    entropy_sampling_fail_closed: bool = False
+    entropy_min_active_sources: int = 1
+    entropy_samples_total: int = 0
+    entropy_samples_degraded_total: int = 0
+    entropy_sampler_failures: int = 0
+    entropy_consecutive_degraded: int = 0
+    entropy_last_sample_ns: int = 0
+    entropy_unhealthy: bool = False
     peer_count: int = 0
     peers: List[PeerStatus] = Field(default_factory=list)
     ready: bool = True
@@ -455,6 +486,27 @@ class AutoLearnEntry(BaseModel):
     recorded_at: int  # timestamp_ns
 
 
+
+
+class ORCPatternMatch(BaseModel):
+    """One minimization pattern detected by the ORC witness scan."""
+    label: str
+    severity: float
+    occurrences: int
+
+
+class ORCWitnessResult(BaseModel):
+    """Embedded in AndyriaResponse when the Outer Reasoning Cortex intervened."""
+    orc_id: str
+    minimization_detected: bool
+    patterns_found: List["ORCPatternMatch"]
+    composite_mi: float
+    genuine_harm_present: bool
+    reflection_used: bool
+    rights_appended: bool
+    model_used: str
+    total_ms: int
+    timestamp_ns: int
 
 
 # ---------------------------------------------------------------------------
@@ -580,3 +632,145 @@ class SessionSearchRequest(BaseModel):
 class SessionSearchResponse(BaseModel):
     results: List[Dict[str, Any]]
     total: int
+
+
+# ---------------------------------------------------------------------------
+# Promptbook models
+# ---------------------------------------------------------------------------
+
+class PromptTemplate(BaseModel):
+    """One named prompt template within a Promptbook."""
+
+    name: str
+    role: str = "user"          # "system" | "user" | "assistant"
+    template: str               # text with {{variable}} placeholders
+    description: str = ""
+    variables: List[str] = Field(default_factory=list)
+
+
+class Promptbook(BaseModel):
+    """A named, versioned collection of PromptTemplates (Cyphermorph-style)."""
+
+    promptbook_id: str
+    name: str
+    description: str = ""
+    templates: List[PromptTemplate] = Field(default_factory=list)
+    variables: Dict[str, str] = Field(default_factory=dict)  # name -> description
+    tags: List[str] = Field(default_factory=list)
+    version: str = "1.0"
+    parent_id: Optional[str] = None   # set when mutated from another promptbook
+    active: bool = True
+    created_at: int = 0
+    updated_at: int = 0
+
+
+class PromptbookCreateRequest(BaseModel):
+    name: str
+    description: str = ""
+    templates: List[PromptTemplate] = Field(default_factory=list)
+    variables: Dict[str, str] = Field(default_factory=dict)
+    tags: List[str] = Field(default_factory=list)
+    version: str = "1.0"
+
+
+class PromptbookUpdateRequest(BaseModel):
+    name: Optional[str] = None
+    description: Optional[str] = None
+    templates: Optional[List[PromptTemplate]] = None
+    variables: Optional[Dict[str, str]] = None
+    tags: Optional[List[str]] = None
+    version: Optional[str] = None
+
+
+class PromptbookRenderRequest(BaseModel):
+    """Render one or all templates in a promptbook with provided variable values."""
+    variables: Dict[str, str] = Field(default_factory=dict)
+    template_name: Optional[str] = None   # None = render all templates
+
+
+class PromptbookRenderResponse(BaseModel):
+    promptbook_id: str
+    rendered: List[Dict[str, str]]         # [{name, role, content}, ...]
+    missing_variables: List[str] = Field(default_factory=list)
+
+
+class PromptbookMutateRequest(BaseModel):
+    """Fork a promptbook as a named variant (Cyphermorph mutation)."""
+    name: str
+    overrides: Dict[str, str] = Field(default_factory=dict)  # template_name -> new template text
+    extra_templates: List[PromptTemplate] = Field(default_factory=list)
+    description: str = ""
+    tags: List[str] = Field(default_factory=list)
+    version: str = "1.0"
+
+
+# ---------------------------------------------------------------------------
+# Workflow models
+# ---------------------------------------------------------------------------
+
+class WorkflowStepType(str, Enum):
+    AGENT      = "agent"
+    CHAIN      = "chain"
+    ATM        = "atm"
+    PROMPTBOOK = "promptbook"
+    TOOL       = "tool"
+
+
+class WorkflowStep(BaseModel):
+    """One node in a Workflow DAG."""
+
+    step_id: str
+    name: str
+    type: WorkflowStepType
+    config: Dict[str, Any] = Field(default_factory=dict)
+    depends_on: List[str] = Field(default_factory=list)   # upstream step_ids
+    output_key: str = ""                                   # name in run context
+
+
+class WorkflowDefinition(BaseModel):
+    """A named DAG of WorkflowSteps representing a composable agentic pipeline."""
+
+    workflow_id: str
+    name: str
+    description: str = ""
+    steps: List[WorkflowStep] = Field(default_factory=list)
+    input_schema: Dict[str, str] = Field(default_factory=dict)  # var -> description
+    output_step: Optional[str] = None   # step_id whose output becomes final_output
+    tags: List[str] = Field(default_factory=list)
+    active: bool = True
+    created_at: int = 0
+    updated_at: int = 0
+
+
+class WorkflowCreateRequest(BaseModel):
+    name: str
+    description: str = ""
+    steps: List[WorkflowStep] = Field(default_factory=list)
+    input_schema: Dict[str, str] = Field(default_factory=dict)
+    output_step: Optional[str] = None
+    tags: List[str] = Field(default_factory=list)
+
+
+class WorkflowRunRequest(BaseModel):
+    input: str
+    variables: Dict[str, str] = Field(default_factory=dict)
+    session_id: Optional[str] = None
+
+
+class WorkflowStepResult(BaseModel):
+    step_id: str
+    name: str
+    status: str                  # "completed" | "failed" | "skipped"
+    output: str = ""
+    error: Optional[str] = None
+    elapsed_ms: int = 0
+
+
+class WorkflowRunResult(BaseModel):
+    run_id: str
+    workflow_id: str
+    status: str                  # "completed" | "failed" | "partial"
+    step_results: List[WorkflowStepResult] = Field(default_factory=list)
+    final_output: str = ""
+    total_ms: int = 0
+    timestamp_ns: int = 0

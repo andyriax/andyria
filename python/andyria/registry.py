@@ -145,6 +145,15 @@ class AgentRegistry:
         self._save(current)
         return current
 
+    def destroy(self, agent_id: str) -> bool:
+        if agent_id == "default":
+            return False
+        current = self.get(agent_id)
+        if current is None:
+            return False
+        self._memory.delete_binding(self._AGENTS_NS, agent_id)
+        return True
+
     def _save(self, agent: AgentDefinition) -> None:
         payload = agent.model_dump_json().encode()
         content_hash = self._memory.put(payload)

@@ -79,6 +79,17 @@ class TestStatus:
         body = (await client.get("/v1/status")).json()
         assert body["deployment_class"] == "edge"
 
+    @pytest.mark.asyncio
+    async def test_status_includes_entropy_sampler_fields(self, client: AsyncClient):
+        body = (await client.get("/v1/status")).json()
+        assert "entropy_sampler_running" in body
+        assert "entropy_sampler_interval_ms" in body
+        assert "entropy_samples_total" in body
+        assert "entropy_samples_degraded_total" in body
+        assert "entropy_sampler_failures" in body
+        assert "entropy_last_sample_ns" in body
+        assert "entropy_unhealthy" in body
+
 
 class TestInfer:
     @pytest.mark.asyncio
@@ -219,6 +230,23 @@ class TestAgents:
         retired = await client.delete(f"/v1/agents/{agent_id}")
         assert retired.status_code == 200
         assert retired.json()["active"] is False
+
+    @pytest.mark.asyncio
+    async def test_destroy_agent(self, client: AsyncClient):
+        created = await client.post("/v1/agents", json={"name": "DestroyMe"})
+        agent_id = created.json()["agent_id"]
+
+        destroyed = await client.delete(f"/v1/agents/{agent_id}/destroy")
+        assert destroyed.status_code == 200
+        assert destroyed.json()["status"] == "destroyed"
+
+        fetched = await client.get(f"/v1/agents/{agent_id}")
+        assert fetched.status_code == 404
+
+    @pytest.mark.asyncio
+    async def test_destroy_default_agent_rejected(self, client: AsyncClient):
+        destroyed = await client.delete("/v1/agents/default/destroy")
+        assert destroyed.status_code == 400
 
     @pytest.mark.asyncio
     async def test_agent_dev_workspace_unique_per_agent(self, client: AsyncClient):

@@ -76,7 +76,7 @@ class TestCoordinator:
 
         assert status.node_id == "test-node"
         assert status.requests_processed == 1
-        assert status.entropy_beacons_generated == 1
+        assert status.entropy_beacons_generated >= 1
         assert status.uptime_s >= 0
 
     def test_session_context_persisted(self, tmp_path):
@@ -157,6 +157,46 @@ class TestCoordinator:
         r2 = asyncio.run(coord.process(AndyriaRequest(input="Second")))
         assert r1.entropy_beacon_id != r2.entropy_beacon_id
 
+    def test_entropy_sampler_background_updates_status(self, tmp_path):
+        from andyria.coordinator import Coordinator
+
+        coord = Coordinator(
+            data_dir=tmp_path,
+            node_id="test-node",
+            deployment_class="edge",
+            entropy_sources=["os_urandom"],
+            entropy_sampler_interval_ms=10,
+        )
+
+        async def _run_sampler():
+            await coord.start_background_tasks()
+            await asyncio.sleep(0.06)
+            snapshot = coord.status()
+            await coord.stop_background_tasks()
+            stopped = coord.status()
+            return snapshot, stopped
+
+        snapshot, stopped = asyncio.run(_run_sampler())
+        assert snapshot.entropy_sampler_running is True
+        assert snapshot.entropy_samples_total > 0
+        assert snapshot.entropy_last_sample_ns > 0
+        assert stopped.entropy_sampler_running is False
+
+    def test_fail_closed_rejects_process_when_entropy_unhealthy(self, tmp_path):
+        from andyria.coordinator import Coordinator
+        from andyria.models import AndyriaRequest
+
+        coord = Coordinator(
+            data_dir=tmp_path,
+            node_id="test-node",
+            deployment_class="edge",
+            entropy_sources=["os_urandom"],
+            entropy_fail_closed=True,
+        )
+        coord._entropy_unhealthy = True
+        with pytest.raises(RuntimeError, match="Entropy sampling unhealthy"):
+            asyncio.run(coord.process(AndyriaRequest(input="hello")))
+
     def test_default_agent_exists(self, tmp_path):
         coord = _make_coordinator(tmp_path)
         agents = coord.list_agents()
@@ -175,6 +215,22 @@ class TestCoordinator:
         assert cloned.name == "ResearchNode Copy"
         assert created.persona is not None
         assert cloned.persona is not None
+
+    def test_destroy_agent_permanent(self, tmp_path):
+        from andyria.models import AgentCreateRequest
+
+        coord = _make_coordinator(tmp_path)
+        created = coord.create_agent(AgentCreateRequest(name="DeleteMe"))
+        assert coord.get_agent(created.agent_id) is not None
+
+        deleted = coord.destroy_agent(created.agent_id)
+        assert deleted is True
+        assert coord.get_agent(created.agent_id) is None
+
+    def test_destroy_default_agent_rejected(self, tmp_path):
+        coord = _make_coordinator(tmp_path)
+        deleted = coord.destroy_agent("default")
+        assert deleted is False
 
     def test_spawned_agent_defaults_to_active_llm(self, tmp_path):
         from andyria.coordinator import Coordinator
