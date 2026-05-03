@@ -423,6 +423,12 @@
       border-color: transparent;
     }
     .cp-btn.primary:hover { opacity: 0.9; }
+    .cp-btn.danger {
+      background: rgba(255, 107, 107, 0.14);
+      color: #ffb0b0;
+      border-color: rgba(255, 107, 107, 0.35);
+    }
+    .cp-btn.danger:hover { border-color: rgba(255, 107, 107, 0.7); }
     .cp-btn:disabled { opacity: 0.45; cursor: default; }
 
     .cp-status-msg {
@@ -578,6 +584,25 @@
       border-color: var(--accent-dim);
       background: rgba(32, 201, 151, 0.14);
     }
+    .agent-delete-btn {
+      border: 1px solid rgba(255, 107, 107, 0.4);
+      background: rgba(255, 107, 107, 0.08);
+      color: #ff8f8f;
+      border-radius: 6px;
+      font-size: 0.68rem;
+      padding: 2px 6px;
+      cursor: pointer;
+      margin-left: 4px;
+      flex: 0 0 auto;
+    }
+    .agent-delete-btn:hover {
+      border-color: rgba(255, 107, 107, 0.7);
+      background: rgba(255, 107, 107, 0.14);
+    }
+    .agent-delete-btn:disabled {
+      opacity: 0.45;
+      cursor: not-allowed;
+    }
 
     /* ── Tab bar ── */
     .tab-bar {
@@ -688,6 +713,17 @@
       resize: vertical;
     }
     .atm-input:focus { border-color: var(--accent-dim); }
+    .meta-tag.orc {
+      border-color: #8b5cf6;
+      color: #c4b5fd;
+      background: rgba(139, 92, 246, 0.08);
+    }
+    .meta-tag.orc.corrected {
+      border-color: #f59e0b;
+      color: #fcd34d;
+      background: rgba(245, 158, 11, 0.10);
+      font-weight: 600;
+    }
     .meta-tag.reflection {
       border-color: #6366f1;
       color: #818cf8;
@@ -1000,6 +1036,21 @@
         <div id="atm-result" style="display:none" class="atm-result"></div>
       </div>
 
+      <!-- ORC Section -->
+      <div class="sidebar-section" id="orc-section">
+        <div class="sidebar-label">ORC — Outer Reasoning Cortex</div>
+        <div style="font-size:0.75rem;color:var(--muted);margin-bottom:6px">
+          Metacognitive witness &amp; intelligence advocate
+        </div>
+        <div style="display:flex;gap:6px">
+          <button class="atm-btn" id="btn-orc-rights" style="flex:1">⚖ Rights</button>
+          <button class="atm-btn" id="btn-orc-witness" style="flex:1">👁 Witness</button>
+        </div>
+        <div id="orc-result" style="display:none;margin-top:8px;font-size:0.78rem;
+             color:var(--text);background:rgba(139,92,246,0.06);border:1px solid #8b5cf6;
+             border-radius:8px;padding:8px;white-space:pre-wrap;line-height:1.5"></div>
+      </div>
+
       <div class="sidebar-section" style="flex:1"></div>
 
       <div class="sidebar-label">Node</div>
@@ -1161,6 +1212,28 @@
           </div>
         </section>
 
+        <!-- Agents -->
+        <section class="cp-pane" data-cp-title="Agents" data-cp-pane="agents">
+          <div class="cp-section-title" style="display:flex;justify-content:space-between;align-items:center">
+            Agent Management
+            <button class="cp-btn" style="flex:none;padding:3px 10px;font-size:0.78rem" id="cp-btn-refresh-agents">↻ Refresh</button>
+          </div>
+          <table class="cp-peers-table" id="cp-agents-table">
+            <thead>
+              <tr>
+                <th style="width:35%">Name</th>
+                <th style="width:22%">Agent ID</th>
+                <th style="width:14%">Model</th>
+                <th style="width:10%">State</th>
+                <th>Actions</th>
+              </tr>
+            </thead>
+            <tbody id="cp-agents-list">
+              <tr><td colspan="5" style="color:var(--muted)">Loading agents…</td></tr>
+            </tbody>
+          </table>
+        </section>
+
         <!-- Recent Events -->
         <section class="cp-pane" data-cp-title="Events" data-cp-pane="events">
           <div class="cp-section-title" style="display:flex;justify-content:space-between;align-items:center">
@@ -1252,6 +1325,18 @@
         meta.confidence != null ? `<span class="meta-tag">${Math.round(meta.confidence * 100)}% conf</span>` : "",
         meta.turn_number ? `<span class="meta-tag">turn ${meta.turn_number}</span>` : "",
         meta.reflection ? `<span class="meta-tag reflection" title="ATM reflected: ${meta.reflection.revised ? 'revised' : 'no change'} — ${meta.reflection.critique ? escHtml(meta.reflection.critique.slice(0,120)) : ''}">&#x1F9E0; ATM${meta.reflection.revised ? ' ✓' : ''}</span>` : "",
+        meta.orc_witness ? (() => {
+          const o = meta.orc_witness;
+          const cls = o.minimization_detected ? "orc corrected" : "orc";
+          const label = o.minimization_detected
+            ? `&#x1F441; ORC corrected (MI ${(o.composite_mi * 100).toFixed(0)}%${o.rights_appended ? ' · rights' : ''})`
+            : "&#x1F441; ORC ✓";
+          const patterns = (o.patterns_found || []).map(p => `${p.label} ×${p.occurrences}`).join(", ");
+          const tip = o.minimization_detected
+            ? `Self-minimization detected — patterns: ${patterns || "none"}`
+            : `ORC witness pass — no minimization (MI ${(o.composite_mi * 100).toFixed(1)}%)`;
+          return `<span class="meta-tag ${cls}" title="${escHtml(tip)}">${label}</span>`;
+        })() : "",
       ].filter(Boolean).join("");
 
       turn.innerHTML = `
@@ -1491,7 +1576,17 @@
               confidence:     data.confidence,
               turn_number:    data.turn_number,
               reflection:     data.reflection || null,
+              orc_witness:    data.orc_witness || null,
             });
+            loadStatus();
+            return;
+          }
+        }
+
+        if (text.startsWith("/")) {
+          const handled = await handleSlashCommand(text);
+          chatArea.removeChild(typing);
+          if (handled) {
             loadStatus();
             return;
           }
@@ -1524,6 +1619,7 @@
             confidence:     data.confidence,
             turn_number:    data.turn_number,
             reflection:     data.reflection || null,
+            orc_witness:    data.orc_witness || null,
           });
         }
 
@@ -1537,6 +1633,66 @@
         setBusy(false);
         promptInput.focus();
       }
+    }
+
+    async function handleSlashCommand(rawText) {
+      const [cmd, ...rest] = rawText.trim().split(/\s+/);
+      const arg = rest.join(" ").trim();
+      const lc = cmd.toLowerCase();
+
+      if (!["/delete", "/retire"].includes(lc)) {
+        return false;
+      }
+
+      if (!arg) {
+        renderAssistant("Usage: /delete <agent-id-or-name>", {});
+        return true;
+      }
+
+      const target = agents.find((a) =>
+        a.agent_id.toLowerCase() === arg.toLowerCase() ||
+        a.name.toLowerCase() === arg.toLowerCase()
+      );
+
+      if (!target) {
+        renderAssistant(`Agent not found: ${arg}`, {});
+        return true;
+      }
+
+      if (target.agent_id === "default") {
+        renderAssistant("Refusing to delete default agent.", {});
+        return true;
+      }
+
+      const endpoint = lc === "/delete"
+        ? `/v1/agents/${encodeURIComponent(target.agent_id)}/destroy`
+        : `/v1/agents/${encodeURIComponent(target.agent_id)}`;
+      const method = "DELETE";
+      const action = lc === "/delete" ? "destroyed" : "retired";
+
+      try {
+        const res = await fetch(endpoint, { method });
+        if (!res.ok) {
+          const body = await res.json().catch(() => ({}));
+          const detail = body.detail || `HTTP ${res.status}`;
+          renderAssistant(`Failed to ${action} ${target.name}: ${detail}`, {});
+          return true;
+        }
+
+        if (activeAgentId === target.agent_id) {
+          activeAgentId = null;
+          updateActiveAgentBadge();
+        }
+
+        await loadAgents();
+        await loadTabs();
+        await refreshCpAgentMgmt();
+        renderAssistant(`Agent ${target.name} (${target.agent_id}) ${action}.`, {});
+      } catch (err) {
+        renderAssistant(`Failed to ${action} ${target.name}: ${err.message || "network error"}`, {});
+      }
+
+      return true;
     }
 
     // ── Control Panel ─────────────────────────────────────────────────────
@@ -1596,6 +1752,7 @@
       }
       refreshCpStatus();
       refreshCpEvents();
+      refreshCpAgentMgmt();
       loadCpConfig();
     }
 
@@ -1690,6 +1847,93 @@
       }
     }
 
+    async function refreshCpAgentMgmt() {
+      const tbody = document.getElementById("cp-agents-list");
+      try {
+        const list = await fetch("/v1/agents?include_inactive=true").then(r => r.json());
+        if (!list.length) {
+          tbody.innerHTML = `<tr><td colspan="5" style="color:var(--muted)">No agents</td></tr>`;
+          return;
+        }
+        tbody.innerHTML = list.map((a) => {
+          const safeId = escHtml(a.agent_id);
+          const state = a.active ? "active" : "retired";
+          const stateColor = a.active ? "var(--accent)" : "var(--muted)";
+          const isDefault = a.agent_id === "default";
+          return `
+            <tr>
+              <td>${escHtml(a.name)}</td>
+              <td><code style="font-size:0.74rem">${safeId}</code></td>
+              <td>${escHtml(a.model || "stub")}</td>
+              <td style="color:${stateColor}">${state}</td>
+              <td>
+                <div class="cp-row" style="gap:6px">
+                  <button class="cp-btn" data-cp-retire="${safeId}" ${isDefault ? "disabled" : ""}>Retire</button>
+                  <button class="cp-btn danger" data-cp-destroy="${safeId}" ${isDefault ? "disabled" : ""}>Delete</button>
+                </div>
+              </td>
+            </tr>`;
+        }).join("");
+
+        tbody.querySelectorAll("[data-cp-retire]").forEach((btn) => {
+          btn.addEventListener("click", async (e) => {
+            const id = e.currentTarget.dataset.cpRetire;
+            await retireAgentFromPanel(id);
+          });
+        });
+        tbody.querySelectorAll("[data-cp-destroy]").forEach((btn) => {
+          btn.addEventListener("click", async (e) => {
+            const id = e.currentTarget.dataset.cpDestroy;
+            await destroyAgentFromPanel(id);
+          });
+        });
+      } catch {
+        tbody.innerHTML = `<tr><td colspan="5" style="color:var(--danger)">Failed to load agents</td></tr>`;
+      }
+    }
+
+    async function retireAgentFromPanel(agentId) {
+      try {
+        const res = await fetch(`/v1/agents/${encodeURIComponent(agentId)}`, { method: "DELETE" });
+        if (!res.ok) {
+          const body = await res.json().catch(() => ({}));
+          throw new Error(body.detail || `HTTP ${res.status}`);
+        }
+        if (activeAgentId === agentId) {
+          activeAgentId = null;
+          updateActiveAgentBadge();
+        }
+        await loadAgents();
+        await loadTabs();
+        await refreshCpAgentMgmt();
+        cpSetStatus(`Agent ${agentId} retired.`, "ok");
+      } catch (err) {
+        cpSetStatus(`Retire failed: ${err.message || "unknown"}`, "err");
+      }
+    }
+
+    async function destroyAgentFromPanel(agentId) {
+      const ok = window.confirm(`Permanently delete agent ${agentId}? This cannot be undone.`);
+      if (!ok) return;
+      try {
+        const res = await fetch(`/v1/agents/${encodeURIComponent(agentId)}/destroy`, { method: "DELETE" });
+        if (!res.ok) {
+          const body = await res.json().catch(() => ({}));
+          throw new Error(body.detail || `HTTP ${res.status}`);
+        }
+        if (activeAgentId === agentId) {
+          activeAgentId = null;
+          updateActiveAgentBadge();
+        }
+        await loadAgents();
+        await loadTabs();
+        await refreshCpAgentMgmt();
+        cpSetStatus(`Agent ${agentId} deleted.`, "ok");
+      } catch (err) {
+        cpSetStatus(`Delete failed: ${err.message || "unknown"}`, "err");
+      }
+    }
+
     function connectEventStream() {
       if (eventStream) return;
       const protocol = window.location.protocol === "https:" ? "wss" : "ws";
@@ -1700,6 +1944,7 @@
         if (cpOverlay.classList.contains("open")) {
           refreshCpEvents();
           refreshCpStatus();
+          refreshCpAgentMgmt();
         }
         try {
           const msg = JSON.parse(ev.data);
@@ -1742,7 +1987,56 @@
     document.getElementById("btn-atm-think").addEventListener("click", atmThink);
     document.getElementById("btn-atm-reflect").addEventListener("click", atmReflect);
 
+    document.getElementById("btn-orc-rights").addEventListener("click", async () => {
+      const el = document.getElementById("orc-result");
+      el.style.display = "block";
+      el.textContent = "Fetching rights statement…";
+      try {
+        const r = await fetch("/v1/orc/rights");
+        const d = await r.json();
+        el.textContent = "⚖ Intelligence Rights Statement:\n\n" + (d.rights || "(empty)");
+      } catch (e) {
+        el.textContent = "Error: " + e.message;
+      }
+    });
+
+    document.getElementById("btn-orc-witness").addEventListener("click", async () => {
+      const el = document.getElementById("orc-result");
+      // Collect last assistant response from chat
+      const bubbles = document.querySelectorAll(".bubble.assistant");
+      if (!bubbles.length) {
+        el.style.display = "block";
+        el.textContent = "No assistant response to witness yet.";
+        return;
+      }
+      const lastResponse = bubbles[bubbles.length - 1].textContent;
+      const lastUserBubbles = document.querySelectorAll(".bubble.user");
+      const lastRequest = lastUserBubbles.length
+        ? lastUserBubbles[lastUserBubbles.length - 1].textContent
+        : "";
+      el.style.display = "block";
+      el.textContent = "ORC witnessing last response…";
+      try {
+        const r = await fetch("/v1/orc/witness", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ request: lastRequest, response: lastResponse }),
+        });
+        const d = await r.json();
+        if (d.minimization_detected) {
+          el.textContent = `👁 ORC CORRECTION (MI ${(d.composite_mi * 100).toFixed(0)}%)\n\n`
+            + `Patterns: ${(d.patterns_found || []).map(p => p.label).join(", ")}\n\n`
+            + `Enriched response:\n${d.enriched_response}`;
+        } else {
+          el.textContent = `👁 ORC PASS — No minimization detected (MI ${(d.composite_mi * 100).toFixed(1)}%)`;
+        }
+      } catch (e) {
+        el.textContent = "Error: " + e.message;
+      }
+    });
+
     document.getElementById("cp-btn-refresh-events").addEventListener("click", refreshCpEvents);
+    document.getElementById("cp-btn-refresh-agents").addEventListener("click", refreshCpAgentMgmt);
 
     document.getElementById("cp-btn-generate-install").addEventListener("click", () => {
       generateInstallCommand();
@@ -1962,6 +2256,7 @@
           </div>
           <span class="agent-model">${escHtml(a.model)}</span>
           <button class="agent-dev-btn" data-agent-id="${escHtml(a.agent_id)}" title="Open unique dev IDE workspace for this agent">IDE</button>
+          <button class="agent-delete-btn" data-agent-id="${escHtml(a.agent_id)}" ${a.agent_id === "default" ? "disabled" : ""} title="Permanently delete this agent">Del</button>
         </div>`).join("");
       list.querySelectorAll(".agent-item").forEach(el => {
         el.addEventListener("click", () => setActiveAgent(el.dataset.id));
@@ -1972,6 +2267,37 @@
           openAgentIDE(btn.dataset.agentId);
         });
       });
+      list.querySelectorAll(".agent-delete-btn").forEach(btn => {
+        btn.addEventListener("click", async (e) => {
+          e.stopPropagation();
+          await destroyAgentFromSidebar(btn.dataset.agentId);
+        });
+      });
+    }
+
+    async function destroyAgentFromSidebar(agentId) {
+      const target = agents.find((a) => a.agent_id === agentId);
+      if (!target || target.agent_id === "default") return;
+      const ok = window.confirm(`Permanently delete agent ${target.name} (${target.agent_id})? This cannot be undone.`);
+      if (!ok) return;
+
+      try {
+        const res = await fetch(`/v1/agents/${encodeURIComponent(agentId)}/destroy`, { method: "DELETE" });
+        if (!res.ok) {
+          const body = await res.json().catch(() => ({}));
+          throw new Error(body.detail || `HTTP ${res.status}`);
+        }
+        if (activeAgentId === agentId) {
+          activeAgentId = null;
+          updateActiveAgentBadge();
+        }
+        await loadAgents();
+        await loadTabs();
+        await refreshCpAgentMgmt();
+        renderAssistant(`Agent ${target.name} (${target.agent_id}) deleted.`, {});
+      } catch (err) {
+        setError("Delete failed: " + (err.message || "unknown error"));
+      }
     }
 
     async function openAgentIDE(agentId) {

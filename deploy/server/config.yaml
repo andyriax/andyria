@@ -23,5 +23,8 @@ performance:
   max_tasks: 8
   model_ctx_tokens: 2048
   beacon_interval_ms: 1000
+  entropy_min_active_sources: 2
+  entropy_max_consecutive_degraded: 3
+  entropy_fail_closed: false
 
 peers: []

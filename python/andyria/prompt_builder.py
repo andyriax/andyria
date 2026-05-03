@@ -36,6 +36,8 @@ class PromptBuilder:
         active_skills:    List of skill names to include in the prompt.
         todo:             TodoStore instance (pending tasks).
         context_files:    ContextFileLoader (AGENTS.md, .andyria.md, etc.).
+        promptbooks:      PromptbookRegistry instance.
+        active_promptbooks: List of (promptbook_id, variables) tuples to render.
         extra_blocks:     Additional raw strings to append.
     """
 
@@ -47,6 +49,8 @@ class PromptBuilder:
         active_skills: Optional[List[str]] = None,
         todo=None,
         context_files=None,
+        promptbooks=None,
+        active_promptbooks: Optional[List] = None,
         extra_blocks: Optional[List[str]] = None,
     ) -> None:
         self._soul = soul
@@ -55,6 +59,8 @@ class PromptBuilder:
         self._active_skills = active_skills or []
         self._todo = todo
         self._context_files = context_files
+        self._promptbooks = promptbooks
+        self._active_promptbooks: List = active_promptbooks or []
         self._extra_blocks = extra_blocks or []
 
     # ------------------------------------------------------------------
@@ -99,7 +105,21 @@ class PromptBuilder:
             if ctx_block.strip():
                 blocks.append("## Project Context\n\n" + ctx_block.strip())
 
-        # 6. Caller-supplied extra blocks
+        # 6. Active promptbook renders (Cyphermorph layer)
+        if self._promptbooks and self._active_promptbooks:
+            pb_parts = []
+            for entry in self._active_promptbooks:
+                if isinstance(entry, tuple):
+                    pb_id, pb_vars = entry[0], (entry[1] if len(entry) > 1 else {})
+                else:
+                    pb_id, pb_vars = str(entry), {}
+                block = self._promptbooks.as_system_block(pb_id, pb_vars)
+                if block.strip():
+                    pb_parts.append(block.strip())
+            if pb_parts:
+                blocks.append("## Promptbook Context\n\n" + "\n\n---\n\n".join(pb_parts))
+
+        # 7. Caller-supplied extra blocks
         for extra in self._extra_blocks:
             if extra.strip():
                 blocks.append(extra.strip())
@@ -113,6 +133,10 @@ class PromptBuilder:
     def add_extra_block(self, block: str) -> None:
         """Append an extra raw block to the prompt."""
         self._extra_blocks.append(block)
+
+    def set_active_promptbooks(self, entries: List) -> None:
+        """Set list of (promptbook_id, variables) tuples to render into the prompt."""
+        self._active_promptbooks = list(entries)
 
     def clear_extras(self) -> None:
         self._extra_blocks.clear()
