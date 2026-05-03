@@ -1,9 +1,6 @@
 """CLI entry point for Andyria."""
 
 from __future__ import annotations
-import os
-import sys
-import uuid
 
 import asyncio
 from pathlib import Path
@@ -33,76 +30,46 @@ def serve(
     host: str = typer.Option("0.0.0.0", "--host", help="Bind host"),  # noqa: S104
     port: int = typer.Option(7700, "--port", "-p", help="Bind port"),
     data_dir: Path = typer.Option(Path.home() / ".andyria", "--data-dir"),
-    node_id: Optional[str] = typer.Option(None, "--node-id", envvar="ANDYRIA_NODE_ID"),
-    ollama_url: Optional[str] = typer.Option(None, "--ollama-url", envvar="ANDYRIA_OLLAMA_URL"),
-    ollama_model: Optional[str] = typer.Option(None, "--ollama-model", envvar="ANDYRIA_OLLAMA_MODEL"),
-    peers: Optional[str] = typer.Option(None, "--peers", envvar="ANDYRIA_PEERS", help="Comma-separated peer URLs"),
+    node_id: Optional[str] = typer.Option(None, "--node-id"),
+    ollama_url: Optional[str] = typer.Option(None, "--ollama-url"),
+    ollama_model: Optional[str] = typer.Option(None, "--ollama-model"),
 ) -> None:
     """Start the Andyria HTTP API server."""
     from .api import create_app
     from .coordinator import Coordinator
 
     cfg = _load_config(config)
-    perf_cfg = cfg.get("performance", {})
     resolved_node_id = node_id or cfg.get("node_id", "andyria-node-0")
     resolved_data_dir = Path(cfg.get("data_dir", str(data_dir)))
     model_path = Path(cfg["model_path"]) if cfg.get("model_path") else None
-    
-    # Parse peers from env or config
-    peer_list = []
-    if peers:
-        peer_list = [p.strip() for p in peers.split(",") if p.strip()]
-    elif cfg.get("peers"):
-        peer_list = cfg.get("peers", [])
 
     coordinator = Coordinator(
         data_dir=resolved_data_dir,
         node_id=resolved_node_id,
         deployment_class=cfg.get("deployment_class", "edge"),
         entropy_sources=cfg.get("entropy_sources"),
-        entropy_sampler_interval_ms=int(
-            os.environ.get(
-                "ANDYRIA_ENTROPY_SAMPLER_INTERVAL_MS",
-                perf_cfg.get("beacon_interval_ms", 0),
-            )
-        ),
-        entropy_min_active_sources=int(os.environ.get("ANDYRIA_ENTROPY_MIN_ACTIVE_SOURCES", 1)),
-        entropy_max_consecutive_degraded=int(
-            os.environ.get("ANDYRIA_ENTROPY_MAX_CONSECUTIVE_DEGRADED", 3)
-        ),
-        entropy_fail_closed=os.environ.get("ANDYRIA_ENTROPY_FAIL_CLOSED", "0") == "1",
         model_path=model_path,
         ollama_url=ollama_url or cfg.get("ollama_url"),
         ollama_model=ollama_model or cfg.get("ollama_model"),
-        peer_urls=peer_list,
     )
 
     fastapi_app = create_app(coordinator)
-    startup_status = coordinator.status()
-    if startup_status.ready:
-        console.print("[green]Startup check:[/] model/backend readiness OK")
-    else:
-        console.print(f"[yellow]Startup check:[/] {startup_status.readiness_detail}")
     console.print(f"[bold green]Andyria[/] node [cyan]{resolved_node_id}[/] → {host}:{port}")
-    if peer_list:
-        console.print(f"[dim]Peers: {', '.join(peer_list)}[/]")
     uvicorn.run(fastapi_app, host=host, port=port)
 
 
 @app.command()
 def ask(
     prompt: str = typer.Argument(..., help="Input prompt"),
+    config: Optional[Path] = typer.Option(None, "--config", "-c"),
     data_dir: Path = typer.Option(Path.home() / ".andyria", "--data-dir"),
     node_id: Optional[str] = typer.Option(None, "--node-id"),
-    ollama_url: Optional[str] = typer.Option(None, "--ollama-url", envvar="ANDYRIA_OLLAMA_URL"),
-    ollama_model: Optional[str] = typer.Option(None, "--ollama-model", envvar="ANDYRIA_OLLAMA_MODEL"),
 ) -> None:
     """Send a single request and print the response."""
     from .coordinator import Coordinator
     from .models import AndyriaRequest
 
     cfg = _load_config(config)
-    perf_cfg = cfg.get("performance", {})
     resolved_node_id = node_id or cfg.get("node_id", "andyria-node-0")
     model_path = Path(cfg["model_path"]) if cfg.get("model_path") else None
 
@@ -111,20 +78,8 @@ def ask(
         node_id=resolved_node_id,
         deployment_class=cfg.get("deployment_class", "edge"),
         entropy_sources=cfg.get("entropy_sources"),
-        entropy_sampler_interval_ms=int(
-            os.environ.get(
-                "ANDYRIA_ENTROPY_SAMPLER_INTERVAL_MS",
-                perf_cfg.get("beacon_interval_ms", 0),
-            )
-        ),
-        entropy_min_active_sources=int(os.environ.get("ANDYRIA_ENTROPY_MIN_ACTIVE_SOURCES", 1)),
-        entropy_max_consecutive_degraded=int(
-            os.environ.get("ANDYRIA_ENTROPY_MAX_CONSECUTIVE_DEGRADED", 3)
-        ),
-        entropy_fail_closed=os.environ.get("ANDYRIA_ENTROPY_FAIL_CLOSED", "0") == "1",
         model_path=model_path,
-        ollama_url=ollama_url or cfg.get("ollama_url"),
-        ollama_model=ollama_model or cfg.get("ollama_model"),
+        ollama_url=cfg.get("ollama_url"),
     )
 
     request = AndyriaRequest(input=prompt)
@@ -161,405 +116,3 @@ def status(
     except Exception as exc:
         console.print(f"[red]Error:[/] {exc}")
         raise typer.Exit(1)
-
-
-@app.command()
-def chat(
-    config: Optional[Path] = typer.Option(None, "--config", "-c", help="Config YAML"),
-    data_dir: Path = typer.Option(Path.home() / ".andyria", "--data-dir"),
-    node_id: Optional[str] = typer.Option(None, "--node-id"),
-    ollama_url: Optional[str] = typer.Option(None, "--ollama-url", envvar="ANDYRIA_OLLAMA_URL"),
-    ollama_model: Optional[str] = typer.Option(None, "--ollama-model", envvar="ANDYRIA_OLLAMA_MODEL"),
-    session: Optional[str] = typer.Option(None, "--session", "-s", help="Resume session by ID"),
-    no_soul: bool = typer.Option(False, "--no-soul", help="Skip SOUL.md injection"),
-) -> None:
-    """Interactive chat REPL with full slash-command support.
-
-    Slash commands:
-        /new            Start a new session
-        /reset          Clear history (keep session)
-        /model <name>   Switch LLM model
-        /personality    Show or edit SOUL.md
-        /skills         List available skills
-        /skill <name>   Load and display a skill
-        /memory         Show MEMORY.md and USER.md
-        /todo           Show current TODO list
-        /cron           Show scheduled jobs
-        /compress       Manually trigger context compression
-        /history        Show past sessions
-        /resume <id>    Resume a past session
-        /session        Show current session info
-        /usage          Show token usage estimate
-        /help           Show this help
-    """
-    from .coordinator import Coordinator
-    from .models import AndyriaRequest
-    from .soul import SoulFile
-    from .persistent_memory import PersistentMemory
-    from .skills import SkillRegistry
-    from .session_store import SessionStore
-    from .todo import TodoStore
-    from .cron import CronScheduler
-    from .context_files import ContextFileLoader
-    from .prompt_builder import PromptBuilder
-    from .context_compressor import ContextCompressor
-    from .slash_commands import list_slash_commands
-
-    cfg = _load_config(config)
-    perf_cfg = cfg.get("performance", {})
-    resolved_node_id = node_id or cfg.get("node_id", "andyria-node-0")
-    resolved_data_dir = Path(cfg.get("data_dir", str(data_dir)))
-    model_path = Path(cfg["model_path"]) if cfg.get("model_path") else None
-
-    # Initialise all subsystems
-    soul = SoulFile(resolved_data_dir)
-    soul.ensure_default()
-
-    memory = PersistentMemory(resolved_data_dir)
-    skills = SkillRegistry(resolved_data_dir)
-    session_store = SessionStore(resolved_data_dir)
-    todo = TodoStore(resolved_data_dir)
-    cron = CronScheduler(resolved_data_dir)
-    cron.start()
-
-    ctx_files = ContextFileLoader()
-    found_ctx = ctx_files.discover()
-
-    compressor = ContextCompressor(max_tokens=8192)
-
-    coordinator = Coordinator(
-        data_dir=resolved_data_dir,
-        node_id=resolved_node_id,
-        deployment_class=cfg.get("deployment_class", "edge"),
-        entropy_sources=cfg.get("entropy_sources"),
-        entropy_sampler_interval_ms=int(
-            os.environ.get(
-                "ANDYRIA_ENTROPY_SAMPLER_INTERVAL_MS",
-                perf_cfg.get("beacon_interval_ms", 0),
-            )
-        ),
-        entropy_min_active_sources=int(os.environ.get("ANDYRIA_ENTROPY_MIN_ACTIVE_SOURCES", 1)),
-        entropy_max_consecutive_degraded=int(
-            os.environ.get("ANDYRIA_ENTROPY_MAX_CONSECUTIVE_DEGRADED", 3)
-        ),
-        entropy_fail_closed=os.environ.get("ANDYRIA_ENTROPY_FAIL_CLOSED", "0") == "1",
-        model_path=model_path,
-        ollama_url=ollama_url or cfg.get("ollama_url"),
-        ollama_model=ollama_model or cfg.get("ollama_model"),
-    )
-
-    # Session management
-    current_session_id = session or str(uuid.uuid4())[:10]
-    if session:
-        loaded = session_store.load(session)
-        if loaded:
-            summary, _ = loaded
-            console.print(f"[green]Resumed session:[/] {summary.title} ({summary.turn_count} turns)")
-        else:
-            console.print(f"[yellow]Session '{session}' not found — starting fresh[/]")
-            current_session_id = str(uuid.uuid4())[:10]
-    else:
-        session_store.create(current_session_id)
-
-    # Prompt builder
-    builder = PromptBuilder(
-        soul=soul if not no_soul else None,
-        memory=memory,
-        skills=skills,
-        todo=todo,
-        context_files=ctx_files if found_ctx else None,
-    )
-
-    # Print banner
-    console.print(f"\n[bold cyan]Andyria[/] — [dim]{resolved_node_id}[/]  session [dim]{current_session_id}[/]")
-    if found_ctx:
-        console.print(f"[dim]Context files loaded: {', '.join(found_ctx)}[/]")
-    console.print("[dim]Type /help for commands, Ctrl-C or /exit to quit.[/]\n")
-
-    messages: list = []
-    active_model: list = [None]   # mutable reference for closure
-
-    # ── Readline tab-completion for slash commands ─────────────────────────
-    _slash_defs = list_slash_commands("cli")
-    _SLASH_META: list[tuple[str, str | None]] = [
-        (str(item["cmd"]), item.get("arg")) for item in _slash_defs
-    ]
-    _SLASH_DESCRIPTIONS = {
-        str(item["cmd"]): str(item["desc"]) for item in _slash_defs
-    }
-    _SLASH_CMDS = [c for c, _ in _SLASH_META]
-
-    def _slash_completer(text: str, state: int) -> str | None:
-        """Tab-complete slash commands; also completes skill names after /skill."""
-        import readline as _rl2
-        full_line = _rl2.get_line_buffer()
-        parts     = full_line.split(None, 1)
-        cmd       = parts[0].lower() if parts else ""
-
-        # After /skill or /model, complete with known values
-        if cmd in ("/skill", "/skills") and len(parts) == 2:
-            prefix  = parts[1]
-            options = [s for s in skills.list_skills() if s.startswith(prefix)]
-            return options[state] if state < len(options) else None
-
-        if not text.startswith("/"):
-            return None
-        q       = text.lower()
-        options = [c for c in _SLASH_CMDS if c.startswith(q)]
-        if state < len(options):
-            match = options[state]
-            # Append space for commands that take args so the user keeps typing
-            arg = next((a for c, a in _SLASH_META if c == match), None)
-            return match + (" " if arg else "")
-        return None
-
-    def _display_matches(substitution: str, matches: list[str], longest: int) -> None:  # noqa: ARG001
-        """Show matches with their arg hints inline."""
-        print()
-        for m in matches:
-            arg = next((a for c, a in _SLASH_META if c == m.rstrip()), None)
-            hint = f"  {arg}" if arg else ""
-            console.print(f"  [bold cyan]{m.rstrip()}[/][dim yellow]{hint}[/]")
-        print(f"you › {substitution}", end="", flush=True)
-
-    try:
-        import readline as _rl
-        _history_file = resolved_data_dir / ".andyria_history"
-        try:
-            _rl.read_history_file(str(_history_file))
-        except FileNotFoundError:
-            pass
-        _rl.set_history_length(500)
-        _rl.set_completer(_slash_completer)
-        _rl.set_completion_display_matches_hook(_display_matches)
-        _rl.parse_and_bind("tab: complete")
-        _rl.set_completer_delims(" \t")
-        import atexit as _atexit
-        _atexit.register(_rl.write_history_file, str(_history_file))
-    except ImportError:
-        pass  # readline not available on Windows without pyreadline3
-
-    def _run_request(user_input: str) -> str:
-        req = AndyriaRequest(
-            input=user_input,
-            system_context=builder.build() or None,
-        )
-        if active_model[0]:
-            req = AndyriaRequest(
-                input=user_input,
-                model=active_model[0],
-                system_context=builder.build() or None,
-            )
-        resp = asyncio.run(coordinator.process(req))
-        return resp.output
-
-    while True:
-        try:
-            user_input = input("you › ").strip()
-        except (KeyboardInterrupt, EOFError):
-            console.print("\n[dim]Goodbye.[/]")
-            cron.stop()
-            break
-
-        if not user_input:
-            continue
-
-        # ---------- Slash commands ----------
-        if user_input.startswith("/"):
-            parts = user_input.split(None, 1)
-            cmd = parts[0].lower()
-            arg = parts[1] if len(parts) > 1 else ""
-
-            if cmd in ("/exit", "/quit"):
-                console.print("[dim]Goodbye.[/]")
-                cron.stop()
-                break
-
-            elif cmd == "/help":
-                rows = []
-                for command, arg_hint in _SLASH_META:
-                    label = f"{command} {arg_hint}" if arg_hint else command
-                    desc = _SLASH_DESCRIPTIONS.get(command, "")
-                    rows.append(f"  {label.ljust(18)} {desc}")
-                console.print("\n[bold]Slash commands:[/]\n" + "\n".join(rows) + "\n")
-
-            elif cmd == "/new":
-                current_session_id = str(uuid.uuid4())[:10]
-                session_store.create(current_session_id)
-                messages.clear()
-                console.print(f"[green]New session:[/] {current_session_id}")
-
-            elif cmd == "/reset":
-                messages.clear()
-                console.print("[yellow]History cleared.[/]")
-
-            elif cmd == "/model":
-                if arg:
-                    active_model[0] = arg.strip()
-                    console.print(f"[green]Model set to:[/] {active_model[0]}")
-                else:
-                    console.print(f"Active model: {active_model[0] or '[coordinator default]'}")
-
-            elif cmd == "/personality":
-                soul.load()
-                console.print(soul.content)
-
-            elif cmd == "/skills":
-                skill_list = skills.skills_list(category=arg or None)
-                if skill_list:
-                    table = Table(title="Available Skills", show_header=True)
-                    table.add_column("Name", style="cyan")
-                    table.add_column("Description")
-                    table.add_column("Tags")
-                    for sk in skill_list:
-                        table.add_row(sk["name"], sk["description"], ", ".join(sk["tags"]))
-                    console.print(table)
-                else:
-                    console.print("[dim]No skills found. Create one with /skill-create.[/]")
-
-            elif cmd == "/skill":
-                if not arg:
-                    console.print("[yellow]Usage: /skill <name>[/]")
-                else:
-                    content = skills.skill_view(arg.strip())
-                    if content:
-                        console.print(content)
-                        builder.set_active_skills([arg.strip()])
-                        console.print(f"[green]Skill '{arg.strip()}' loaded into prompt.[/]")
-                    else:
-                        console.print(f"[red]Skill '{arg.strip()}' not found.[/]")
-
-            elif cmd == "/memory":
-                console.print(memory.read("MEMORY") or "[dim](empty)[/]")
-                console.print()
-                console.print(memory.read("USER") or "[dim](empty)[/]")
-                stats = memory.stats()
-                console.print(
-                    f"\n[dim]MEMORY: {stats['MEMORY']['chars']}/{stats['MEMORY']['cap']} chars  "
-                    f"USER: {stats['USER']['chars']}/{stats['USER']['cap']} chars[/]"
-                )
-
-            elif cmd == "/todo":
-                items = todo.list()
-                if items:
-                    table = Table(title="TODOs", show_header=True)
-                    table.add_column("ID", style="cyan", width=10)
-                    table.add_column("Status", width=12)
-                    table.add_column("Text")
-                    for it in items:
-                        table.add_row(it["id"], it["status"], it["text"])
-                    console.print(table)
-                else:
-                    console.print("[dim]No TODOs.[/]")
-
-            elif cmd == "/cron":
-                jobs = cron.list()
-                if jobs:
-                    table = Table(title="Cron Jobs", show_header=True)
-                    table.add_column("ID", width=10)
-                    table.add_column("Name")
-                    table.add_column("Schedule")
-                    table.add_column("Task")
-                    for j in jobs:
-                        table.add_row(j.id, j.name, j.expression, j.task[:50])
-                    console.print(table)
-                else:
-                    console.print("[dim]No cron jobs.[/]")
-
-            elif cmd == "/compress":
-                usage = compressor.token_usage(messages)
-                console.print(
-                    f"[dim]Tokens ≈ {usage['estimated_tokens']} / {usage['max_tokens']} "
-                    f"({usage['pct_used']}%)[/]"
-                )
-                if len(messages) < 4:
-                    console.print("[dim]Not enough messages to compress.[/]")
-                else:
-                    def _sync_summarise(text: str) -> str:
-                        return asyncio.run(coordinator.process(
-                            AndyriaRequest(input=text)
-                        )).output
-
-                    messages[:] = compressor.compress_sync(messages, _sync_summarise)
-                    console.print("[green]Context compressed.[/]")
-
-            elif cmd == "/history":
-                sessions = session_store.list_sessions()
-                if sessions:
-                    table = Table(title="Past Sessions", show_header=True)
-                    table.add_column("ID", style="cyan")
-                    table.add_column("Title")
-                    table.add_column("Turns")
-                    for s in sessions:
-                        table.add_row(s.session_id, s.title[:60], str(s.turn_count))
-                    console.print(table)
-                else:
-                    console.print("[dim]No sessions found.[/]")
-
-            elif cmd == "/resume":
-                target_id = arg.strip()
-                if not target_id:
-                    console.print("[yellow]Usage: /resume <session_id>[/]")
-                else:
-                    loaded = session_store.load(target_id)
-                    if loaded:
-                        summary, turns = loaded
-                        current_session_id = target_id
-                        messages.clear()
-                        for t in turns:
-                            messages.append({"role": t.role, "content": t.content})
-                        console.print(
-                            f"[green]Resumed:[/] {summary.title} ({summary.turn_count} turns)"
-                        )
-                    else:
-                        console.print(f"[red]Session '{target_id}' not found.[/]")
-
-            elif cmd == "/session":
-                loaded = session_store.load(current_session_id)
-                if loaded:
-                    summary, _ = loaded
-                    console.print(
-                        f"[cyan]Session:[/] {summary.session_id}\n"
-                        f"[cyan]Title:[/]   {summary.title}\n"
-                        f"[cyan]Turns:[/]   {summary.turn_count}"
-                    )
-                else:
-                    console.print(f"[dim]Session: {current_session_id}[/]")
-
-            elif cmd == "/usage":
-                usage = compressor.token_usage(messages)
-                console.print(
-                    f"Messages: {len(messages)}  "
-                    f"Est. tokens: {usage['estimated_tokens']} / {usage['max_tokens']} "
-                    f"({usage['pct_used']}%)"
-                )
-
-            else:
-                console.print(f"[yellow]Unknown command: {cmd}. Type /help.[/]")
-
-            continue
-
-        # ---------- Normal conversation turn ----------
-        # Auto-compress if needed
-        if compressor.needs_compression(messages):
-            def _sync_summarise(text: str) -> str:
-                return asyncio.run(coordinator.process(
-                    AndyriaRequest(input=text)
-                )).output
-            messages[:] = compressor.compress_sync(messages, _sync_summarise)
-            console.print("[dim][context compressed][/]")
-
-        messages.append({"role": "user", "content": user_input})
-        session_store.append_turn(current_session_id, "user", user_input)
-
-        try:
-            output = _run_request(user_input)
-        except Exception as exc:
-            console.print(f"[red]Error:[/] {exc}")
-            messages.pop()
-            continue
-
-        messages.append({"role": "assistant", "content": output})
-        session_store.append_turn(current_session_id, "assistant", output)
-
-        console.print(f"\n[bold cyan]andyria[/] › {output}\n")
