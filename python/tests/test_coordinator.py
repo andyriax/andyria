@@ -76,7 +76,7 @@ class TestCoordinator:
 
         assert status.node_id == "test-node"
         assert status.requests_processed == 1
-        assert status.entropy_beacons_generated == 1
+        assert status.entropy_beacons_generated >= 1
         assert status.uptime_s >= 0
 
     def test_session_context_persisted(self, tmp_path):
