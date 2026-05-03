@@ -39,6 +39,9 @@ from .models import (
     NodeConfig,
     NodeConfigUpdate,
     NodeStatus,
+    PromptFlowInputRequest,
+    PromptFlowResponse,
+    PromptFlowStartRequest,
     SessionContext,
     TabCreateRequest,
     TabProjection,
@@ -67,6 +70,7 @@ from .todo              import TodoStore
 from .delegation        import DelegationManager
 from .persona import render_avatar_svg
 from .demo import DemoManager
+from .slash_commands import list_slash_commands
 
 _coordinator: Optional[Coordinator] = None
 
@@ -125,6 +129,76 @@ def create_app(coordinator: Coordinator) -> FastAPI:
         if _coordinator is None:
             raise HTTPException(status_code=503, detail="Coordinator not initialized")
         return await _coordinator.process(request)
+
+    @app.get("/v1/slash-commands", response_model=List[Dict[str, Any]])
+    async def get_slash_commands(target: str = "web") -> List[Dict[str, Any]]:
+        return list_slash_commands(target)
+
+    _FLOW_KIND_REGISTRY = [
+        {
+            "kind": "game_builder",
+            "name": "Game Builder Wizard",
+            "description": "Design a game from type to art style and get a full implementation plan.",
+            "triggers": ["create a game", "make a game", "build a game", "new game", "game wizard"],
+        },
+        {
+            "kind": "project_planner",
+            "name": "Project Planner",
+            "description": "Plan a software project with milestones, architecture, and a first-week task list.",
+            "triggers": ["plan a project", "new project", "project planner", "project wizard", "plan my project"],
+        },
+        {
+            "kind": "agent_onboarding",
+            "name": "Agent Onboarding Wizard",
+            "description": "Configure a new AI agent with role, personality, tools, and a ready-to-use system prompt.",
+            "triggers": ["create an agent", "new agent", "onboard agent", "agent wizard", "configure agent"],
+        },
+        {
+            "kind": "deployment_wizard",
+            "name": "Deployment Wizard",
+            "description": "Generate a deployment config for Docker, Kubernetes, cloud, or bare metal.",
+            "triggers": ["deploy", "deployment wizard", "setup deployment", "deploy my app", "deployment config"],
+        },
+        {
+            "kind": "api_builder",
+            "name": "API Builder",
+            "description": "Scaffold a REST API with OpenAPI spec, route stubs, auth, and pagination.",
+            "triggers": ["build an api", "create an api", "api wizard", "new api", "rest api", "api builder"],
+        },
+    ]
+
+    @app.get("/v1/prompt-flows/kinds")
+    async def list_prompt_flow_kinds() -> List[Dict[str, Any]]:
+        return _FLOW_KIND_REGISTRY
+
+    @app.post("/v1/prompt-flows/start", response_model=PromptFlowResponse)
+    async def start_prompt_flow(request: PromptFlowStartRequest) -> PromptFlowResponse:
+        if _coordinator is None:
+            raise HTTPException(status_code=503, detail="Coordinator not initialized")
+        try:
+            return _coordinator.start_prompt_flow(request)
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    @app.get("/v1/prompt-flows/{flow_id}", response_model=PromptFlowResponse)
+    async def get_prompt_flow(flow_id: str) -> PromptFlowResponse:
+        if _coordinator is None:
+            raise HTTPException(status_code=503, detail="Coordinator not initialized")
+        flow = _coordinator.get_prompt_flow(flow_id)
+        if flow is None:
+            raise HTTPException(status_code=404, detail="Prompt flow not found")
+        return flow
+
+    @app.post("/v1/prompt-flows/{flow_id}/respond", response_model=PromptFlowResponse)
+    async def respond_prompt_flow(flow_id: str, request: PromptFlowInputRequest) -> PromptFlowResponse:
+        if _coordinator is None:
+            raise HTTPException(status_code=503, detail="Coordinator not initialized")
+        try:
+            return _coordinator.respond_prompt_flow(flow_id, request)
+        except ValueError as exc:
+            detail = str(exc)
+            status = 404 if "not found" in detail.lower() else 400
+            raise HTTPException(status_code=status, detail=detail) from exc
 
     @app.get("/v1/status", response_model=NodeStatus)
     async def status() -> NodeStatus:
@@ -579,6 +653,57 @@ def create_app(coordinator: Coordinator) -> FastAPI:
             "ready": s.ready,
             "detail": s.readiness_detail,
         }
+
+    def _prometheus_escape(value: str) -> str:
+        return value.replace("\\", "\\\\").replace("\n", "\\n").replace('"', '\\"')
+
+    @app.get("/metrics", response_model=None)
+    async def metrics() -> Response:
+        if _coordinator is None:
+            body = (
+                "# HELP andyria_up Andyria process availability (1=up).\n"
+                "# TYPE andyria_up gauge\n"
+                "andyria_up 0\n"
+            )
+            return Response(content=body, media_type="text/plain; version=0.0.4; charset=utf-8")
+
+        s = _coordinator.status()
+        node_id = _prometheus_escape(s.node_id)
+        deployment_class = _prometheus_escape(s.deployment_class)
+        lines = [
+            "# HELP andyria_up Andyria process availability (1=up).",
+            "# TYPE andyria_up gauge",
+            "andyria_up 1",
+            "# HELP andyria_ready Readiness state (1=ready, 0=degraded).",
+            "# TYPE andyria_ready gauge",
+            f"andyria_ready {1 if s.ready else 0}",
+            "# HELP andyria_uptime_seconds Node uptime in seconds.",
+            "# TYPE andyria_uptime_seconds gauge",
+            f"andyria_uptime_seconds {s.uptime_s:.6f}",
+            "# HELP andyria_requests_processed_total Number of processed inference requests.",
+            "# TYPE andyria_requests_processed_total counter",
+            f"andyria_requests_processed_total {s.requests_processed}",
+            "# HELP andyria_events_stored_total Number of committed ledger events.",
+            "# TYPE andyria_events_stored_total counter",
+            f"andyria_events_stored_total {s.events_stored}",
+            "# HELP andyria_entropy_beacons_generated_total Number of generated entropy beacons.",
+            "# TYPE andyria_entropy_beacons_generated_total counter",
+            f"andyria_entropy_beacons_generated_total {s.entropy_beacons_generated}",
+            "# HELP andyria_memory_objects Number of content-addressed memory objects.",
+            "# TYPE andyria_memory_objects gauge",
+            f"andyria_memory_objects {s.memory_objects}",
+            "# HELP andyria_peer_count Number of known peers.",
+            "# TYPE andyria_peer_count gauge",
+            f"andyria_peer_count {s.peer_count}",
+            "# HELP andyria_model_loaded Model backend availability (1=loaded/reachable).",
+            "# TYPE andyria_model_loaded gauge",
+            f"andyria_model_loaded {1 if s.model_loaded else 0}",
+            "# HELP andyria_node_info Static node metadata.",
+            "# TYPE andyria_node_info gauge",
+            f'andyria_node_info{{node_id="{node_id}",deployment_class="{deployment_class}"}} 1',
+        ]
+        body = "\n".join(lines) + "\n"
+        return Response(content=body, media_type="text/plain; version=0.0.4; charset=utf-8")
 
     @app.get("/v1/tools", response_model=List[str])
     async def list_tools() -> List[str]:

@@ -178,6 +178,7 @@ def chat(
     from .context_files import ContextFileLoader
     from .prompt_builder import PromptBuilder
     from .context_compressor import ContextCompressor
+    from .slash_commands import list_slash_commands
 
     cfg = _load_config(config)
     resolved_node_id = node_id or cfg.get("node_id", "andyria-node-0")
@@ -241,6 +242,66 @@ def chat(
     messages: list = []
     active_model: list = [None]   # mutable reference for closure
 
+    # ── Readline tab-completion for slash commands ─────────────────────────
+    _slash_defs = list_slash_commands("cli")
+    _SLASH_META: list[tuple[str, str | None]] = [
+        (str(item["cmd"]), item.get("arg")) for item in _slash_defs
+    ]
+    _SLASH_DESCRIPTIONS = {
+        str(item["cmd"]): str(item["desc"]) for item in _slash_defs
+    }
+    _SLASH_CMDS = [c for c, _ in _SLASH_META]
+
+    def _slash_completer(text: str, state: int) -> str | None:
+        """Tab-complete slash commands; also completes skill names after /skill."""
+        import readline as _rl2
+        full_line = _rl2.get_line_buffer()
+        parts     = full_line.split(None, 1)
+        cmd       = parts[0].lower() if parts else ""
+
+        # After /skill or /model, complete with known values
+        if cmd in ("/skill", "/skills") and len(parts) == 2:
+            prefix  = parts[1]
+            options = [s for s in skills.list_skills() if s.startswith(prefix)]
+            return options[state] if state < len(options) else None
+
+        if not text.startswith("/"):
+            return None
+        q       = text.lower()
+        options = [c for c in _SLASH_CMDS if c.startswith(q)]
+        if state < len(options):
+            match = options[state]
+            # Append space for commands that take args so the user keeps typing
+            arg = next((a for c, a in _SLASH_META if c == match), None)
+            return match + (" " if arg else "")
+        return None
+
+    def _display_matches(substitution: str, matches: list[str], longest: int) -> None:  # noqa: ARG001
+        """Show matches with their arg hints inline."""
+        print()
+        for m in matches:
+            arg = next((a for c, a in _SLASH_META if c == m.rstrip()), None)
+            hint = f"  {arg}" if arg else ""
+            console.print(f"  [bold cyan]{m.rstrip()}[/][dim yellow]{hint}[/]")
+        print(f"you › {substitution}", end="", flush=True)
+
+    try:
+        import readline as _rl
+        _history_file = resolved_data_dir / ".andyria_history"
+        try:
+            _rl.read_history_file(str(_history_file))
+        except FileNotFoundError:
+            pass
+        _rl.set_history_length(500)
+        _rl.set_completer(_slash_completer)
+        _rl.set_completion_display_matches_hook(_display_matches)
+        _rl.parse_and_bind("tab: complete")
+        _rl.set_completer_delims(" \t")
+        import atexit as _atexit
+        _atexit.register(_rl.write_history_file, str(_history_file))
+    except ImportError:
+        pass  # readline not available on Windows without pyreadline3
+
     def _run_request(user_input: str) -> str:
         req = AndyriaRequest(
             input=user_input,
@@ -278,24 +339,12 @@ def chat(
                 break
 
             elif cmd == "/help":
-                console.print(
-                    "\n[bold]Slash commands:[/]\n"
-                    "  /new              Start a new session\n"
-                    "  /reset            Clear message history\n"
-                    "  /model <name>     Switch LLM model\n"
-                    "  /personality      Show SOUL.md\n"
-                    "  /skills           List available skills\n"
-                    "  /skill <name>     Load a skill into prompt\n"
-                    "  /memory           Show MEMORY.md + USER.md\n"
-                    "  /todo             Show TODO list\n"
-                    "  /cron             Show scheduled jobs\n"
-                    "  /compress         Manually compress context\n"
-                    "  /history          List past sessions\n"
-                    "  /resume <id>      Resume a past session\n"
-                    "  /session          Current session info\n"
-                    "  /usage            Token usage estimate\n"
-                    "  /exit             Quit\n"
-                )
+                rows = []
+                for command, arg_hint in _SLASH_META:
+                    label = f"{command} {arg_hint}" if arg_hint else command
+                    desc = _SLASH_DESCRIPTIONS.get(command, "")
+                    rows.append(f"  {label.ljust(18)} {desc}")
+                console.print("\n[bold]Slash commands:[/]\n" + "\n".join(rows) + "\n")
 
             elif cmd == "/new":
                 current_session_id = str(uuid.uuid4())[:10]

@@ -51,6 +51,18 @@ class TestHealth:
         body = (await client.get("/health")).json()
         assert body["service"] == "andyria"
 
+    @pytest.mark.asyncio
+    async def test_metrics_prometheus_format(self, client: AsyncClient):
+        res = await client.get("/metrics")
+        assert res.status_code == 200
+        assert res.headers["content-type"].startswith("text/plain")
+        text = res.text
+        assert "# TYPE andyria_up gauge" in text
+        assert "andyria_up 1" in text
+        assert "andyria_ready " in text
+        assert "andyria_requests_processed_total " in text
+        assert "andyria_events_stored_total " in text
+
 
 class TestStatus:
     @pytest.mark.asyncio

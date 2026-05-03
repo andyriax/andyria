@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import uuid
 from enum import Enum
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Literal, Optional
 
 from pydantic import BaseModel, Field
 
@@ -258,6 +258,56 @@ class TabCreateRequest(BaseModel):
 class TabUpdateRequest(BaseModel):
     agent_id: Optional[str] = None
     viewport_mode: Optional[ViewportMode] = None
+
+
+class PromptChoiceOption(BaseModel):
+    value: str
+    label: str
+    aliases: List[str] = Field(default_factory=list)
+
+
+class PromptFlowStep(BaseModel):
+    key: str
+    prompt: str
+    type: Literal["text", "choice"] = "text"
+    options: List[PromptChoiceOption] = Field(default_factory=list)
+    allow_multiple: bool = False
+
+
+class PromptFlowProjection(BaseModel):
+    flow_id: str
+    kind: str
+    session_id: Optional[str] = None
+    agent_id: Optional[str] = None
+    step: int = 0
+    steps: List[PromptFlowStep] = Field(default_factory=list)
+    answers: Dict[str, str] = Field(default_factory=dict)
+    created_at: int = 0
+    updated_at: int = 0
+
+
+class PromptFlowStartRequest(BaseModel):
+    kind: str = "game_builder"
+    session_id: Optional[str] = None
+    agent_id: Optional[str] = None
+
+
+class PromptFlowInputRequest(BaseModel):
+    input: str
+
+
+class PromptFlowResponse(BaseModel):
+    flow_id: str
+    kind: str
+    completed: bool = False
+    step: int = 0
+    total_steps: int = 0
+    message: str = ""
+    prompt: Optional[str] = None
+    options: List[PromptChoiceOption] = Field(default_factory=list)
+    answers: Dict[str, str] = Field(default_factory=dict)
+    summary: Optional[str] = None
+    backend_prompt: Optional[str] = None
 
 
 class AndyriaRequest(BaseModel):

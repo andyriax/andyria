@@ -97,6 +97,71 @@
     #llm-prov  { }
     #uptime-st { }
 
+    /* ── Floating Jina assistant ── */
+    #jina-float {
+      position: fixed;
+      right: 26px;
+      bottom: 82px;
+      z-index: 4;
+      width: min(360px, calc(100vw - 32px));
+      border-radius: 14px;
+      border: 1px solid rgba(120, 80, 255, 0.28);
+      background: linear-gradient(140deg, rgba(8, 12, 28, 0.9), rgba(24, 14, 44, 0.84));
+      box-shadow: 0 18px 38px rgba(0, 0, 0, 0.34), 0 0 26px rgba(120, 80, 255, 0.22);
+      backdrop-filter: blur(10px);
+      padding: 12px 14px;
+      transform: translateY(10px) scale(0.98);
+      opacity: 0;
+      transition: opacity 260ms ease, transform 260ms ease;
+      pointer-events: none;
+    }
+    #jina-float.show {
+      opacity: 1;
+      transform: translateY(0) scale(1);
+    }
+    #jina-head {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 8px;
+      color: #c7b8ff;
+      font-size: 10px;
+      letter-spacing: 1.7px;
+      text-transform: uppercase;
+    }
+    #jina-severity {
+      border: 1px solid rgba(120, 80, 255, 0.35);
+      border-radius: 999px;
+      padding: 2px 8px;
+      color: #d2c5ff;
+      font-size: 9px;
+    }
+    #jina-title {
+      color: #f5f2ff;
+      font-size: 13.5px;
+      letter-spacing: 0.3px;
+      margin-bottom: 6px;
+    }
+    #jina-detail {
+      color: #bcb6d9;
+      font-size: 11.5px;
+      line-height: 1.48;
+      margin-bottom: 8px;
+    }
+    #jina-actions {
+      color: #9ba2bc;
+      font-size: 10px;
+      line-height: 1.45;
+    }
+    @media (max-width: 840px) {
+      #jina-float {
+        right: 12px;
+        left: 12px;
+        width: auto;
+        bottom: 74px;
+      }
+    }
+
     @keyframes pulse {
       0%, 100% { opacity: 0.6; } 50% { opacity: 1; }
     }
@@ -163,6 +228,16 @@
     <span id="uptime-st"></span>
   </div>
 
+</div>
+
+<div id="jina-float" aria-live="polite">
+  <div id="jina-head">
+    <span>Jina Architect Assistant</span>
+    <span id="jina-severity">INFO</span>
+  </div>
+  <div id="jina-title">Watching host and system events.</div>
+  <div id="jina-detail">No advisory yet. Guidance will appear here as live signals arrive.</div>
+  <div id="jina-actions"></div>
 </div>
 
 <script>
@@ -410,6 +485,12 @@ setInterval(loadWeather, 5 * 60 * 1000);
 // ─────────────────────────────────────────────────────────────────────────────
 const stream  = document.getElementById('thought-stream');
 const MAX_T   = 6;
+const jinaFloat = document.getElementById('jina-float');
+const jinaSeverity = document.getElementById('jina-severity');
+const jinaTitle = document.getElementById('jina-title');
+const jinaDetail = document.getElementById('jina-detail');
+const jinaActions = document.getElementById('jina-actions');
+let jinaTimer = null;
 
 function addThought(lens, text) {
   // Age down existing entries
@@ -438,6 +519,27 @@ function connectSSE() {
       }
       if (type === 'openclaw') {
         addThought('🦅 OpenClaw', data.message);
+      }
+      if (type === 'jina') {
+        const sev = String(data.severity || 'info').toUpperCase();
+        jinaSeverity.textContent = sev;
+        jinaTitle.textContent = data.title || 'Architect guidance';
+        jinaDetail.textContent = data.detail || '';
+        if (Array.isArray(data.actions) && data.actions.length > 0) {
+          jinaActions.textContent = 'Next actions: ' + data.actions.slice(0, 2).join(' | ');
+        } else {
+          jinaActions.textContent = '';
+        }
+        if (sev === 'CRITICAL') {
+          jinaSeverity.style.borderColor = 'rgba(255, 110, 70, 0.52)';
+          jinaSeverity.style.color = '#ffd4c7';
+        } else {
+          jinaSeverity.style.borderColor = 'rgba(120, 80, 255, 0.35)';
+          jinaSeverity.style.color = '#d2c5ff';
+        }
+        jinaFloat.classList.add('show');
+        if (jinaTimer) clearTimeout(jinaTimer);
+        jinaTimer = setTimeout(() => jinaFloat.classList.remove('show'), 14000);
       }
       if (type === 'wake') {
         document.querySelector('#thought-hdr').textContent = '⚡ Waking up...';

@@ -120,11 +120,30 @@ const ctx = {
   log   : (type, payload) => appendEvent('agent:main', type, payload),
 };
 
+function _emitAssistantSignal(channel, event, payload = {}) {
+  try {
+    dispatch(channel, {
+      uniqueId: payload.user || payload.username || 'system',
+      userId: payload.user || payload.username || 'system',
+      event,
+      ...payload,
+    }, ctx);
+  } catch (_) {
+    // Assistant signals are additive and should never block the live runtime.
+  }
+}
+
 // ── Sleep / Use-Case Finder ─────────────────────────────────────────────────
 sleeper.init({
   speak  : (text, opts) => voice.speak(text, { ...opts }),
-  onSleep: () => { console.log('[agent] 💤 Sleeping — use-case finder active'); },
-  onWake : () => { console.log('[agent] ⚡ Awake — resuming live event handling'); },
+  onSleep: () => {
+    console.log('[agent] 💤 Sleeping — use-case finder active');
+    _emitAssistantSignal('system', 'sleep_entered', { severity: 'info' });
+  },
+  onWake : () => {
+    console.log('[agent] ⚡ Awake — resuming live event handling');
+    _emitAssistantSignal('system', 'sleep_exited', { severity: 'info' });
+  },
 });
 
 // ── OpenClaw self-explorer (background, optional) ─────────────────────────────
@@ -202,14 +221,22 @@ if (!USERNAME || USERNAME === 'YOUR_TIKTOK_USERNAME') {
 
 const tiktok = new TikTokConn(USERNAME);
 appendEvent('agent:main', 'AGENT_STARTED', { mode: 'live', persona: personaName, username: USERNAME });
+_emitAssistantSignal('system', 'agent_started', {
+  severity: 'info',
+  mode: 'live',
+  persona: personaName,
+  username: USERNAME,
+});
 
 tiktok.connect().then(() => {
   console.log(`[agent] Connected to @${USERNAME}`);
   globalDag.transition('LISTENING', { source: 'tiktok' });
+  _emitAssistantSignal('host', 'live_connected', { severity: 'info', username: USERNAME });
 
 }).catch(err => {
   console.error('[agent] Connection failed:', err.message);
   appendEvent('agent:main', 'CONNECT_ERROR', { error: err.message });
+  _emitAssistantSignal('system', 'connect_error', { severity: 'critical', error: err.message });
   process.exit(1);
 });
 
@@ -223,6 +250,7 @@ tiktok.on('member', data => {
   _wake();
   const user = data.uniqueId;
   appendEvent('tiktok:member', 'VIEWER_JOINED', { user });
+  _emitAssistantSignal('host', 'member_joined', { severity: 'info', user });
 
   // Dispatch to orchestrated agents first
   const handled = dispatch('member', data, ctx);
@@ -259,6 +287,12 @@ tiktok.on('gift', data => {
     gift  : data.giftName,
     coins : data.diamondCount || data.repeatCount || 0,
   });
+  _emitAssistantSignal('host', 'gift_received', {
+    severity: 'high',
+    user: data.uniqueId,
+    gift: data.giftName,
+    coins: data.diamondCount || data.repeatCount || 0,
+  });
 
   dispatch('gift', data, ctx);
   handleGift(data, { ...ctx, config });
@@ -275,6 +309,7 @@ tiktok.on('like', data => {
 tiktok.on('share', data => {
   _wake();
   appendEvent('tiktok:share', 'SHARE_EVENT', { user: data.uniqueId });
+  _emitAssistantSignal('host', 'stream_shared', { severity: 'info', user: data.uniqueId });
   dispatch('share', data, ctx);
   voice.speak(format('{user} just shared the stream! 🔁', { user: data.uniqueId }));
 });
@@ -283,6 +318,7 @@ tiktok.on('share', data => {
 tiktok.on('error', err => {
   console.error('[tiktok] Error:', err.message);
   appendEvent('agent:main', 'TIKTOK_ERROR', { error: err.message });
+  _emitAssistantSignal('system', 'tiktok_error', { severity: 'critical', error: err.message });
   globalDag.transition('ERROR', { error: err.message });
   globalDag.reset();
 });
@@ -290,11 +326,13 @@ tiktok.on('error', err => {
 tiktok.on('disconnected', () => {
   console.warn('[agent] Disconnected from TikTok.');
   appendEvent('agent:main', 'DISCONNECTED', {});
+  _emitAssistantSignal('host', 'live_disconnected', { severity: 'critical' });
   globalDag.reset();
 });
 
 process.on('SIGINT', () => {
   console.log('\n[agent] Shutting down…');
+  _emitAssistantSignal('system', 'agent_stopping', { severity: 'info' });
   sleeper.destroy();
   openclaw.stop();
   appendEvent('agent:main', 'AGENT_STOPPED', { uptime_ms: process.uptime() * 1000 });
