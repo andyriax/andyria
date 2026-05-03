@@ -75,13 +75,16 @@ from .models import (
     Promptbook,
     PromptbookCreateRequest,
     PromptbookMutateRequest,
+    PromptFlowInputRequest,
+    PromptFlowResponse,
+    PromptFlowStartRequest,
     PromptbookRenderRequest,
     PromptbookRenderResponse,
     PromptbookUpdateRequest,
 )
 from .node import NodeIdentityManager
 from .planner import Planner
-from .projections import TabProjectionStore
+from .projections import PromptFlowStore, TabProjectionStore
 from .registry import AgentRegistry
 from .store import EventStore
 from .tools import ToolRegistry
@@ -415,6 +418,7 @@ class Coordinator:
         self._registry = AgentRegistry(self._memory, default_agent_name=f"{node_id} default")
         self._registry.ensure_default()
         self._tabs = TabProjectionStore(self._memory)
+        self._prompt_flows = PromptFlowStore(self._memory)
 
         # Intelligence components
         self._router = ModelRouter(model_path, ollama_url, ollama_model)
@@ -724,6 +728,15 @@ class Coordinator:
 
     def get_agent(self, agent_id: str) -> Optional[AgentDefinition]:
         return self._registry.get(agent_id)
+
+    def start_prompt_flow(self, request: PromptFlowStartRequest) -> PromptFlowResponse:
+        return self._prompt_flows.start(request)
+
+    def get_prompt_flow(self, flow_id: str) -> Optional[PromptFlowResponse]:
+        return self._prompt_flows.get(flow_id)
+
+    def respond_prompt_flow(self, flow_id: str, request: PromptFlowInputRequest) -> PromptFlowResponse:
+        return self._prompt_flows.respond(flow_id, request)
 
     def generate_surprise_prompt(self) -> str:
         """Return a dynamically generated 'Surprise Me' prompt.
