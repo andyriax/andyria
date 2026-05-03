@@ -1,0 +1,1118 @@
+<!doctype html>
+<!-- Andyria System Management Console -->
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Andyria — System Management</title>
+  <style>
+    :root {
+      --bg: #0b1216;
+      --surface: #111a20;
+      --surface-2: #152028;
+      --text: #d6e7ef;
+      --muted: #7a9fb5;
+      --accent: #20c997;
+      --accent-dim: #0d8f6b;
+      --border: #1d3040;
+      --danger: #ff6b6b;
+      --warning: #f0a940;
+      --success: #20c997;
+      --radius: 10px;
+      --sidebar-w: 200px;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    html, body { height: 100%; font-family: "Segoe UI", system-ui, sans-serif; background: var(--bg); color: var(--text); font-size: 14px; }
+
+    /* ── Layout ── */
+    .layout { display: grid; grid-template-columns: var(--sidebar-w) 1fr; grid-template-rows: 48px 1fr; height: 100vh; overflow: hidden; }
+
+    /* ── Topbar ── */
+    .topbar {
+      grid-column: 1 / -1;
+      background: var(--surface);
+      border-bottom: 1px solid var(--border);
+      display: flex; align-items: center; gap: 12px; padding: 0 16px;
+    }
+    .topbar h1 { font-size: 0.95rem; font-weight: 600; letter-spacing: 0.5px; }
+    .topbar-sep { width: 1px; height: 22px; background: var(--border); }
+    .topbar-link { font-size: 0.82rem; color: var(--muted); text-decoration: none; padding: 4px 8px; border-radius: 6px; border: 1px solid transparent; }
+    .topbar-link:hover { border-color: var(--border); color: var(--text); }
+    .topbar-spacer { flex: 1; }
+    .badge {
+      font-size: 0.75rem; padding: 2px 9px; border-radius: 999px;
+      border: 1px solid var(--border); color: var(--muted);
+    }
+    .badge.ok   { color: var(--accent);  border-color: var(--accent-dim); }
+    .badge.warn { color: var(--warning); border-color: #7a5000; }
+    .badge.bad  { color: var(--danger);  border-color: #6e2020; }
+    #refresh-btn {
+      background: none; border: 1px solid var(--border); border-radius: 7px;
+      color: var(--muted); font-size: 0.82rem; padding: 4px 10px; cursor: pointer;
+    }
+    #refresh-btn:hover { color: var(--text); border-color: var(--accent-dim); }
+
+    /* ── Sidebar ── */
+    .sidebar {
+      background: var(--surface); border-right: 1px solid var(--border);
+      display: flex; flex-direction: column; padding: 10px 8px; gap: 2px; overflow-y: auto;
+    }
+    .nav-label {
+      font-size: 0.68rem; text-transform: uppercase; letter-spacing: 0.8px;
+      color: var(--muted); padding: 10px 8px 4px;
+    }
+    .nav-btn {
+      background: none; border: none; color: var(--text); font: inherit;
+      font-size: 0.85rem; padding: 7px 10px; border-radius: 7px;
+      text-align: left; cursor: pointer; display: flex; align-items: center; gap: 7px;
+      width: 100%;
+    }
+    .nav-btn:hover { background: var(--surface-2); }
+    .nav-btn.active { background: var(--surface-2); color: var(--accent); }
+    .nav-btn .icon { width: 16px; text-align: center; }
+
+    /* ── Content area ── */
+    .content { overflow-y: auto; padding: 20px 24px; display: flex; flex-direction: column; gap: 20px; }
+
+    /* ── Views ── */
+    .view { display: none; flex-direction: column; gap: 18px; }
+    .view.active { display: flex; }
+
+    /* ── Section card ── */
+    .card {
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: var(--radius); padding: 16px 18px;
+    }
+    .card-title {
+      font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.8px;
+      color: var(--muted); margin-bottom: 14px; display: flex;
+      align-items: center; justify-content: space-between;
+    }
+
+    /* ── Stats grid ── */
+    .stat-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(130px, 1fr)); gap: 10px; }
+    .stat-box {
+      background: var(--surface-2); border: 1px solid var(--border);
+      border-radius: 8px; padding: 12px 14px;
+    }
+    .stat-lbl { font-size: 0.72rem; color: var(--muted); margin-bottom: 4px; }
+    .stat-val { font-size: 1.1rem; font-weight: 600; }
+    .stat-val.ok   { color: var(--accent); }
+    .stat-val.warn { color: var(--warning); }
+    .stat-val.bad  { color: var(--danger); }
+
+    /* ── Table ── */
+    .tbl-wrap { overflow-x: auto; }
+    table { width: 100%; border-collapse: collapse; font-size: 0.85rem; }
+    th {
+      text-align: left; padding: 7px 10px; font-size: 0.71rem;
+      text-transform: uppercase; letter-spacing: 0.5px; color: var(--muted);
+      border-bottom: 1px solid var(--border);
+    }
+    td {
+      padding: 8px 10px; border-bottom: 1px solid var(--border);
+      vertical-align: middle;
+    }
+    tr:last-child td { border-bottom: none; }
+    tr:hover td { background: var(--surface-2); }
+    .cell-mono { font-family: "Fira Code", Consolas, monospace; font-size: 0.8em; color: var(--muted); }
+
+    /* ── Buttons ── */
+    .btn {
+      background: var(--surface-2); border: 1px solid var(--border);
+      border-radius: 7px; color: var(--text); font: inherit;
+      font-size: 0.82rem; padding: 6px 12px; cursor: pointer;
+    }
+    .btn:hover { border-color: var(--accent-dim); }
+    .btn.primary { background: var(--accent); color: #03241a; font-weight: 600; border-color: transparent; }
+    .btn.primary:hover { opacity: 0.88; }
+    .btn.danger { border-color: #6e2020; color: var(--danger); }
+    .btn.danger:hover { background: #1a0a0a; }
+    .btn:disabled { opacity: 0.4; cursor: default; }
+    .btn-row { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+
+    /* ── Form fields ── */
+    .field { display: flex; flex-direction: column; gap: 4px; }
+    .field label { font-size: 0.8rem; color: var(--muted); }
+    input[type="text"], input[type="url"], textarea, select {
+      background: var(--bg); border: 1px solid var(--border); border-radius: 7px;
+      color: var(--text); font: inherit; font-size: 0.88rem;
+      padding: 7px 11px; outline: none; width: 100%;
+    }
+    input:focus, textarea:focus, select:focus { border-color: var(--accent-dim); }
+    textarea { resize: vertical; min-height: 80px; }
+    .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+    @media (max-width: 680px) { .form-grid { grid-template-columns: 1fr; } }
+
+    /* ── Status message ── */
+    .status-msg { font-size: 0.82rem; min-height: 1.2em; }
+    .status-msg.ok   { color: var(--accent); }
+    .status-msg.err  { color: var(--danger); }
+    .status-msg.info { color: var(--muted); }
+
+    /* ── Log list ── */
+    .log-list { list-style: none; display: flex; flex-direction: column; gap: 5px; max-height: 320px; overflow-y: auto; }
+    .log-list li {
+      background: var(--surface-2); border: 1px solid var(--border);
+      border-radius: 7px; padding: 7px 10px; font-size: 0.8rem; line-height: 1.5;
+    }
+    .log-list li code { font-size: 0.75em; color: var(--muted); }
+
+    /* ── Agent cards ── */
+    .agent-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 12px; }
+    .agent-card {
+      background: var(--surface-2); border: 1px solid var(--border);
+      border-radius: var(--radius); padding: 14px 16px; display: flex; flex-direction: column; gap: 8px;
+    }
+    .agent-card-head { display: flex; align-items: center; gap: 10px; }
+    .agent-avatar { width: 36px; height: 36px; border-radius: 50%; background: var(--border); flex-shrink: 0; object-fit: cover; }
+    .agent-name { font-weight: 600; font-size: 0.92rem; }
+    .agent-id   { font-size: 0.72rem; color: var(--muted); font-family: monospace; }
+    .agent-desc { font-size: 0.82rem; color: var(--muted); line-height: 1.5; flex: 1; }
+    .agent-actions { display: flex; gap: 6px; flex-wrap: wrap; }
+
+    /* ── Modal ── */
+    .modal-overlay {
+      display: none; position: fixed; inset: 0;
+      background: rgba(0,0,0,0.55); z-index: 200; align-items: center; justify-content: center;
+    }
+    .modal-overlay.open { display: flex; }
+    .modal {
+      background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius);
+      padding: 22px 24px; width: min(540px, 94vw); max-height: 88vh; overflow-y: auto;
+      display: flex; flex-direction: column; gap: 16px;
+    }
+    .modal-title { font-size: 1rem; font-weight: 600; }
+    .modal-footer { display: flex; gap: 8px; justify-content: flex-end; }
+
+    /* ── Tag pills ── */
+    .tag { background: rgba(32,201,151,0.1); border: 1px solid var(--accent-dim); border-radius: 5px; padding: 1px 7px; font-size: 0.75rem; color: var(--accent); }
+
+    /* ── Peer topology ── */
+    .peer-list { display: flex; flex-direction: column; gap: 8px; }
+    .peer-item {
+      background: var(--surface-2); border: 1px solid var(--border);
+      border-radius: 8px; padding: 10px 14px; display: flex; align-items: center; gap: 12px;
+    }
+    .peer-dot { width: 9px; height: 9px; border-radius: 50%; background: var(--muted); flex-shrink: 0; }
+    .peer-dot.online { background: var(--accent); }
+    .peer-info { flex: 1; font-size: 0.85rem; }
+    .peer-id   { color: var(--muted); font-size: 0.73rem; font-family: monospace; }
+
+    /* ── ATM / ORC ── */
+    .thought-box {
+      background: var(--surface-2); border: 1px solid var(--border); border-radius: 8px;
+      padding: 12px 14px; font-size: 0.85rem; line-height: 1.6; white-space: pre-wrap;
+      min-height: 60px; color: var(--text);
+    }
+
+    /* ── Memory tree ── */
+    .mem-tree { display: flex; flex-direction: column; gap: 4px; }
+    .mem-file {
+      display: flex; align-items: center; gap: 8px; padding: 6px 10px;
+      border-radius: 7px; cursor: pointer; font-size: 0.85rem;
+    }
+    .mem-file:hover { background: var(--surface-2); }
+    .mem-file.selected { background: var(--surface-2); color: var(--accent); }
+
+    /* ── Demo ── */
+    .demo-state {
+      font-size: 1.3rem; font-weight: 700; padding: 6px 0;
+    }
+    .demo-state.running { color: var(--accent); }
+    .demo-state.stopped { color: var(--muted); }
+
+    /* ── Scrollbar styling ── */
+    ::-webkit-scrollbar { width: 6px; height: 6px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+
+    @media (max-width: 640px) {
+      .layout { grid-template-columns: 1fr; }
+      .sidebar { display: none; }
+    }
+  </style>
+</head>
+<body>
+<div class="layout">
+
+  <!-- Topbar -->
+  <header class="topbar">
+    <h1>⚙ Andyria Management</h1>
+    <div class="topbar-sep"></div>
+    <a class="topbar-link" href="/">← Chat</a>
+    <span class="topbar-spacer"></span>
+    <span id="global-badge" class="badge">connecting…</span>
+    <button id="refresh-btn" title="Refresh all">↻ Refresh</button>
+  </header>
+
+  <!-- Sidebar nav -->
+  <nav class="sidebar">
+    <div class="nav-label">System</div>
+    <button class="nav-btn active" data-view="dashboard"><span class="icon">◈</span>Dashboard</button>
+    <button class="nav-btn" data-view="config"><span class="icon">⚙</span>Config</button>
+    <button class="nav-btn" data-view="models"><span class="icon">◇</span>Models</button>
+
+    <div class="nav-label">Agents</div>
+    <button class="nav-btn" data-view="agents"><span class="icon">◉</span>Agents</button>
+    <button class="nav-btn" data-view="chains"><span class="icon">⛓</span>Chains</button>
+
+    <div class="nav-label">Data</div>
+    <button class="nav-btn" data-view="events"><span class="icon">◎</span>Events</button>
+    <button class="nav-btn" data-view="sessions"><span class="icon">◑</span>Sessions</button>
+    <button class="nav-btn" data-view="memory"><span class="icon">▩</span>Memory</button>
+
+    <div class="nav-label">Intelligence</div>
+    <button class="nav-btn" data-view="atm"><span class="icon">⊕</span>ATM</button>
+    <button class="nav-btn" data-view="orc"><span class="icon">⊗</span>ORC</button>
+
+    <div class="nav-label">Network</div>
+    <button class="nav-btn" data-view="peers"><span class="icon">⬡</span>Mesh Peers</button>
+
+    <div class="nav-label">Ops</div>
+    <button class="nav-btn" data-view="demo"><span class="icon">▷</span>Demo</button>
+  </nav>
+
+  <!-- Content -->
+  <main class="content" id="content">
+
+    <!-- ── Dashboard ── -->
+    <section class="view active" id="view-dashboard">
+      <div class="card">
+        <div class="card-title">Node Status <button class="btn" id="dash-refresh">↻</button></div>
+        <div class="stat-grid" id="dash-stats">
+          <div class="stat-box"><div class="stat-lbl">Node ID</div><div class="stat-val" id="ds-node-id">—</div></div>
+          <div class="stat-box"><div class="stat-lbl">Status</div><div class="stat-val" id="ds-status">—</div></div>
+          <div class="stat-box"><div class="stat-lbl">Model</div><div class="stat-val" id="ds-model">—</div></div>
+          <div class="stat-box"><div class="stat-lbl">Mode</div><div class="stat-val" id="ds-mode">—</div></div>
+          <div class="stat-box"><div class="stat-lbl">Requests</div><div class="stat-val" id="ds-reqs">—</div></div>
+          <div class="stat-box"><div class="stat-lbl">Uptime</div><div class="stat-val" id="ds-uptime">—</div></div>
+          <div class="stat-box"><div class="stat-lbl">Beacons</div><div class="stat-val" id="ds-beacons">—</div></div>
+          <div class="stat-box"><div class="stat-lbl">Events</div><div class="stat-val" id="ds-events">—</div></div>
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-title">Health Check</div>
+        <pre id="dash-health" style="font-size:0.8rem;line-height:1.6;color:var(--muted);white-space:pre-wrap">Loading…</pre>
+      </div>
+      <div class="card">
+        <div class="card-title">Recent Events</div>
+        <ul class="log-list" id="dash-events-list"><li style="color:var(--muted)">Loading…</li></ul>
+      </div>
+    </section>
+
+    <!-- ── Config ── -->
+    <section class="view" id="view-config">
+      <div class="card">
+        <div class="card-title">Node Configuration</div>
+        <div class="form-grid">
+          <div class="field"><label>Ollama URL</label><input id="cfg-url" type="url" placeholder="http://host.docker.internal:11434" /></div>
+          <div class="field"><label>Ollama Model</label><input id="cfg-model" type="text" placeholder="phi3" /></div>
+        </div>
+        <div class="btn-row" style="margin-top:14px">
+          <button class="btn" id="cfg-test-btn">Test connection</button>
+          <button class="btn primary" id="cfg-save-btn">Save &amp; apply</button>
+        </div>
+        <div class="status-msg info" id="cfg-status" style="margin-top:8px"></div>
+      </div>
+      <div class="card">
+        <div class="card-title">Raw Config</div>
+        <pre id="cfg-raw" style="font-size:0.8rem;color:var(--muted);white-space:pre-wrap;line-height:1.6">Loading…</pre>
+      </div>
+    </section>
+
+    <!-- ── Models ── -->
+    <section class="view" id="view-models">
+      <div class="card">
+        <div class="card-title">Available Models <button class="btn" id="models-refresh">↻</button></div>
+        <div id="models-list" style="display:flex;gap:8px;flex-wrap:wrap;margin-top:4px">
+          <span style="color:var(--muted)">Loading…</span>
+        </div>
+      </div>
+    </section>
+
+    <!-- ── Agents ── -->
+    <section class="view" id="view-agents">
+      <div class="card">
+        <div class="card-title">
+          Agents
+          <div class="btn-row">
+            <button class="btn" id="agents-presets-btn">Load Preset</button>
+            <button class="btn primary" id="agents-new-btn">+ New Agent</button>
+          </div>
+        </div>
+        <div class="agent-grid" id="agent-grid"><span style="color:var(--muted)">Loading…</span></div>
+      </div>
+    </section>
+
+    <!-- ── Chains ── -->
+    <section class="view" id="view-chains">
+      <div class="card">
+        <div class="card-title">
+          Chains
+          <button class="btn primary" id="chains-new-btn">+ New Chain</button>
+        </div>
+        <div class="tbl-wrap">
+          <table id="chains-table">
+            <thead><tr><th>ID</th><th>Name</th><th>Steps</th><th>Actions</th></tr></thead>
+            <tbody id="chains-body"><tr><td colspan="4" style="color:var(--muted)">Loading…</td></tr></tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <!-- ── Events ── -->
+    <section class="view" id="view-events">
+      <div class="card">
+        <div class="card-title">Event Log <button class="btn" id="events-refresh">↻ Refresh</button></div>
+        <div class="tbl-wrap">
+          <table>
+            <thead><tr><th>ID</th><th>Type</th><th>Timestamp</th><th>Node</th></tr></thead>
+            <tbody id="events-body"><tr><td colspan="4" style="color:var(--muted)">Loading…</td></tr></tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <!-- ── Sessions ── -->
+    <section class="view" id="view-sessions">
+      <div class="card">
+        <div class="card-title">Session Inspector</div>
+        <div class="btn-row">
+          <input id="sess-id-input" type="text" placeholder="Session UUID…" style="width:320px;max-width:100%" />
+          <button class="btn" id="sess-load-btn">Load</button>
+          <button class="btn danger" id="sess-del-btn">Delete</button>
+        </div>
+        <div class="status-msg info" id="sess-status" style="margin-top:8px"></div>
+        <pre id="sess-output" style="margin-top:12px;font-size:0.8rem;color:var(--muted);white-space:pre-wrap;line-height:1.6;min-height:40px"></pre>
+      </div>
+    </section>
+
+    <!-- ── Memory ── -->
+    <section class="view" id="view-memory">
+      <div class="card">
+        <div class="card-title">Memory Files</div>
+        <div style="display:grid;grid-template-columns:200px 1fr;gap:16px">
+          <div>
+            <div class="mem-tree" id="mem-tree">
+              <div style="color:var(--muted);font-size:0.82rem">No files found.</div>
+            </div>
+          </div>
+          <div style="display:flex;flex-direction:column;gap:10px">
+            <div class="field"><label>Path</label><input id="mem-path" type="text" placeholder="e.g. notes/project.md" /></div>
+            <div class="field"><label>Content</label><textarea id="mem-content" style="min-height:160px"></textarea></div>
+            <div class="btn-row">
+              <button class="btn" id="mem-load-btn">Load</button>
+              <button class="btn primary" id="mem-write-btn">Write</button>
+            </div>
+            <div class="status-msg info" id="mem-status"></div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ── ATM ── -->
+    <section class="view" id="view-atm">
+      <div class="card">
+        <div class="card-title">ATM — Automated Thought Machine</div>
+        <div style="display:flex;flex-direction:column;gap:12px">
+          <div class="field"><label>Prompt / Context</label><textarea id="atm-prompt" placeholder="Enter context for ATM to process…"></textarea></div>
+          <div class="btn-row">
+            <button class="btn primary" id="atm-think-btn">Think</button>
+            <button class="btn" id="atm-reflect-btn">Reflect</button>
+          </div>
+          <div class="status-msg info" id="atm-status"></div>
+          <div>
+            <div style="font-size:0.72rem;text-transform:uppercase;letter-spacing:0.8px;color:var(--muted);margin-bottom:6px">Output</div>
+            <div class="thought-box" id="atm-output">Output will appear here.</div>
+          </div>
+          <div>
+            <div style="font-size:0.72rem;text-transform:uppercase;letter-spacing:0.8px;color:var(--muted);margin-bottom:6px">Reasoning Chain</div>
+            <ul class="log-list" id="atm-chain"></ul>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ── ORC ── -->
+    <section class="view" id="view-orc">
+      <div class="card">
+        <div class="card-title">ORC — Observer Rights &amp; Compliance</div>
+        <div style="display:flex;flex-direction:column;gap:14px">
+          <div>
+            <div class="card-title" style="margin-bottom:10px">Rights Declaration</div>
+            <pre id="orc-rights" style="font-size:0.82rem;color:var(--muted);white-space:pre-wrap;line-height:1.7">Loading…</pre>
+          </div>
+          <div>
+            <div class="card-title" style="margin-bottom:10px">Witness Statement</div>
+            <div class="field"><label>Statement</label><textarea id="orc-statement" placeholder="Enter witness statement…"></textarea></div>
+            <div class="btn-row" style="margin-top:10px">
+              <button class="btn primary" id="orc-witness-btn">Submit Witness</button>
+            </div>
+            <div class="status-msg info" id="orc-status" style="margin-top:8px"></div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ── Peers ── -->
+    <section class="view" id="view-peers">
+      <div class="card">
+        <div class="card-title">
+          Mesh Peers
+          <div class="btn-row">
+            <button class="btn" id="peers-refresh">↻</button>
+            <button class="btn primary" id="peers-add-btn">+ Add Peer</button>
+          </div>
+        </div>
+        <div class="peer-list" id="peer-list"><div style="color:var(--muted);font-size:0.85rem">Loading…</div></div>
+      </div>
+      <div class="card" id="peers-add-card" style="display:none">
+        <div class="card-title">Add Peer</div>
+        <div class="field"><label>Peer URL</label><input id="peer-url-input" type="url" placeholder="http://192.168.x.x:7433" /></div>
+        <div class="btn-row" style="margin-top:10px">
+          <button class="btn primary" id="peer-submit-btn">Connect</button>
+          <button class="btn" id="peer-cancel-btn">Cancel</button>
+        </div>
+        <div class="status-msg info" id="peers-status" style="margin-top:8px"></div>
+      </div>
+    </section>
+
+    <!-- ── Demo ── -->
+    <section class="view" id="view-demo">
+      <div class="card">
+        <div class="card-title">Demo Mode</div>
+        <div style="display:flex;flex-direction:column;gap:14px">
+          <div class="demo-state stopped" id="demo-state">Loading…</div>
+          <pre id="demo-raw" style="font-size:0.8rem;color:var(--muted);white-space:pre-wrap;line-height:1.6"></pre>
+          <div class="btn-row">
+            <button class="btn primary" id="demo-start-btn">▷ Start Demo</button>
+            <button class="btn danger" id="demo-stop-btn">■ Stop Demo</button>
+          </div>
+          <div class="status-msg info" id="demo-status"></div>
+        </div>
+      </div>
+    </section>
+
+  </main>
+</div>
+
+<!-- ── Agent New/Edit Modal ── -->
+<div class="modal-overlay" id="agent-modal">
+  <div class="modal">
+    <div class="modal-title" id="agent-modal-title">New Agent</div>
+    <input type="hidden" id="agent-modal-id" />
+    <div class="form-grid">
+      <div class="field"><label>Name *</label><input id="am-name" type="text" placeholder="My Agent" /></div>
+      <div class="field"><label>Persona</label><input id="am-persona" type="text" placeholder="assistant" /></div>
+    </div>
+    <div class="field"><label>Description</label><input id="am-desc" type="text" placeholder="Short description" /></div>
+    <div class="field"><label>System Prompt</label><textarea id="am-system" placeholder="You are…"></textarea></div>
+    <div class="modal-footer">
+      <button class="btn" id="agent-modal-cancel">Cancel</button>
+      <button class="btn primary" id="agent-modal-save">Save</button>
+    </div>
+    <div class="status-msg info" id="agent-modal-status"></div>
+  </div>
+</div>
+
+<!-- ── Preset Picker Modal ── -->
+<div class="modal-overlay" id="preset-modal">
+  <div class="modal">
+    <div class="modal-title">Load Agent Preset</div>
+    <div id="preset-list" style="display:flex;flex-direction:column;gap:8px;max-height:320px;overflow-y:auto">
+      <span style="color:var(--muted)">Loading…</span>
+    </div>
+    <div class="modal-footer">
+      <button class="btn" id="preset-modal-cancel">Close</button>
+    </div>
+  </div>
+</div>
+
+<!-- ── Chain New Modal ── -->
+<div class="modal-overlay" id="chain-modal">
+  <div class="modal">
+    <div class="modal-title">New Chain</div>
+    <div class="field"><label>Chain Name *</label><input id="chain-name" type="text" placeholder="my-chain" /></div>
+    <div class="field">
+      <label>Agent IDs (one per line)</label>
+      <textarea id="chain-agents" placeholder="agent-uuid-1&#10;agent-uuid-2"></textarea>
+    </div>
+    <div class="modal-footer">
+      <button class="btn" id="chain-modal-cancel">Cancel</button>
+      <button class="btn primary" id="chain-modal-save">Create</button>
+    </div>
+    <div class="status-msg info" id="chain-modal-status"></div>
+  </div>
+</div>
+
+<script>
+// ── Utils ────────────────────────────────────────────────────────────────
+function esc(s) {
+  return String(s ?? "")
+    .replace(/&/g,"&amp;").replace(/</g,"&lt;")
+    .replace(/>/g,"&gt;").replace(/"/g,"&quot;");
+}
+function fmt(obj) { return JSON.stringify(obj, null, 2); }
+function setStatus(el, msg, kind = "info") {
+  el.textContent = msg; el.className = `status-msg ${kind}`;
+}
+async function api(path, opts = {}) {
+  const r = await fetch(path, opts);
+  if (!r.ok) { const b = await r.json().catch(() => ({})); throw new Error(b.detail || `HTTP ${r.status}`); }
+  return r.json();
+}
+
+// ── Navigation ───────────────────────────────────────────────────────────
+const navBtns = document.querySelectorAll(".nav-btn[data-view]");
+const views   = document.querySelectorAll(".view");
+
+function showView(id) {
+  views.forEach(v => v.classList.remove("active"));
+  navBtns.forEach(b => b.classList.remove("active"));
+  const v = document.getElementById(`view-${id}`);
+  if (v) v.classList.add("active");
+  navBtns.forEach(b => { if (b.dataset.view === id) b.classList.add("active"); });
+  // Lazy-load data for the view
+  const loaders = { dashboard: loadDashboard, config: loadConfig, models: loadModels,
+    agents: loadAgents, chains: loadChains, events: loadEvents, memory: loadMemory,
+    atm: ()=>{}, orc: loadOrc, peers: loadPeers, demo: loadDemo, sessions: ()=>{} };
+  if (loaders[id]) loaders[id]();
+}
+
+navBtns.forEach(b => b.addEventListener("click", () => showView(b.dataset.view)));
+document.getElementById("refresh-btn").addEventListener("click", () => {
+  const active = document.querySelector(".nav-btn.active");
+  if (active) showView(active.dataset.view);
+});
+
+// ── Global badge ─────────────────────────────────────────────────────────
+async function updateGlobalBadge() {
+  const badge = document.getElementById("global-badge");
+  try {
+    const s = await api("/v1/status");
+    badge.className = "badge";
+    if (s.ready === false) { badge.classList.add("bad"); badge.textContent = "degraded"; }
+    else if (s.readiness_detail && s.readiness_detail !== "ok") { badge.classList.add("warn"); badge.textContent = "stub"; }
+    else { badge.classList.add("ok"); badge.textContent = "ready"; }
+  } catch { badge.className = "badge bad"; badge.textContent = "offline"; }
+}
+updateGlobalBadge();
+setInterval(updateGlobalBadge, 30_000);
+
+// ── Dashboard ─────────────────────────────────────────────────────────────
+async function loadDashboard() {
+  // Status
+  try {
+    const s = await api("/v1/status");
+    document.getElementById("ds-node-id").textContent  = s.node_id ?? "—";
+    const statusEl = document.getElementById("ds-status");
+    statusEl.textContent = s.ready === false ? "degraded" : (s.readiness_detail && s.readiness_detail !== "ok" ? "stub" : "ready");
+    statusEl.className = `stat-val ${s.ready === false ? "bad" : (s.readiness_detail && s.readiness_detail !== "ok" ? "warn" : "ok")}`;
+    document.getElementById("ds-model").textContent  = s.ollama_model ?? s.model_loaded ? "loaded" : "none";
+    document.getElementById("ds-mode").textContent   = s.model_loaded ? "LLM" : "stub";
+    document.getElementById("ds-reqs").textContent   = s.requests_processed ?? "—";
+    document.getElementById("ds-uptime").textContent = s.uptime_s != null ? Math.round(s.uptime_s) + "s" : "—";
+    document.getElementById("ds-beacons").textContent = s.entropy_beacons_generated ?? "—";
+    document.getElementById("ds-events").textContent  = s.events_stored ?? "—";
+  } catch (e) { document.getElementById("ds-node-id").textContent = "offline"; }
+
+  // Health
+  try {
+    const h = await api("/health");
+    document.getElementById("dash-health").textContent = fmt(h);
+  } catch(e) { document.getElementById("dash-health").textContent = "Health endpoint unavailable: " + e.message; }
+
+  // Events
+  try {
+    const evts = await api("/v1/events");
+    const list = document.getElementById("dash-events-list");
+    if (!evts.length) { list.innerHTML = `<li style="color:var(--muted)">No events yet.</li>`; return; }
+    list.innerHTML = evts.slice(-15).reverse().map(e => `
+      <li><strong>${esc(e.event_type)}</strong> <code>${esc(e.id)}</code>
+        ${e.timestamp ? `<span style="color:var(--muted);float:right">${esc(new Date(e.timestamp).toLocaleTimeString())}</span>` : ""}
+      </li>`).join("");
+  } catch { document.getElementById("dash-events-list").innerHTML = `<li style="color:var(--danger)">Failed.</li>`; }
+}
+document.getElementById("dash-refresh").addEventListener("click", loadDashboard);
+
+// ── Config ────────────────────────────────────────────────────────────────
+async function loadConfig() {
+  try {
+    const cfg = await api("/v1/config");
+    document.getElementById("cfg-url").value   = cfg.ollama_url   ?? "";
+    document.getElementById("cfg-model").value = cfg.ollama_model ?? "";
+    document.getElementById("cfg-raw").textContent = fmt(cfg);
+  } catch(e) { document.getElementById("cfg-raw").textContent = "Failed: " + e.message; }
+}
+
+document.getElementById("cfg-save-btn").addEventListener("click", async () => {
+  const btn = document.getElementById("cfg-save-btn");
+  const st  = document.getElementById("cfg-status");
+  btn.disabled = true;
+  setStatus(st, "Saving…", "info");
+  try {
+    const cfg = await api("/v1/config", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        ollama_url:   document.getElementById("cfg-url").value.trim()   || null,
+        ollama_model: document.getElementById("cfg-model").value.trim() || null,
+      }),
+    });
+    document.getElementById("cfg-raw").textContent = fmt(cfg);
+    setStatus(st, "Saved and applied.", "ok");
+    updateGlobalBadge();
+  } catch(e) { setStatus(st, "Save failed: " + e.message, "err"); }
+  finally { btn.disabled = false; }
+});
+
+document.getElementById("cfg-test-btn").addEventListener("click", async () => {
+  const url   = document.getElementById("cfg-url").value.trim();
+  const model = document.getElementById("cfg-model").value.trim();
+  const btn = document.getElementById("cfg-test-btn");
+  const st  = document.getElementById("cfg-status");
+  if (!url) { setStatus(st, "Enter an Ollama URL first.", "err"); return; }
+  btn.disabled = true;
+  setStatus(st, "Testing…", "info");
+  try {
+    const r = await api("/v1/infer", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ input: "ping", context: { _ollama_test: true, _ollama_url: url, _ollama_model: model } }),
+    });
+    const m = r.model_used ?? "unknown";
+    setStatus(st, `Responded via ${m}${m.startsWith("ollama") || m.startsWith("llama") ? " ✓" : " (stub)"}`, "ok");
+  } catch(e) { setStatus(st, "Test failed: " + e.message, "err"); }
+  finally { btn.disabled = false; }
+});
+
+// ── Models ────────────────────────────────────────────────────────────────
+async function loadModels() {
+  const el = document.getElementById("models-list");
+  try {
+    const models = await api("/v1/models");
+    if (!models.length) { el.innerHTML = `<span style="color:var(--muted)">No models found.</span>`; return; }
+    el.innerHTML = models.map(m => `<span class="tag">${esc(m)}</span>`).join("");
+  } catch(e) { el.innerHTML = `<span style="color:var(--danger)">${esc(e.message)}</span>`; }
+}
+document.getElementById("models-refresh").addEventListener("click", loadModels);
+
+// ── Agents ────────────────────────────────────────────────────────────────
+let agentList = [];
+
+async function loadAgents() {
+  const grid = document.getElementById("agent-grid");
+  try {
+    agentList = await api("/v1/agents");
+    if (!agentList.length) { grid.innerHTML = `<div style="color:var(--muted)">No agents yet. Create one or load a preset.</div>`; return; }
+    grid.innerHTML = agentList.map(a => `
+      <div class="agent-card">
+        <div class="agent-card-head">
+          <img class="agent-avatar" src="/v1/agents/${esc(a.id)}/avatar.svg" onerror="this.style.display='none'" alt="" />
+          <div>
+            <div class="agent-name">${esc(a.name)}</div>
+            <div class="agent-id">${esc(a.id)}</div>
+          </div>
+        </div>
+        <div class="agent-desc">${esc(a.description ?? a.system_prompt?.slice(0,80) ?? "")}</div>
+        <div class="agent-actions">
+          <button class="btn" onclick="editAgent('${esc(a.id)}')">Edit</button>
+          <button class="btn" onclick="cloneAgent('${esc(a.id)}')">Clone</button>
+          <button class="btn danger" onclick="deleteAgent('${esc(a.id)}')">Delete</button>
+        </div>
+      </div>`).join("");
+  } catch(e) { grid.innerHTML = `<div style="color:var(--danger)">Failed: ${esc(e.message)}</div>`; }
+}
+
+function openNewAgentModal() {
+  document.getElementById("agent-modal-title").textContent = "New Agent";
+  document.getElementById("agent-modal-id").value = "";
+  ["am-name","am-persona","am-desc","am-system"].forEach(id => { document.getElementById(id).value = ""; });
+  setStatus(document.getElementById("agent-modal-status"), "", "info");
+  document.getElementById("agent-modal").classList.add("open");
+}
+
+async function editAgent(id) {
+  try {
+    const a = await api(`/v1/agents/${id}`);
+    document.getElementById("agent-modal-title").textContent = "Edit Agent";
+    document.getElementById("agent-modal-id").value = id;
+    document.getElementById("am-name").value    = a.name ?? "";
+    document.getElementById("am-persona").value = a.persona ?? "";
+    document.getElementById("am-desc").value    = a.description ?? "";
+    document.getElementById("am-system").value  = a.system_prompt ?? "";
+    setStatus(document.getElementById("agent-modal-status"), "", "info");
+    document.getElementById("agent-modal").classList.add("open");
+  } catch(e) { alert("Failed to load agent: " + e.message); }
+}
+
+async function cloneAgent(id) {
+  try {
+    await api(`/v1/agents/${id}/clone`, { method: "POST" });
+    loadAgents();
+  } catch(e) { alert("Clone failed: " + e.message); }
+}
+
+async function deleteAgent(id) {
+  if (!confirm("Delete this agent?")) return;
+  try {
+    await api(`/v1/agents/${id}`, { method: "DELETE" });
+    loadAgents();
+  } catch(e) { alert("Delete failed: " + e.message); }
+}
+
+document.getElementById("agents-new-btn").addEventListener("click", openNewAgentModal);
+
+document.getElementById("agent-modal-cancel").addEventListener("click", () => {
+  document.getElementById("agent-modal").classList.remove("open");
+});
+document.getElementById("agent-modal").addEventListener("click", (e) => {
+  if (e.target === document.getElementById("agent-modal")) document.getElementById("agent-modal").classList.remove("open");
+});
+
+document.getElementById("agent-modal-save").addEventListener("click", async () => {
+  const id  = document.getElementById("agent-modal-id").value;
+  const st  = document.getElementById("agent-modal-status");
+  const btn = document.getElementById("agent-modal-save");
+  const payload = {
+    name:         document.getElementById("am-name").value.trim(),
+    persona:      document.getElementById("am-persona").value.trim() || undefined,
+    description:  document.getElementById("am-desc").value.trim() || undefined,
+    system_prompt: document.getElementById("am-system").value.trim() || undefined,
+  };
+  if (!payload.name) { setStatus(st, "Name is required.", "err"); return; }
+  btn.disabled = true;
+  setStatus(st, "Saving…", "info");
+  try {
+    if (id) {
+      await api(`/v1/agents/${id}`, { method: "PATCH", headers: {"Content-Type":"application/json"}, body: JSON.stringify(payload) });
+    } else {
+      await api("/v1/agents", { method: "POST", headers: {"Content-Type":"application/json"}, body: JSON.stringify(payload) });
+    }
+    document.getElementById("agent-modal").classList.remove("open");
+    loadAgents();
+  } catch(e) { setStatus(st, "Save failed: " + e.message, "err"); }
+  finally { btn.disabled = false; }
+});
+
+// Presets
+document.getElementById("agents-presets-btn").addEventListener("click", async () => {
+  const list = document.getElementById("preset-list");
+  list.innerHTML = `<span style="color:var(--muted)">Loading…</span>`;
+  document.getElementById("preset-modal").classList.add("open");
+  try {
+    const presets = await api("/v1/agents/presets");
+    if (!presets.length) { list.innerHTML = `<span style="color:var(--muted)">No presets available.</span>`; return; }
+    list.innerHTML = presets.map(p => `
+      <div style="display:flex;align-items:center;justify-content:space-between;padding:10px 12px;background:var(--surface-2);border:1px solid var(--border);border-radius:8px">
+        <div>
+          <div style="font-weight:600">${esc(p.name ?? p.id)}</div>
+          <div style="color:var(--muted);font-size:0.8rem">${esc(p.description ?? "")}</div>
+        </div>
+        <button class="btn primary" onclick="loadPreset('${esc(JSON.stringify(p)).replace(/'/g,"&#39;")}')">Load</button>
+      </div>`).join("");
+  } catch(e) { list.innerHTML = `<span style="color:var(--danger)">Failed: ${esc(e.message)}</span>`; }
+});
+
+async function loadPreset(jsonStr) {
+  const p = JSON.parse(jsonStr);
+  try {
+    await api("/v1/agents", { method: "POST", headers: {"Content-Type":"application/json"}, body: JSON.stringify(p) });
+    document.getElementById("preset-modal").classList.remove("open");
+    loadAgents();
+  } catch(e) { alert("Failed to load preset: " + e.message); }
+}
+
+document.getElementById("preset-modal-cancel").addEventListener("click", () => {
+  document.getElementById("preset-modal").classList.remove("open");
+});
+
+// ── Chains ────────────────────────────────────────────────────────────────
+async function loadChains() {
+  const tbody = document.getElementById("chains-body");
+  try {
+    const chains = await api("/v1/chains");
+    if (!chains.length) { tbody.innerHTML = `<tr><td colspan="4" style="color:var(--muted)">No chains yet.</td></tr>`; return; }
+    tbody.innerHTML = chains.map(c => `
+      <tr>
+        <td class="cell-mono">${esc(c.id)}</td>
+        <td>${esc(c.name ?? "—")}</td>
+        <td>${Array.isArray(c.agent_ids) ? c.agent_ids.length : "—"}</td>
+        <td>
+          <div class="btn-row">
+            <button class="btn" onclick="runChain('${esc(c.id)}')">▷ Run</button>
+            <button class="btn danger" onclick="deleteChain('${esc(c.id)}')">Delete</button>
+          </div>
+        </td>
+      </tr>`).join("");
+  } catch(e) { tbody.innerHTML = `<tr><td colspan="4" style="color:var(--danger)">${esc(e.message)}</td></tr>`; }
+}
+
+async function runChain(id) {
+  const input = prompt("Input for chain:");
+  if (input === null) return;
+  try {
+    const r = await api(`/v1/chains/${id}/run`, { method: "POST", headers: {"Content-Type":"application/json"}, body: JSON.stringify({ input }) });
+    alert("Result:\n\n" + (r.output ?? fmt(r)));
+  } catch(e) { alert("Run failed: " + e.message); }
+}
+
+async function deleteChain(id) {
+  if (!confirm("Delete this chain?")) return;
+  try {
+    await api(`/v1/chains/${id}`, { method: "DELETE" });
+    loadChains();
+  } catch(e) { alert("Delete failed: " + e.message); }
+}
+
+document.getElementById("chains-new-btn").addEventListener("click", () => {
+  document.getElementById("chain-name").value   = "";
+  document.getElementById("chain-agents").value = "";
+  setStatus(document.getElementById("chain-modal-status"), "", "info");
+  document.getElementById("chain-modal").classList.add("open");
+});
+
+document.getElementById("chain-modal-cancel").addEventListener("click", () => document.getElementById("chain-modal").classList.remove("open"));
+document.getElementById("chain-modal").addEventListener("click", (e) => { if (e.target === document.getElementById("chain-modal")) document.getElementById("chain-modal").classList.remove("open"); });
+
+document.getElementById("chain-modal-save").addEventListener("click", async () => {
+  const st  = document.getElementById("chain-modal-status");
+  const btn = document.getElementById("chain-modal-save");
+  const name = document.getElementById("chain-name").value.trim();
+  const agentIds = document.getElementById("chain-agents").value.trim().split("\n").map(s => s.trim()).filter(Boolean);
+  if (!name) { setStatus(st, "Name is required.", "err"); return; }
+  btn.disabled = true;
+  setStatus(st, "Creating…", "info");
+  try {
+    await api("/v1/chains", { method: "POST", headers: {"Content-Type":"application/json"}, body: JSON.stringify({ name, agent_ids: agentIds }) });
+    document.getElementById("chain-modal").classList.remove("open");
+    loadChains();
+  } catch(e) { setStatus(st, "Failed: " + e.message, "err"); }
+  finally { btn.disabled = false; }
+});
+
+// ── Events ────────────────────────────────────────────────────────────────
+async function loadEvents() {
+  const tbody = document.getElementById("events-body");
+  try {
+    const evts = await api("/v1/events");
+    if (!evts.length) { tbody.innerHTML = `<tr><td colspan="4" style="color:var(--muted)">No events.</td></tr>`; return; }
+    tbody.innerHTML = [...evts].reverse().map(e => `
+      <tr>
+        <td class="cell-mono">${esc(e.id)}</td>
+        <td>${esc(e.event_type)}</td>
+        <td>${e.timestamp ? esc(new Date(e.timestamp).toLocaleString()) : "—"}</td>
+        <td class="cell-mono">${esc(e.node_id ?? "—")}</td>
+      </tr>`).join("");
+  } catch(e) { tbody.innerHTML = `<tr><td colspan="4" style="color:var(--danger)">${esc(e.message)}</td></tr>`; }
+}
+document.getElementById("events-refresh").addEventListener("click", loadEvents);
+
+// ── Sessions ────────────────────────────────────────────────────────────────
+document.getElementById("sess-load-btn").addEventListener("click", async () => {
+  const id  = document.getElementById("sess-id-input").value.trim();
+  const st  = document.getElementById("sess-status");
+  const out = document.getElementById("sess-output");
+  if (!id) { setStatus(st, "Enter a session ID.", "err"); return; }
+  setStatus(st, "Loading…", "info");
+  out.textContent = "";
+  try {
+    const s = await api(`/v1/session/${id}`);
+    setStatus(st, "Loaded.", "ok");
+    out.textContent = fmt(s);
+  } catch(e) { setStatus(st, "Not found: " + e.message, "err"); }
+});
+
+document.getElementById("sess-del-btn").addEventListener("click", async () => {
+  const id = document.getElementById("sess-id-input").value.trim();
+  const st = document.getElementById("sess-status");
+  if (!id) { setStatus(st, "Enter a session ID.", "err"); return; }
+  if (!confirm(`Delete session ${id}?`)) return;
+  setStatus(st, "Deleting…", "info");
+  try {
+    await fetch(`/v1/session/${id}`, { method: "DELETE" });
+    setStatus(st, "Deleted.", "ok");
+    document.getElementById("sess-output").textContent = "";
+  } catch(e) { setStatus(st, "Failed: " + e.message, "err"); }
+});
+
+// ── Memory ────────────────────────────────────────────────────────────────
+async function loadMemory() {
+  // The /v1/memory endpoint varies by implementation; try listing common paths
+  const tree = document.getElementById("mem-tree");
+  tree.innerHTML = `<div style="color:var(--muted);font-size:0.82rem">Use the path field to load a file.</div>`;
+}
+
+document.getElementById("mem-load-btn").addEventListener("click", async () => {
+  const path = document.getElementById("mem-path").value.trim();
+  const st   = document.getElementById("mem-status");
+  if (!path) { setStatus(st, "Enter a file path.", "err"); return; }
+  setStatus(st, "Loading…", "info");
+  try {
+    const r = await api(`/v1/memory/${encodeURIComponent(path)}`);
+    document.getElementById("mem-content").value = r.content ?? fmt(r);
+    setStatus(st, "Loaded.", "ok");
+  } catch(e) { setStatus(st, "Not found: " + e.message, "err"); }
+});
+
+document.getElementById("mem-write-btn").addEventListener("click", async () => {
+  const path    = document.getElementById("mem-path").value.trim();
+  const content = document.getElementById("mem-content").value;
+  const st      = document.getElementById("mem-status");
+  if (!path) { setStatus(st, "Enter a file path.", "err"); return; }
+  setStatus(st, "Writing…", "info");
+  try {
+    await api("/v1/memory", {
+      method: "POST",
+      headers: {"Content-Type":"application/json"},
+      body: JSON.stringify({ file: path, content }),
+    });
+    setStatus(st, "Written.", "ok");
+  } catch(e) { setStatus(st, "Failed: " + e.message, "err"); }
+});
+
+// ── ATM ────────────────────────────────────────────────────────────────
+async function callAtm(endpoint) {
+  const prompt = document.getElementById("atm-prompt").value.trim();
+  const st     = document.getElementById("atm-status");
+  const out    = document.getElementById("atm-output");
+  const chain  = document.getElementById("atm-chain");
+  if (!prompt) { setStatus(st, "Enter a prompt first.", "err"); return; }
+  setStatus(st, "Processing…", "info");
+  out.textContent = "…";
+  chain.innerHTML = "";
+  try {
+    const r = await api(`/v1/atm/${endpoint}`, {
+      method: "POST",
+      headers: {"Content-Type":"application/json"},
+      body: JSON.stringify({ input: prompt }),
+    });
+    out.textContent = r.output ?? r.thought ?? fmt(r);
+    if (Array.isArray(r.reasoning_chain) && r.reasoning_chain.length) {
+      chain.innerHTML = r.reasoning_chain.map(s => `<li>${esc(s)}</li>`).join("");
+    } else if (Array.isArray(r.chain) && r.chain.length) {
+      chain.innerHTML = r.chain.map(s => `<li>${esc(s)}</li>`).join("");
+    }
+    setStatus(st, "Done.", "ok");
+  } catch(e) { setStatus(st, "Failed: " + e.message, "err"); out.textContent = "Error: " + e.message; }
+}
+
+document.getElementById("atm-think-btn").addEventListener("click",   () => callAtm("think"));
+document.getElementById("atm-reflect-btn").addEventListener("click", () => callAtm("reflect"));
+
+// ── ORC ────────────────────────────────────────────────────────────────
+async function loadOrc() {
+  const el = document.getElementById("orc-rights");
+  try {
+    const r = await api("/v1/orc/rights");
+    el.textContent = fmt(r);
+  } catch(e) { el.textContent = "Failed: " + e.message; }
+}
+
+document.getElementById("orc-witness-btn").addEventListener("click", async () => {
+  const stmt = document.getElementById("orc-statement").value.trim();
+  const st   = document.getElementById("orc-status");
+  if (!stmt) { setStatus(st, "Enter a statement.", "err"); return; }
+  setStatus(st, "Submitting…", "info");
+  try {
+    const r = await api("/v1/orc/witness", {
+      method: "POST",
+      headers: {"Content-Type":"application/json"},
+      body: JSON.stringify({ statement: stmt }),
+    });
+    setStatus(st, "Witnessed: " + (r.status ?? "ok"), "ok");
+  } catch(e) { setStatus(st, "Failed: " + e.message, "err"); }
+});
+
+// ── Peers ─────────────────────────────────────────────────────────────────
+async function loadPeers() {
+  const list = document.getElementById("peer-list");
+  try {
+    const peers = await api("/v1/peers");
+    if (!peers.length) { list.innerHTML = `<div style="color:var(--muted);font-size:0.85rem">No peers connected.</div>`; return; }
+    list.innerHTML = peers.map(p => `
+      <div class="peer-item">
+        <div class="peer-dot ${p.reachable !== false ? 'online' : ''}"></div>
+        <div class="peer-info">
+          <div>${esc(p.url ?? p.address ?? "unknown")}</div>
+          <div class="peer-id">${esc(p.node_id ?? p.id ?? "—")}</div>
+        </div>
+        <span class="tag">${p.reachable !== false ? "online" : "unreachable"}</span>
+      </div>`).join("");
+  } catch(e) { list.innerHTML = `<div style="color:var(--danger)">Failed: ${esc(e.message)}</div>`; }
+}
+document.getElementById("peers-refresh").addEventListener("click", loadPeers);
+
+document.getElementById("peers-add-btn").addEventListener("click", () => {
+  const card = document.getElementById("peers-add-card");
+  card.style.display = card.style.display === "none" ? "block" : "none";
+});
+document.getElementById("peer-cancel-btn").addEventListener("click", () => {
+  document.getElementById("peers-add-card").style.display = "none";
+});
+document.getElementById("peer-submit-btn").addEventListener("click", async () => {
+  const url = document.getElementById("peer-url-input").value.trim();
+  const st  = document.getElementById("peers-status");
+  if (!url) { setStatus(st, "Enter a URL.", "err"); return; }
+  const btn = document.getElementById("peer-submit-btn");
+  btn.disabled = true;
+  setStatus(st, "Connecting…", "info");
+  try {
+    await api("/v1/peers", {
+      method: "POST",
+      headers: {"Content-Type":"application/json"},
+      body: JSON.stringify({ url }),
+    });
+    setStatus(st, "Connected.", "ok");
+    document.getElementById("peers-add-card").style.display = "none";
+    loadPeers();
+  } catch(e) { setStatus(st, "Failed: " + e.message, "err"); }
+  finally { btn.disabled = false; }
+});
+
+// ── Demo ─────────────────────────────────────────────────────────────────
+async function loadDemo() {
+  const stateEl = document.getElementById("demo-state");
+  const raw     = document.getElementById("demo-raw");
+  try {
+    const d = await api("/v1/demo");
+    const running = d.running === true;
+    stateEl.textContent = running ? "● Running" : "○ Stopped";
+    stateEl.className   = `demo-state ${running ? "running" : "stopped"}`;
+    raw.textContent     = fmt(d);
+    document.getElementById("demo-start-btn").disabled = running;
+    document.getElementById("demo-stop-btn").disabled  = !running;
+  } catch(e) { stateEl.textContent = "Unknown"; raw.textContent = e.message; }
+}
+
+document.getElementById("demo-start-btn").addEventListener("click", async () => {
+  const st = document.getElementById("demo-status");
+  const btn = document.getElementById("demo-start-btn");
+  btn.disabled = true;
+  setStatus(st, "Starting…", "info");
+  try {
+    await api("/v1/demo/start", { method: "POST" });
+    setStatus(st, "Demo started.", "ok");
+    loadDemo();
+  } catch(e) { setStatus(st, "Failed: " + e.message, "err"); btn.disabled = false; }
+});
+
+document.getElementById("demo-stop-btn").addEventListener("click", async () => {
+  const st  = document.getElementById("demo-status");
+  const btn = document.getElementById("demo-stop-btn");
+  btn.disabled = true;
+  setStatus(st, "Stopping…", "info");
+  try {
+    await api("/v1/demo/stop", { method: "POST" });
+    setStatus(st, "Demo stopped.", "ok");
+    loadDemo();
+  } catch(e) { setStatus(st, "Failed: " + e.message, "err"); btn.disabled = false; }
+});
+
+// ── Init ──────────────────────────────────────────────────────────────────
+showView("dashboard");
+</script>
+</body>
+</html>

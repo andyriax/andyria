@@ -146,6 +146,14 @@ def create_app(coordinator: Coordinator) -> FastAPI:
             return FileResponse(index_file)
         return RedirectResponse(url="/docs")
 
+    manage_file = static_dir / "manage.html"
+
+    @app.get("/manage", include_in_schema=False, response_model=None)
+    async def manage():
+        if manage_file.exists():
+            return FileResponse(manage_file)
+        return RedirectResponse(url="/docs")
+
     @app.post("/v1/infer", response_model=AndyriaResponse)
     async def infer(request: AndyriaRequest) -> AndyriaResponse:
         if _coordinator is None:
