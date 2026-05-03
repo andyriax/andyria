@@ -13,6 +13,28 @@
 				"python\\requirements.txt"
 			],
 			"isBackground": false
+		},
+		{
+			"label": "Install Python API deps via PowerShell",
+			"type": "shell",
+			"command": "/mnt/c/Windows/System32/WindowsPowerShell/v1.0/powershell.exe",
+			"args": [
+				"-NoProfile",
+				"-Command",
+				"& 'c:\\andyria\\.venv\\Scripts\\python.exe' -m pip install -r 'c:\\andyria\\python\\requirements.txt'"
+			],
+			"isBackground": false
+		},
+		{
+			"label": "Install Python API deps via PowerShell quoted",
+			"type": "shell",
+			"command": "/mnt/c/Windows/System32/WindowsPowerShell/v1.0/powershell.exe",
+			"args": [
+				"-NoProfile",
+				"-Command",
+				"& \"c:\\andyria\\.venv\\Scripts\\python.exe\" -m pip install -r \"c:\\andyria\\python\\requirements.txt\""
+			],
+			"isBackground": false
 		}
 	]
 }
