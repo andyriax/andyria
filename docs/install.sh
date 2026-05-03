@@ -266,28 +266,63 @@ TERMUX
 # ── Seed agent via API ────────────────────────────────────────────────────────
 seed_agent() {
   local preset_id="$1"
+  local api_base="http://localhost:${PORT}"
   log "Seeding agent from preset: ${preset_id}"
   # Wait for the API to be ready
   local retries=0
-  until curl -sf "http://localhost:${PORT}/health" >/dev/null 2>&1 || [[ $retries -ge 15 ]]; do
+  until curl -sf "${api_base}/v1/status" >/dev/null 2>&1 || [[ $retries -ge 15 ]]; do
     sleep 2; retries=$((retries+1))
   done
-  if curl -sf "http://localhost:${PORT}/health" >/dev/null 2>&1; then
+  if curl -sf "${api_base}/v1/status" >/dev/null 2>&1; then
     local presets
-    presets="$(curl -sf "http://localhost:${PORT}/v1/agents/presets" || echo '[]')"
+    presets="$(curl -sf "${api_base}/v1/agents/presets" || echo '[]')"
     local preset
     preset="$(echo "${presets}" | python3 -c "
 import json,sys
 ps=json.load(sys.stdin)
 p=next((x for x in ps if x.get('id')=='${preset_id}'),None)
-if p: print(json.dumps({'name':p['name'],'system_prompt':p.get('system_prompt','')}))
+if p:
+  print(json.dumps({
+    'name': p.get('name', '${preset_id}'),
+    'model': p.get('model', 'stub'),
+    'system_prompt': p.get('system_prompt', ''),
+    'tools': p.get('tools', []),
+    'memory_scope': p.get('memory_scope', 'isolated')
+  }))
 " 2>/dev/null || true)"
+
+    if [[ -z "${preset}" && -f "${INSTALL_DIR}/deploy/presets/agents.json" ]]; then
+      preset="$(python3 -c "
+import json
+from pathlib import Path
+ps=json.loads(Path('${INSTALL_DIR}/deploy/presets/agents.json').read_text())
+p=next((x for x in ps if x.get('id')=='${preset_id}'),None)
+if p:
+  print(json.dumps({
+    'name': p.get('name', '${preset_id}'),
+    'model': p.get('model', 'stub'),
+    'system_prompt': p.get('system_prompt', ''),
+    'tools': p.get('tools', []),
+    'memory_scope': p.get('memory_scope', 'isolated')
+  }))
+" 2>/dev/null || true)"
+    fi
+
     if [[ -n "${preset}" ]]; then
-      curl -sf -X POST "http://localhost:${PORT}/v1/agents" \
-        -H "Content-Type: application/json" -d "${preset}" >/dev/null
-      ok "Agent '${preset_id}' created"
+      local tmp status
+      tmp="$(mktemp)"
+      status="$(curl -sS -o "${tmp}" -w "%{http_code}" -X POST "${api_base}/v1/agents" \
+        -H "Content-Type: application/json" -d "${preset}" || echo "000")"
+      if [[ "${status}" =~ ^2 ]]; then
+        ok "Agent '${preset_id}' created"
+      else
+        warn "Failed to create agent '${preset_id}' (HTTP ${status})"
+        warn "API response: $(tr '\n' ' ' < "${tmp}")"
+      fi
+      rm -f "${tmp}"
     else
       warn "Preset '${preset_id}' not found"
+      warn "Available presets from API: $(echo "${presets}" | python3 -c "import json,sys; ps=json.load(sys.stdin); print(', '.join([x.get('id','?') for x in ps]) if isinstance(ps,list) else '(unexpected payload)')" 2>/dev/null || echo '(unparseable)')"
     fi
   else
     warn "API not reachable — skipping agent seed"
@@ -301,8 +336,8 @@ case "${MODE}" in
   *)      die "Unknown mode: ${MODE}" ;;
 esac
 
-if [[ -n "${AUTO_AGENT}" && "${MODE}" == "python" ]]; then
-  seed_agent "${AUTO_AGENT}" &
+if [[ -n "${AUTO_AGENT}" ]]; then
+  seed_agent "${AUTO_AGENT}"
 fi
 
 echo ""
