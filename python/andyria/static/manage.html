@@ -232,6 +232,162 @@
       .layout { grid-template-columns: 1fr; }
       .sidebar { display: none; }
     }
+
+    /* ── Help system ── */
+    .help-overlay {
+      display: none; position: fixed; inset: 0;
+      background: rgba(0,0,0,0.45); z-index: 300;
+    }
+    .help-overlay.open { display: block; }
+    .help-drawer {
+      position: fixed; top: 0; right: 0; bottom: 0;
+      width: min(540px, 100vw);
+      background: var(--surface); border-left: 1px solid var(--border);
+      display: flex; flex-direction: column;
+      transform: translateX(100%); transition: transform 0.22s ease;
+      z-index: 301;
+    }
+    .help-overlay.open .help-drawer { transform: translateX(0); }
+    .help-header {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 14px 18px; border-bottom: 1px solid var(--border); flex-shrink: 0;
+    }
+    .help-header h2 { font-size: 0.95rem; font-weight: 600; }
+    .help-close {
+      background: none; border: none; color: var(--muted);
+      font-size: 1.2rem; cursor: pointer; padding: 4px 8px; border-radius: 6px;
+    }
+    .help-close:hover { background: var(--surface-2); color: var(--text); }
+    .help-tabs {
+      display: flex; border-bottom: 1px solid var(--border); flex-shrink: 0;
+    }
+    .help-tab {
+      background: none; border: none; color: var(--muted); font: inherit;
+      font-size: 0.82rem; padding: 9px 16px; cursor: pointer; border-bottom: 2px solid transparent;
+    }
+    .help-tab:hover { color: var(--text); }
+    .help-tab.active { color: var(--accent); border-bottom-color: var(--accent); }
+    .help-body { flex: 1; overflow-y: auto; padding: 18px; }
+    .help-panel { display: none; flex-direction: column; gap: 14px; }
+    .help-panel.active { display: flex; }
+    .help-section { display: flex; flex-direction: column; gap: 6px; }
+    .help-section h3 { font-size: 0.82rem; font-weight: 600; color: var(--accent); }
+    .help-section p, .help-section li { font-size: 0.83rem; color: var(--muted); line-height: 1.65; }
+    .help-section ul { padding-left: 16px; display: flex; flex-direction: column; gap: 3px; }
+    .help-section code { font-size: 0.78em; color: #9ce7cf; background: rgba(32,201,151,0.08); padding: 1px 5px; border-radius: 4px; }
+    .kbd {
+      display: inline-block; background: var(--surface-2); border: 1px solid var(--border);
+      border-radius: 4px; padding: 1px 7px; font-family: monospace; font-size: 0.78rem;
+      color: var(--text); min-width: 24px; text-align: center;
+    }
+    .shortcut-row { display: flex; align-items: center; gap: 10px; padding: 5px 0; border-bottom: 1px solid var(--border); }
+    .shortcut-row:last-child { border-bottom: none; }
+    .shortcut-desc { font-size: 0.82rem; color: var(--muted); flex: 1; }
+    .shortcut-keys { display: flex; gap: 4px; align-items: center; }
+    .help-search-wrap { position: relative; margin-bottom: 4px; }
+    .help-search {
+      width: 100%; background: var(--bg); border: 1px solid var(--border);
+      border-radius: 7px; color: var(--text); font: inherit; font-size: 0.88rem;
+      padding: 7px 11px 7px 32px; outline: none;
+    }
+    .help-search:focus { border-color: var(--accent-dim); }
+    .help-search-icon { position: absolute; left: 10px; top: 50%; transform: translateY(-50%); color: var(--muted); font-size: 0.85rem; }
+    .help-result { padding: 8px 10px; border-radius: 7px; cursor: pointer; }
+    .help-result:hover { background: var(--surface-2); }
+    .help-result-title { font-size: 0.85rem; font-weight: 600; }
+    .help-result-body  { font-size: 0.78rem; color: var(--muted); margin-top: 2px; }
+
+    /* ── Info icon tooltip ── */
+    .info-icon {
+      display: inline-flex; align-items: center; justify-content: center;
+      width: 16px; height: 16px; border-radius: 50%;
+      border: 1px solid var(--border); color: var(--muted); font-size: 0.65rem;
+      cursor: pointer; flex-shrink: 0; user-select: none;
+      position: relative;
+    }
+    .info-icon:hover { border-color: var(--accent); color: var(--accent); }
+    .info-tooltip {
+      display: none; position: absolute; bottom: calc(100% + 6px); left: 50%;
+      transform: translateX(-50%); width: 220px;
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: 8px; padding: 8px 11px;
+      font-size: 0.78rem; color: var(--muted); line-height: 1.5; z-index: 400;
+      pointer-events: none;
+    }
+    .info-icon:hover .info-tooltip { display: block; }
+
+    /* ── Think-ahead prompting ── */
+    .ta-wrap { position: relative; }
+    .ta-suggestions {
+      display: none; position: absolute; left: 0; right: 0; top: calc(100% + 4px);
+      background: var(--surface); border: 1px solid var(--border); border-radius: 9px;
+      z-index: 50; overflow: hidden; box-shadow: 0 8px 24px rgba(0,0,0,0.4);
+      max-height: 280px; overflow-y: auto;
+    }
+    .ta-suggestions.open { display: block; }
+    .ta-suggestion {
+      padding: 9px 14px; cursor: pointer; display: flex; gap: 10px; align-items: flex-start;
+      border-bottom: 1px solid var(--border);
+    }
+    .ta-suggestion:last-child { border-bottom: none; }
+    .ta-suggestion:hover, .ta-suggestion.highlighted { background: var(--surface-2); }
+    .ta-icon { font-size: 1rem; flex-shrink: 0; margin-top: 1px; }
+    .ta-text { flex: 1; }
+    .ta-title { font-size: 0.85rem; font-weight: 500; }
+    .ta-meta  { font-size: 0.75rem; color: var(--muted); margin-top: 2px; }
+    .ta-cat-header {
+      padding: 5px 14px; font-size: 0.68rem; text-transform: uppercase;
+      letter-spacing: 0.8px; color: var(--muted); background: var(--surface-2);
+      border-bottom: 1px solid var(--border);
+    }
+    .ta-thinking-path {
+      margin-top: 12px; padding: 10px 14px; background: var(--surface-2);
+      border: 1px solid var(--border); border-radius: 8px;
+    }
+    .ta-thinking-path-title {
+      font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.8px;
+      color: var(--muted); margin-bottom: 8px;
+    }
+    .ta-path-steps { display: flex; flex-direction: column; gap: 4px; }
+    .ta-step {
+      display: flex; align-items: center; gap: 8px; font-size: 0.82rem;
+      padding: 5px 8px; border-radius: 6px; cursor: pointer;
+    }
+    .ta-step:hover { background: rgba(255,255,255,0.04); }
+    .ta-step-num {
+      width: 20px; height: 20px; border-radius: 50%; background: var(--border);
+      display: flex; align-items: center; justify-content: center;
+      font-size: 0.7rem; font-weight: 600; flex-shrink: 0;
+    }
+    .ta-step-num.done { background: var(--accent-dim); color: var(--bg); }
+    .ta-followup-strip {
+      margin-top: 10px; display: flex; gap: 6px; flex-wrap: wrap;
+    }
+    .ta-followup {
+      background: var(--surface-2); border: 1px solid var(--border);
+      border-radius: 999px; padding: 4px 12px; font-size: 0.78rem;
+      cursor: pointer; transition: border-color 0.12s;
+    }
+    .ta-followup:hover { border-color: var(--accent); color: var(--accent); }
+    /* Autocomplete dropdown */
+    .autocomplete-list {
+      display: none; position: absolute; left: 0; right: 0; top: calc(100% + 2px);
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: 8px; z-index: 60; overflow: hidden;
+      box-shadow: 0 6px 18px rgba(0,0,0,0.35);
+    }
+    .autocomplete-list.open { display: block; }
+    .autocomplete-item {
+      padding: 7px 12px; cursor: pointer; font-size: 0.85rem;
+      border-bottom: 1px solid var(--border);
+    }
+    .autocomplete-item:last-child { border-bottom: none; }
+    .autocomplete-item:hover, .autocomplete-item.highlighted { background: var(--surface-2); color: var(--accent); }
+    .help-topbar-btn {
+      background: none; border: 1px solid var(--border); border-radius: 7px;
+      color: var(--muted); font-size: 0.82rem; padding: 4px 10px; cursor: pointer;
+    }
+    .help-topbar-btn:hover { color: var(--text); border-color: var(--accent-dim); }
   </style>
 </head>
 <body>
@@ -245,6 +401,7 @@
     <span class="topbar-spacer"></span>
     <span id="global-badge" class="badge">connecting…</span>
     <button id="refresh-btn" title="Refresh all">↻ Refresh</button>
+    <button class="help-topbar-btn" id="btn-open-help" title="Help (? or Ctrl+H)">? Help</button>
   </header>
 
   <!-- Sidebar nav -->
@@ -530,6 +687,183 @@
   </div>
 </div>
 
+<!-- ── Help Drawer ── -->
+<div class="help-overlay" id="help-overlay">
+  <div class="help-drawer" id="help-drawer">
+    <div class="help-header">
+      <h2>⊕ Andyria Help</h2>
+      <button class="help-close" id="help-close">✕</button>
+    </div>
+    <div class="help-tabs">
+      <button class="help-tab active" data-htab="guide">Guide</button>
+      <button class="help-tab" data-htab="shortcuts">Shortcuts</button>
+      <button class="help-tab" data-htab="api">API Ref</button>
+      <button class="help-tab" data-htab="search">Search</button>
+    </div>
+    <div class="help-body">
+
+      <!-- Guide -->
+      <div class="help-panel active" id="htab-guide">
+        <div class="help-section" id="help-ctx-dynamic">
+          <h3>Contextual Help</h3>
+          <p id="help-ctx-text">Navigate to any section to see its guide here.</p>
+        </div>
+        <div class="help-section">
+          <h3>Dashboard</h3>
+          <ul>
+            <li>Shows live <code>node_id</code>, readiness, requests, uptime, beacons, and events.</li>
+            <li><strong>Status</strong>: <em>ready</em> = LLM connected; <em>stub</em> = echo mode; <em>degraded</em> = Ollama unreachable.</li>
+            <li>Health check calls <code>GET /health</code> and shows raw JSON diagnostic data.</li>
+          </ul>
+        </div>
+        <div class="help-section">
+          <h3>Config</h3>
+          <ul>
+            <li>Set <code>ollama_url</code> (e.g. <code>http://host.docker.internal:11434</code>) and model name.</li>
+            <li><strong>Test connection</strong> fires a <code>ping</code> inference and reports which backend responded.</li>
+            <li>Changes are applied live via <code>PATCH /v1/config</code> — no restart needed.</li>
+          </ul>
+        </div>
+        <div class="help-section">
+          <h3>Agents</h3>
+          <ul>
+            <li>Each agent has a <code>name</code>, optional <code>persona</code>, <code>description</code>, and <code>system_prompt</code>.</li>
+            <li><strong>Clone</strong> duplicates an agent with a new ID — useful for A/B testing prompts.</li>
+            <li><strong>Load Preset</strong> imports from <code>/v1/agents/presets</code> (defined in <code>deploy/presets/agents.json</code>).</li>
+            <li>Agents used in chains are referenced by their UUID.</li>
+          </ul>
+        </div>
+        <div class="help-section">
+          <h3>ATM (Automated Thought Machine)</h3>
+          <ul>
+            <li><strong>Think</strong>: processes a prompt through the full reasoning pipeline.</li>
+            <li><strong>Reflect</strong>: meta-analyzes a previous thought for consistency and gaps.</li>
+            <li>Use <strong>think-ahead suggestions</strong> to explore related follow-up prompts after a response.</li>
+            <li>The <strong>Thinking Path Planner</strong> breaks a high-level goal into a sequence of ATM steps.</li>
+          </ul>
+        </div>
+        <div class="help-section">
+          <h3>ORC (Observer Rights &amp; Compliance)</h3>
+          <ul>
+            <li>Rights are read-only — they reflect the node's current ORC configuration.</li>
+            <li><strong>Witness</strong> statements are logged into the DAG as compliance events.</li>
+          </ul>
+        </div>
+        <div class="help-section">
+          <h3>Mesh Peers</h3>
+          <ul>
+            <li>Peers are other Andyria nodes reachable over the network.</li>
+            <li>Adding a peer URL registers it for mesh communication via <code>POST /v1/peers</code>.</li>
+            <li>Green dot = reachable in last check; grey = unreachable or unknown.</li>
+          </ul>
+        </div>
+      </div>
+
+      <!-- Shortcuts -->
+      <div class="help-panel" id="htab-shortcuts">
+        <div class="help-section">
+          <h3>Global</h3>
+          <div class="shortcut-row"><span class="shortcut-desc">Open this help panel</span><span class="shortcut-keys"><kbd class="kbd">?</kbd></span></div>
+          <div class="shortcut-row"><span class="shortcut-desc">Open help (alternate)</span><span class="shortcut-keys"><kbd class="kbd">Ctrl</kbd>+<kbd class="kbd">H</kbd></span></div>
+          <div class="shortcut-row"><span class="shortcut-desc">Close any overlay / drawer</span><span class="shortcut-keys"><kbd class="kbd">Esc</kbd></span></div>
+          <div class="shortcut-row"><span class="shortcut-desc">Refresh current view</span><span class="shortcut-keys"><kbd class="kbd">Ctrl</kbd>+<kbd class="kbd">R</kbd></span></div>
+          <div class="shortcut-row"><span class="shortcut-desc">Focus help search</span><span class="shortcut-keys"><kbd class="kbd">/</kbd></span></div>
+        </div>
+        <div class="help-section" style="margin-top:8px">
+          <h3>Navigation</h3>
+          <div class="shortcut-row"><span class="shortcut-desc">Dashboard</span><span class="shortcut-keys"><kbd class="kbd">g</kbd> <kbd class="kbd">d</kbd></span></div>
+          <div class="shortcut-row"><span class="shortcut-desc">Agents</span><span class="shortcut-keys"><kbd class="kbd">g</kbd> <kbd class="kbd">a</kbd></span></div>
+          <div class="shortcut-row"><span class="shortcut-desc">ATM</span><span class="shortcut-keys"><kbd class="kbd">g</kbd> <kbd class="kbd">t</kbd></span></div>
+          <div class="shortcut-row"><span class="shortcut-desc">Config</span><span class="shortcut-keys"><kbd class="kbd">g</kbd> <kbd class="kbd">c</kbd></span></div>
+          <div class="shortcut-row"><span class="shortcut-desc">Events</span><span class="shortcut-keys"><kbd class="kbd">g</kbd> <kbd class="kbd">e</kbd></span></div>
+          <div class="shortcut-row"><span class="shortcut-desc">Memory</span><span class="shortcut-keys"><kbd class="kbd">g</kbd> <kbd class="kbd">m</kbd></span></div>
+          <div class="shortcut-row"><span class="shortcut-desc">Peers</span><span class="shortcut-keys"><kbd class="kbd">g</kbd> <kbd class="kbd">p</kbd></span></div>
+        </div>
+        <div class="help-section" style="margin-top:8px">
+          <h3>ATM (when in ATM view)</h3>
+          <div class="shortcut-row"><span class="shortcut-desc">Submit Think</span><span class="shortcut-keys"><kbd class="kbd">Ctrl</kbd>+<kbd class="kbd">Enter</kbd></span></div>
+          <div class="shortcut-row"><span class="shortcut-desc">Accept top suggestion</span><span class="shortcut-keys"><kbd class="kbd">Tab</kbd></span></div>
+          <div class="shortcut-row"><span class="shortcut-desc">Navigate suggestions</span><span class="shortcut-keys"><kbd class="kbd">↑</kbd> <kbd class="kbd">↓</kbd></span></div>
+          <div class="shortcut-row"><span class="shortcut-desc">Dismiss suggestions</span><span class="shortcut-keys"><kbd class="kbd">Esc</kbd></span></div>
+        </div>
+      </div>
+
+      <!-- API Ref -->
+      <div class="help-panel" id="htab-api">
+        <div class="help-section">
+          <h3>Inference</h3>
+          <ul>
+            <li><code>POST /v1/infer</code> — <code>{input, session_id, context}</code> → <code>{output, model_used, processing_ms, confidence}</code></li>
+          </ul>
+        </div>
+        <div class="help-section">
+          <h3>Status &amp; Health</h3>
+          <ul>
+            <li><code>GET /v1/status</code> — full node status JSON</li>
+            <li><code>GET /health</code> — lightweight health check</li>
+            <li><code>GET /metrics</code> — Prometheus-format metrics</li>
+          </ul>
+        </div>
+        <div class="help-section">
+          <h3>Config</h3>
+          <ul>
+            <li><code>GET /v1/config</code> — read current node config</li>
+            <li><code>PATCH /v1/config</code> — <code>{ollama_url?, ollama_model?}</code></li>
+          </ul>
+        </div>
+        <div class="help-section">
+          <h3>Agents</h3>
+          <ul>
+            <li><code>GET /v1/agents</code> — list all agents</li>
+            <li><code>POST /v1/agents</code> — create agent</li>
+            <li><code>PATCH /v1/agents/{id}</code> — update fields</li>
+            <li><code>DELETE /v1/agents/{id}</code> — soft delete (archive)</li>
+            <li><code>POST /v1/agents/{id}/clone</code> — duplicate</li>
+            <li><code>GET /v1/agents/{id}/avatar.svg</code> — generated avatar</li>
+            <li><code>GET /v1/agents/presets</code> — built-in preset definitions</li>
+          </ul>
+        </div>
+        <div class="help-section">
+          <h3>ATM</h3>
+          <ul>
+            <li><code>POST /v1/atm/think</code> — <code>{input}</code> → <code>{output, reasoning_chain}</code></li>
+            <li><code>POST /v1/atm/reflect</code> — <code>{input}</code> → reflection response</li>
+          </ul>
+        </div>
+        <div class="help-section">
+          <h3>Chains &amp; Memory</h3>
+          <ul>
+            <li><code>GET|POST /v1/chains</code> — list / create chains</li>
+            <li><code>POST /v1/chains/{id}/run</code> — <code>{input}</code></li>
+            <li><code>GET /v1/memory/{file}</code> — read memory file</li>
+            <li><code>POST /v1/memory</code> — <code>{file, content}</code> write</li>
+          </ul>
+        </div>
+        <div class="help-section">
+          <h3>Mesh &amp; Sessions</h3>
+          <ul>
+            <li><code>GET|POST /v1/peers</code> — list / add peers</li>
+            <li><code>GET /v1/session/{id}</code> — inspect session</li>
+            <li><code>DELETE /v1/session/{id}</code> — clear session</li>
+          </ul>
+        </div>
+      </div>
+
+      <!-- Search -->
+      <div class="help-panel" id="htab-search">
+        <div class="help-search-wrap">
+          <span class="help-search-icon">⌕</span>
+          <input class="help-search" id="help-search-input" type="text" placeholder="Search help topics…" autocomplete="off" />
+        </div>
+        <div id="help-search-results" style="display:flex;flex-direction:column;gap:4px;margin-top:8px">
+          <div style="color:var(--muted);font-size:0.82rem">Type to search all help topics.</div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</div>
+
 <!-- ── Chain New Modal ── -->
 <div class="modal-overlay" id="chain-modal">
   <div class="modal">
@@ -717,6 +1051,7 @@ async function loadAgents() {
           </div>
         </div>
         <div class="agent-desc">${esc(a.description ?? a.system_prompt?.slice(0,80) ?? "")}</div>
+        <div style="font-size:0.75rem;color:var(--muted)">Persona: ${esc(a.persona?.codename ?? "default")}</div>
         <div class="agent-actions">
           <button class="btn" onclick="editAgent('${esc(a.id)}')">Edit</button>
           <button class="btn" onclick="cloneAgent('${esc(a.id)}')">Clone</button>
@@ -740,7 +1075,7 @@ async function editAgent(id) {
     document.getElementById("agent-modal-title").textContent = "Edit Agent";
     document.getElementById("agent-modal-id").value = id;
     document.getElementById("am-name").value    = a.name ?? "";
-    document.getElementById("am-persona").value = a.persona ?? "";
+    document.getElementById("am-persona").value = a.persona?.codename ?? "";
     document.getElementById("am-desc").value    = a.description ?? "";
     document.getElementById("am-system").value  = a.system_prompt ?? "";
     setStatus(document.getElementById("agent-modal-status"), "", "info");
@@ -974,7 +1309,7 @@ document.getElementById("mem-write-btn").addEventListener("click", async () => {
 });
 
 // ── ATM ────────────────────────────────────────────────────────────────
-async function callAtm(endpoint) {
+async function _origCallAtm(endpoint) {
   const prompt = document.getElementById("atm-prompt").value.trim();
   const st     = document.getElementById("atm-status");
   const out    = document.getElementById("atm-output");
@@ -1113,6 +1448,431 @@ document.getElementById("demo-stop-btn").addEventListener("click", async () => {
 
 // ── Init ──────────────────────────────────────────────────────────────────
 showView("dashboard");
+
+// ── Help System ───────────────────────────────────────────────────────────
+const helpOverlay = document.getElementById("help-overlay");
+const helpTabs    = document.querySelectorAll(".help-tab[data-htab]");
+const helpPanels  = document.querySelectorAll(".help-panel");
+
+const HELP_CTX = {
+  dashboard: { title: "Dashboard", text: "Live overview of node health, uptime, requests processed, entropy beacons generated, and recent events. Auto-refreshes every 30 s. Click ↻ for an instant refresh." },
+  config:    { title: "Configuration", text: "Set your Ollama backend URL and model. Use Test Connection before saving to verify reachability. Changes apply live — no server restart required." },
+  models:    { title: "Models", text: "Lists all models reported by /v1/models. Model availability depends on what Ollama has pulled on the host. Use 'ollama pull <model>' on the host to add models." },
+  agents:    { title: "Agents", text: "Manage autonomous agent personas. Each agent has a name, optional persona label, description, and a system prompt that shapes its reasoning. Agents can be assembled into Chains for multi-step workflows." },
+  chains:    { title: "Chains", text: "An ordered list of agent IDs that run sequentially — output of each step is fed as input to the next. Use Run to execute a chain with a custom input prompt." },
+  events:    { title: "Events", text: "Immutable event log sourced from /v1/events. Each event has a unique ID, type, timestamp, and originating node ID. Events are the audit trail of all system activity." },
+  sessions:  { title: "Sessions", text: "Inspect a session by UUID to see its full message history and context. Delete a session to clear its state and start fresh on the next interaction." },
+  memory:    { title: "Memory", text: "Read and write named memory files stored on the node. Useful for persisting agent context, configuration snippets, or project notes across restarts." },
+  atm:       { title: "ATM — Automated Thought Machine", text: "Think submits a prompt to the full reasoning pipeline. Reflect runs meta-analysis on a previous output. Use think-ahead suggestions (↓) to discover related prompts and follow-ups." },
+  orc:       { title: "ORC — Observer Rights & Compliance", text: "ORC enforces operational rights declarations. Rights are read from the node's configuration. Witness statements are submitted as compliance events into the DAG." },
+  peers:     { title: "Mesh Peers", text: "Connect this node to other Andyria instances over the network. Peers enable distributed inference, shared event streaming, and mesh-wide state synchronization." },
+  demo:      { title: "Demo Mode", text: "Demo mode runs a scripted showcase of Andyria capabilities. Start it to automatically cycle through example inferences, useful for presentations and testing." },
+};
+
+function openHelp(tabId) {
+  helpOverlay.classList.add("open");
+  if (tabId) switchHelpTab(tabId);
+  // Update contextual help based on current view
+  const active = document.querySelector(".nav-btn.active");
+  const viewId = active ? active.dataset.view : null;
+  if (viewId && HELP_CTX[viewId]) {
+    document.getElementById("help-ctx-text").innerHTML =
+      `<strong>${esc(HELP_CTX[viewId].title)}</strong>: ${esc(HELP_CTX[viewId].text)}`;
+  }
+}
+function closeHelp() { helpOverlay.classList.remove("open"); }
+
+function switchHelpTab(id) {
+  helpTabs.forEach(t => t.classList.toggle("active", t.dataset.htab === id));
+  helpPanels.forEach(p => p.classList.toggle("active", p.id === `htab-${id}`));
+}
+
+document.getElementById("btn-open-help").addEventListener("click", () => openHelp("guide"));
+document.getElementById("help-close").addEventListener("click", closeHelp);
+helpOverlay.addEventListener("click", (e) => { if (e.target === helpOverlay) closeHelp(); });
+helpTabs.forEach(t => t.addEventListener("click", () => switchHelpTab(t.dataset.htab)));
+
+// Help search index
+const HELP_INDEX = [
+  { title: "Dashboard — Node Status", body: "Live node ID, readiness, requests, uptime, beacons, events. Auto-refreshes every 30 s.", view: "dashboard" },
+  { title: "Dashboard — Health Check", body: "Calls GET /health and displays raw diagnostic JSON.", view: "dashboard" },
+  { title: "Config — Ollama URL", body: "Set the Ollama backend URL. Default: http://host.docker.internal:11434", view: "config" },
+  { title: "Config — Test Connection", body: "Fires a ping inference and reports which backend responded. Tests connectivity before saving.", view: "config" },
+  { title: "Config — Save & Apply", body: "Sends PATCH /v1/config. Changes apply live without server restart.", view: "config" },
+  { title: "Models — Available Models", body: "Lists all models from /v1/models. Add models with 'ollama pull <model>' on the host.", view: "models" },
+  { title: "Agents — Create Agent", body: "New agent with name, persona, description, system prompt. ID auto-generated as UUID.", view: "agents" },
+  { title: "Agents — Clone", body: "Duplicates an agent with a new UUID. Useful for A/B testing system prompts.", view: "agents" },
+  { title: "Agents — Load Preset", body: "Imports predefined agent configurations from deploy/presets/agents.json.", view: "agents" },
+  { title: "Agents — Delete", body: "Archives (soft-deletes) an agent. Uses DELETE /v1/agents/{id}.", view: "agents" },
+  { title: "Chains — Create Chain", body: "Ordered list of agent UUIDs. Output of each step is input to the next.", view: "chains" },
+  { title: "Chains — Run", body: "Execute a chain with a custom input via POST /v1/chains/{id}/run.", view: "chains" },
+  { title: "Events — Event Log", body: "Immutable audit trail of all system activity. Each event has ID, type, timestamp, node ID.", view: "events" },
+  { title: "Sessions — Inspect", body: "Load a session by UUID to see full message history and context.", view: "sessions" },
+  { title: "Sessions — Delete", body: "Clear a session state via DELETE /v1/session/{id}.", view: "sessions" },
+  { title: "Memory — Read File", body: "GET /v1/memory/{path} to load a named memory file.", view: "memory" },
+  { title: "Memory — Write File", body: "POST /v1/memory with {file, content} to persist a memory file.", view: "memory" },
+  { title: "ATM — Think", body: "POST /v1/atm/think with {input}. Returns output and reasoning_chain.", view: "atm" },
+  { title: "ATM — Reflect", body: "POST /v1/atm/reflect for meta-analysis of a thought. Finds gaps and inconsistencies.", view: "atm" },
+  { title: "ATM — Think-Ahead", body: "Suggestions appear as you type. Use ↑↓ to navigate, Tab to accept, Esc to dismiss.", view: "atm" },
+  { title: "ATM — Thinking Path Planner", body: "Enter a high-level goal to break it into a sequential ATM step plan.", view: "atm" },
+  { title: "ATM — Follow-up Prompts", body: "After a response, follow-up suggestions appear below the output for deeper exploration.", view: "atm" },
+  { title: "ORC — Rights", body: "Read-only rights declaration from node's ORC configuration. GET /v1/orc/rights.", view: "orc" },
+  { title: "ORC — Witness Statement", body: "Submit compliance statements into the DAG via POST /v1/orc/witness.", view: "orc" },
+  { title: "Peers — Add Peer", body: "Connect to another Andyria node by URL via POST /v1/peers.", view: "peers" },
+  { title: "Demo — Start/Stop", body: "Demo mode cycles through example inferences. POST /v1/demo/start or /v1/demo/stop.", view: "demo" },
+  { title: "Keyboard Shortcut — Help", body: "Press ? or Ctrl+H to open this help panel.", view: null },
+  { title: "Keyboard Shortcut — Navigate", body: "Press g then d/a/t/c/e/m/p to jump to Dashboard/Agents/ATM/Config/Events/Memory/Peers.", view: null },
+];
+
+const helpSearchInput   = document.getElementById("help-search-input");
+const helpSearchResults = document.getElementById("help-search-results");
+
+helpSearchInput.addEventListener("input", () => {
+  const q = helpSearchInput.value.trim().toLowerCase();
+  if (!q) {
+    helpSearchResults.innerHTML = `<div style="color:var(--muted);font-size:0.82rem">Type to search all help topics.</div>`;
+    return;
+  }
+  const results = HELP_INDEX.filter(item =>
+    item.title.toLowerCase().includes(q) || item.body.toLowerCase().includes(q)
+  );
+  if (!results.length) {
+    helpSearchResults.innerHTML = `<div style="color:var(--muted);font-size:0.82rem">No results for "${esc(q)}".</div>`;
+    return;
+  }
+  helpSearchResults.innerHTML = results.map(r => `
+    <div class="help-result" onclick="${r.view ? `closeHelp();showView('${r.view}')` : ''}">
+      <div class="help-result-title">${esc(r.title)}</div>
+      <div class="help-result-body">${esc(r.body)}</div>
+    </div>`).join("");
+});
+
+// ── Keyboard Shortcuts ─────────────────────────────────────────────────────
+let gSeq = false;
+const G_MAP = { d: "dashboard", a: "agents", t: "atm", c: "config", e: "events", m: "memory", p: "peers" };
+
+document.addEventListener("keydown", (e) => {
+  const tag = (document.activeElement?.tagName || "").toLowerCase();
+  const editing = ["input","textarea","select"].includes(tag);
+
+  if (e.key === "Escape") {
+    closeHelp();
+    document.querySelectorAll(".modal-overlay.open").forEach(m => m.classList.remove("open"));
+    document.querySelectorAll(".ta-suggestions.open").forEach(s => s.classList.remove("open"));
+    document.querySelectorAll(".autocomplete-list.open").forEach(s => s.classList.remove("open"));
+    gSeq = false;
+    return;
+  }
+
+  if (!editing) {
+    if ((e.key === "?" || (e.ctrlKey && e.key === "h")) && !helpOverlay.classList.contains("open")) {
+      e.preventDefault(); openHelp("guide"); return;
+    }
+    if (e.ctrlKey && e.key === "r") {
+      e.preventDefault();
+      const active = document.querySelector(".nav-btn.active");
+      if (active) showView(active.dataset.view);
+      return;
+    }
+    if (e.key === "/") {
+      e.preventDefault(); openHelp("search");
+      setTimeout(() => helpSearchInput.focus(), 250);
+      return;
+    }
+    if (e.key === "g" && !gSeq) { gSeq = true; setTimeout(() => { gSeq = false; }, 1500); return; }
+    if (gSeq && G_MAP[e.key]) { e.preventDefault(); showView(G_MAP[e.key]); gSeq = false; return; }
+  }
+});
+
+// ── Think-Ahead Prompting System ──────────────────────────────────────────
+const TA_LIBRARY = [
+  // Analysis
+  { cat: "Analysis", icon: "🔍", title: "Analyze the core problem", text: "Identify and analyze the core problem in the following context, listing root causes and contributing factors:", followup: ["What are second-order effects?", "How does this compare to similar cases?", "What assumptions are we making?"] },
+  { cat: "Analysis", icon: "🔍", title: "Break down into components", text: "Decompose the following into its fundamental components, explaining how each part contributes to the whole:", followup: ["Which component has the most leverage?", "What dependencies exist between components?"] },
+  { cat: "Analysis", icon: "🔍", title: "Identify contradictions", text: "Find internal contradictions or tensions in the following, and explain how they might be resolved:", followup: ["What resolves the tension?", "Is the contradiction productive or destructive?"] },
+  // Synthesis
+  { cat: "Synthesis", icon: "⊕", title: "Synthesize a unified model", text: "Synthesize the following information into a coherent unified model, identifying the governing principles:", followup: ["What does this model predict?", "What edge cases challenge the model?", "How would you simplify this?"] },
+  { cat: "Synthesis", icon: "⊕", title: "Extract actionable insights", text: "From the following, extract the 3 most actionable insights with concrete next steps:", followup: ["Which insight has highest ROI?", "What risks does each action carry?"] },
+  { cat: "Synthesis", icon: "⊕", title: "Generate alternatives", text: "Generate 5 alternative approaches to the following challenge, from conservative to radical:", followup: ["Compare trade-offs of each", "Which would you recommend and why?"] },
+  // Reflection
+  { cat: "Reflection", icon: "◑", title: "Reflect on reasoning quality", text: "Critically evaluate the quality of reasoning in the following: identify logical gaps, unsupported claims, or faulty inferences:", followup: ["How confident should we be in this?", "What evidence would change the conclusion?"] },
+  { cat: "Reflection", icon: "◑", title: "Steelman the opposing view", text: "Construct the strongest possible argument against the following position (steel-man, not straw-man):", followup: ["Does the steelman change your view?", "What's the crux of the disagreement?"] },
+  { cat: "Reflection", icon: "◑", title: "What am I missing?", text: "Given the following, what important considerations, perspectives, or information am I likely missing?", followup: ["Who would know what I'm missing?", "What would change if I had that info?"] },
+  // Planning
+  { cat: "Planning", icon: "◇", title: "Create a step-by-step plan", text: "Create a detailed step-by-step execution plan for the following goal, including milestones and decision points:", followup: ["What could go wrong at each step?", "What's the minimum viable version?"] },
+  { cat: "Planning", icon: "◇", title: "Identify risks and mitigations", text: "For the following plan or system, identify the top 5 risks and propose specific mitigations for each:", followup: ["Rank risks by likelihood × impact", "Which risk is most often overlooked?"] },
+  { cat: "Planning", icon: "◇", title: "Pre-mortem analysis", text: "Imagine it is 6 months from now and the following initiative has failed. Work backwards: what went wrong, and why?", followup: ["What would success look like instead?", "What warning signs should we watch for?"] },
+  // Creativity
+  { cat: "Creative", icon: "✦", title: "Reframe the problem", text: "Completely reframe the following problem using a different domain metaphor or mental model:", followup: ["What does the reframe reveal?", "Push the metaphor further"] },
+  { cat: "Creative", icon: "✦", title: "Invert the question", text: "Invert the following question or goal — ask what would make it fail, then reverse those findings:", followup: ["How do inverted insights apply?", "What's the most surprising inversion?"] },
+];
+
+const KNOWN_MODELS = [
+  "phi3", "phi3:medium", "phi3:mini", "llama3", "llama3:8b", "llama3:70b",
+  "llama2", "llama2:13b", "mistral", "mistral:7b", "mixtral", "gemma", "gemma:7b",
+  "gemma2", "gemma2:9b", "codellama", "deepseek-coder", "qwen2", "qwen2:7b",
+  "neural-chat", "starling-lm", "vicuna", "orca-mini", "zephyr",
+];
+
+let taSuggIdx = -1;
+let taCurrentSuggestions = [];
+
+function buildAtmTa() {
+  // Wrap atm-prompt in a ta-wrap div (dynamic, after DOM is ready)
+  const atmPromptEl = document.getElementById("atm-prompt");
+  const parent = atmPromptEl.parentNode;
+  const wrap = document.createElement("div");
+  wrap.className = "ta-wrap";
+  parent.insertBefore(wrap, atmPromptEl);
+  wrap.appendChild(atmPromptEl);
+
+  const suggBox = document.createElement("div");
+  suggBox.className = "ta-suggestions";
+  suggBox.id = "ta-atm-suggestions";
+  wrap.appendChild(suggBox);
+
+  // Thinking path planner section (inject after atm-prompt field's parent)
+  const atmSection = document.querySelector("#view-atm .card > div");
+  const plannerDiv = document.createElement("div");
+  plannerDiv.id = "atm-planner";
+  plannerDiv.style.display = "none";
+  plannerDiv.innerHTML = `
+    <div class="ta-thinking-path" id="ta-path-box">
+      <div class="ta-thinking-path-title">⬡ Thinking Path</div>
+      <div class="ta-path-steps" id="ta-path-steps"></div>
+    </div>`;
+  atmSection.appendChild(plannerDiv);
+
+  // Follow-up strip (inject after atm-output)
+  const atmOutput = document.getElementById("atm-output");
+  const fuStrip = document.createElement("div");
+  fuStrip.className = "ta-followup-strip";
+  fuStrip.id = "atm-followup-strip";
+  fuStrip.style.display = "none";
+  atmOutput.parentNode.insertBefore(fuStrip, atmOutput.nextSibling);
+
+  // Add planner button to ATM btn-row
+  const atmBtnRow = document.querySelector("#view-atm .btn-row");
+  const planBtn = document.createElement("button");
+  planBtn.className = "btn";
+  planBtn.id = "atm-plan-btn";
+  planBtn.textContent = "⬡ Plan path";
+  atmBtnRow.appendChild(planBtn);
+  planBtn.addEventListener("click", buildThinkingPath);
+
+  // Input handler
+  atmPromptEl.addEventListener("input", () => onAtmInput(atmPromptEl, suggBox));
+  atmPromptEl.addEventListener("keydown", (e) => onAtmKeydown(e, atmPromptEl, suggBox));
+  atmPromptEl.addEventListener("blur", () => setTimeout(() => suggBox.classList.remove("open"), 150));
+  atmPromptEl.addEventListener("focus", () => { if (atmPromptEl.value.trim() === "") showDefaultSuggestions(suggBox); });
+}
+
+function showDefaultSuggestions(box) {
+  taCurrentSuggestions = TA_LIBRARY.slice(0, 6);
+  renderSuggestions(box, taCurrentSuggestions, true);
+}
+
+function onAtmInput(el, box) {
+  const q = el.value.trim().toLowerCase();
+  if (!q) { showDefaultSuggestions(box); return; }
+  // Score suggestions by keyword match
+  const scored = TA_LIBRARY.map(s => ({
+    ...s,
+    score: [s.cat, s.title, s.text].join(" ").toLowerCase().includes(q) ? 2 :
+           s.text.toLowerCase().split(" ").some(w => q.split(" ").some(qw => w.startsWith(qw))) ? 1 : 0
+  })).filter(s => s.score > 0).sort((a,b) => b.score - a.score).slice(0, 7);
+
+  taCurrentSuggestions = scored;
+  if (!scored.length) { box.classList.remove("open"); return; }
+  renderSuggestions(box, scored, false);
+}
+
+function renderSuggestions(box, items, showCats) {
+  taSuggIdx = -1;
+  if (!items.length) { box.classList.remove("open"); return; }
+  let lastCat = null;
+  box.innerHTML = items.map((s, i) => {
+    let out = "";
+    if (showCats && s.cat !== lastCat) {
+      lastCat = s.cat;
+      out += `<div class="ta-cat-header">${esc(s.cat)}</div>`;
+    }
+    out += `<div class="ta-suggestion" data-idx="${i}">
+      <div class="ta-icon">${s.icon}</div>
+      <div class="ta-text">
+        <div class="ta-title">${esc(s.title)}</div>
+        <div class="ta-meta">${esc(s.text.slice(0,60))}…</div>
+      </div>
+    </div>`;
+    return out;
+  }).join("");
+
+  box.querySelectorAll(".ta-suggestion").forEach(el => {
+    el.addEventListener("mousedown", (e) => { e.preventDefault(); acceptSuggestion(parseInt(el.dataset.idx)); });
+  });
+  box.classList.add("open");
+}
+
+function acceptSuggestion(idx) {
+  const s = taCurrentSuggestions[idx];
+  if (!s) return;
+  const el = document.getElementById("atm-prompt");
+  el.value = s.text + " ";
+  el.focus(); el.style.height = "auto"; el.style.height = Math.min(el.scrollHeight, 180) + "px";
+  document.getElementById("ta-atm-suggestions").classList.remove("open");
+  // Store for followups
+  el._lastSuggestion = s;
+}
+
+function onAtmKeydown(e, el, box) {
+  if (!box.classList.contains("open")) {
+    if (e.ctrlKey && e.key === "Enter") { e.preventDefault(); callAtm("think"); }
+    return;
+  }
+  const items = box.querySelectorAll(".ta-suggestion");
+  if (e.key === "ArrowDown") {
+    e.preventDefault();
+    taSuggIdx = Math.min(taSuggIdx + 1, items.length - 1);
+    items.forEach((it, i) => it.classList.toggle("highlighted", i === taSuggIdx));
+  } else if (e.key === "ArrowUp") {
+    e.preventDefault();
+    taSuggIdx = Math.max(taSuggIdx - 1, -1);
+    items.forEach((it, i) => it.classList.toggle("highlighted", i === taSuggIdx));
+  } else if (e.key === "Tab" || e.key === "Enter") {
+    if (taSuggIdx >= 0 && taCurrentSuggestions[taSuggIdx]) {
+      e.preventDefault(); acceptSuggestion(taSuggIdx);
+    } else if (e.ctrlKey && e.key === "Enter") {
+      e.preventDefault(); callAtm("think");
+    }
+  } else if (e.key === "Escape") {
+    box.classList.remove("open");
+  }
+}
+
+function showFollowUps(suggestion) {
+  const strip = document.getElementById("atm-followup-strip");
+  const fu = suggestion?.followup || [];
+  if (!fu.length) { strip.style.display = "none"; return; }
+  strip.innerHTML = `<span style="font-size:0.72rem;color:var(--muted);align-self:center">Explore →</span>` +
+    fu.map(f => `<div class="ta-followup" data-text="${esc(f)}">${esc(f)}</div>`).join("");
+  strip.querySelectorAll(".ta-followup").forEach(el => {
+    el.addEventListener("click", () => {
+      const prev = document.getElementById("atm-output").textContent;
+      document.getElementById("atm-prompt").value = el.dataset.text + "\n\nContext from previous response:\n" + prev.slice(0, 400);
+      document.getElementById("atm-prompt").dispatchEvent(new Event("input"));
+    });
+  });
+  strip.style.display = "flex";
+}
+
+// Patch callAtm: wrap original to add think-ahead follow-ups
+// _origCallAtm is the real implementation (declared above as async function _origCallAtm)
+async function callAtm(endpoint) {
+  const el = document.getElementById("atm-prompt");
+  const lastSugg = el._lastSuggestion;
+  await _origCallAtm(endpoint);
+  // Show follow-ups based on last accepted suggestion (or default)
+  const activeSugg = lastSugg || TA_LIBRARY[0];
+  showFollowUps(activeSugg);
+}
+
+function buildThinkingPath() {
+  const prompt = document.getElementById("atm-prompt").value.trim();
+  if (!prompt) { setStatus(document.getElementById("atm-status"), "Enter a goal first.", "err"); return; }
+  // Derive a 4-step thinking path from the prompt keywords
+  const steps = [
+    { label: "Analyze: understand the problem space",      prompt: `Analyze the core problem and context: ${prompt}` },
+    { label: "Decompose: identify key components",          prompt: `Break down into fundamental components: ${prompt}` },
+    { label: "Synthesize: build a coherent model",          prompt: `Synthesize findings into a unified model for: ${prompt}` },
+    { label: "Plan: generate actionable next steps",         prompt: `Create an actionable execution plan for: ${prompt}` },
+  ];
+  const box   = document.getElementById("ta-path-steps");
+  const planner = document.getElementById("atm-planner");
+  box.innerHTML = steps.map((s, i) => `
+    <div class="ta-step" data-prompt="${esc(s.prompt)}" data-idx="${i}">
+      <div class="ta-step-num" id="ta-step-num-${i}">${i + 1}</div>
+      <span>${esc(s.label)}</span>
+    </div>`).join("");
+  box.querySelectorAll(".ta-step").forEach(el => {
+    el.addEventListener("click", () => {
+      document.getElementById("atm-prompt").value = el.dataset.prompt;
+      el.querySelector(".ta-step-num").classList.add("done");
+    });
+  });
+  planner.style.display = "block";
+}
+
+// ── Autocomplete for model input ──────────────────────────────────────────
+function attachModelAutocomplete(inputId) {
+  const input = document.getElementById(inputId);
+  if (!input) return;
+  const wrap = document.createElement("div");
+  wrap.style.position = "relative";
+  input.parentNode.insertBefore(wrap, input);
+  wrap.appendChild(input);
+  const acList = document.createElement("div");
+  acList.className = "autocomplete-list";
+  wrap.appendChild(acList);
+
+  let acIdx = -1;
+  input.addEventListener("input", () => {
+    const q = input.value.trim().toLowerCase();
+    const matches = q ? KNOWN_MODELS.filter(m => m.includes(q)) : KNOWN_MODELS.slice(0, 8);
+    if (!matches.length) { acList.classList.remove("open"); return; }
+    acIdx = -1;
+    acList.innerHTML = matches.map((m, i) => `<div class="autocomplete-item" data-val="${esc(m)}" data-idx="${i}">${esc(m)}</div>`).join("");
+    acList.querySelectorAll(".autocomplete-item").forEach(el => {
+      el.addEventListener("mousedown", (e) => { e.preventDefault(); input.value = el.dataset.val; acList.classList.remove("open"); });
+    });
+    acList.classList.add("open");
+  });
+  input.addEventListener("keydown", (e) => {
+    const items = acList.querySelectorAll(".autocomplete-item");
+    if (!acList.classList.contains("open")) return;
+    if (e.key === "ArrowDown") { e.preventDefault(); acIdx = Math.min(acIdx+1, items.length-1); items.forEach((it,i) => it.classList.toggle("highlighted", i===acIdx)); }
+    else if (e.key === "ArrowUp") { e.preventDefault(); acIdx = Math.max(acIdx-1, -1); items.forEach((it,i) => it.classList.toggle("highlighted", i===acIdx)); }
+    else if ((e.key === "Tab" || e.key === "Enter") && acIdx >= 0) {
+      e.preventDefault(); const chosen = acList.querySelectorAll(".autocomplete-item")[acIdx]; if(chosen){ input.value = chosen.dataset.val; } acList.classList.remove("open");
+    } else if (e.key === "Escape") { acList.classList.remove("open"); }
+  });
+  input.addEventListener("blur", () => setTimeout(() => acList.classList.remove("open"), 150));
+  input.addEventListener("focus", () => input.dispatchEvent(new Event("input")));
+}
+
+// ── System Prompt Templates (for agent persona autocomplete) ──────────────
+const PERSONA_PROMPTS = {
+  "assistant": "You are a helpful, precise, and reliable assistant. You answer clearly, cite uncertainty, and never fabricate information.",
+  "analyst":   "You are a rigorous analytical agent. You decompose problems, identify root causes, and present structured findings with supporting evidence.",
+  "planner":   "You are a strategic planning agent. You break goals into actionable steps, identify dependencies and risks, and produce clear execution plans.",
+  "critic":    "You are a constructive critic. You identify flaws, contradictions, and missing considerations in arguments, always proposing improvements.",
+  "researcher":"You are a research agent. You gather, synthesize, and summarize information from diverse sources, noting confidence levels and gaps.",
+  "coder":     "You are an expert software engineering agent. You write clean, secure, idiomatic code and explain your decisions clearly.",
+  "teacher":   "You are a patient and thorough teaching agent. You explain concepts from first principles, use analogies, and check for understanding.",
+};
+
+function attachPersonaAutocomplete() {
+  const personaInput = document.getElementById("am-persona");
+  const systemInput  = document.getElementById("am-system");
+  if (!personaInput || !systemInput) return;
+  personaInput.addEventListener("change", () => {
+    const key = personaInput.value.trim().toLowerCase();
+    if (PERSONA_PROMPTS[key] && !systemInput.value.trim()) {
+      systemInput.value = PERSONA_PROMPTS[key];
+    }
+  });
+  // Datalist for persona
+  const dl = document.createElement("datalist");
+  dl.id = "persona-options";
+  dl.innerHTML = Object.keys(PERSONA_PROMPTS).map(k => `<option value="${esc(k)}"></option>`).join("");
+  document.body.appendChild(dl);
+  personaInput.setAttribute("list", "persona-options");
+}
+
+// Boot think-ahead
+buildAtmTa();
+attachModelAutocomplete("cfg-model");
+attachModelAutocomplete("cp-ollama-model"); // also wire to control panel model input if present
+attachPersonaAutocomplete();
 </script>
 </body>
 </html>

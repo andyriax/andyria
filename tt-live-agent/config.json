@@ -79,7 +79,8 @@
       "/conversational:on": "mod",
       "/conversational:off": "mod",
       "/conversational:toggle": "mod",
-      "/conversational:status": "viewer"
+      "/conversational:status": "viewer",
+      "/wakeword": "mod"
     }
   },
   "runtime": {
@@ -106,8 +107,14 @@
   },
   "dry_run": false,
   "log_level": "info",
+  "wake_word": {
+    "enabled": true,
+    "value": "andyria",
+    "requirePrefix": true,
+    "ackOnWakeOnly": true
+  },
   "conversational": {
-    "default": false,
+    "default": true,
     "rateLimitMs": 8000,
     "globalRateLimitMs": 500
   },

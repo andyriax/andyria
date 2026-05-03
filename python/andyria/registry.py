@@ -81,6 +81,13 @@ class AgentRegistry:
 
     def create(self, request: AgentCreateRequest) -> AgentDefinition:
         now = int(time.time_ns())
+        persona_hint = (request.persona or "").strip()
+        if persona_hint:
+            persona = generate_persona(request.name, persona_hint)
+            persona.codename = persona_hint
+        else:
+            persona = generate_persona(request.name, uuid.uuid4().hex[:12])
+
         agent = AgentDefinition(
             agent_id=f"a-{uuid.uuid4().hex[:12]}",
             name=request.name,
@@ -90,7 +97,7 @@ class AgentRegistry:
             memory_scope=request.memory_scope,
             state=request.state,
             edges=request.edges,
-            persona=generate_persona(request.name, uuid.uuid4().hex[:12]),
+            persona=persona,
             active=True,
             created_at=now,
             updated_at=now,
@@ -105,6 +112,16 @@ class AgentRegistry:
 
         payload = current.model_dump()
         patch = request.model_dump(exclude_none=True)
+
+        persona_hint = patch.pop("persona", None)
+        if persona_hint is not None:
+            hint = str(persona_hint).strip()
+            if hint:
+                persona_name = str(patch.get("name", payload.get("name", current.name)))
+                regenerated = generate_persona(persona_name, hint)
+                regenerated.codename = hint
+                payload["persona"] = regenerated.model_dump()
+
         payload.update(patch)
         payload["updated_at"] = int(time.time_ns())
         updated = AgentDefinition.model_validate(payload)

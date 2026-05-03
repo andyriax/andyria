@@ -60,6 +60,13 @@ conversational.configure(config.conversational || {});
 if (argv['conversational-on'])  conversational.enable('cli');
 if (argv['conversational-off']) conversational.disable('cli');
 
+const wakeWordCfg = {
+  enabled: config.wake_word?.enabled !== false,
+  value: String(config.wake_word?.value || 'andyria').trim(),
+  requirePrefix: config.wake_word?.requirePrefix !== false,
+  ackOnWakeOnly: config.wake_word?.ackOnWakeOnly !== false,
+};
+
 // ── Capsule identity ─────────────────────────────────────────────────────────
 const capsule = loadOrCreateCapsule();
 console.log(`\n╔══════════════════════════════════════════════════════╗`);
@@ -139,6 +146,117 @@ function speakAndLog(text, opts = {}, meta = {}) {
   voice.speak(text, opts);
 }
 
+function escapeRegExp(text) {
+  return String(text || '').replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+function checkWakeWord(message) {
+  const raw = String(message || '').trim();
+  if (!raw) {
+    return { accepted: false, cleaned: '', triggered: false };
+  }
+  if (!wakeWordCfg.enabled || !wakeWordCfg.value) {
+    return { accepted: true, cleaned: raw, triggered: false };
+  }
+
+  const wake = wakeWordCfg.value;
+  const wakeRegex = wakeWordCfg.requirePrefix
+    ? new RegExp(`^@?${escapeRegExp(wake)}[\\s,.:;!?-]*`, 'i')
+    : new RegExp(escapeRegExp(wake), 'i');
+
+  const matched = wakeRegex.test(raw);
+  if (!matched) {
+    return { accepted: false, cleaned: '', triggered: false };
+  }
+
+  const cleaned = raw.replace(wakeRegex, '').trim();
+  return { accepted: true, cleaned, triggered: true };
+}
+
+function getWakeWordStatus() {
+  return {
+    enabled: wakeWordCfg.enabled,
+    value: wakeWordCfg.value,
+    requirePrefix: wakeWordCfg.requirePrefix,
+    ackOnWakeOnly: wakeWordCfg.ackOnWakeOnly,
+  };
+}
+
+function setWakeWordValue(value, invoker = 'system') {
+  const next = String(value || '').trim();
+  if (!next) return false;
+  wakeWordCfg.value = next;
+  appendEvent('agent:main', 'WAKE_WORD_UPDATED', { invoker, field: 'value', value: next });
+  ndjson.write('agent:main', 'WAKE_WORD_UPDATED', { invoker, field: 'value', value: next });
+  return true;
+}
+
+function setWakeWordEnabled(enabled, invoker = 'system') {
+  wakeWordCfg.enabled = !!enabled;
+  appendEvent('agent:main', 'WAKE_WORD_UPDATED', { invoker, field: 'enabled', value: wakeWordCfg.enabled });
+  ndjson.write('agent:main', 'WAKE_WORD_UPDATED', { invoker, field: 'enabled', value: wakeWordCfg.enabled });
+  return wakeWordCfg.enabled;
+}
+
+function setWakeWordRequirePrefix(requirePrefix, invoker = 'system') {
+  wakeWordCfg.requirePrefix = !!requirePrefix;
+  appendEvent('agent:main', 'WAKE_WORD_UPDATED', { invoker, field: 'requirePrefix', value: wakeWordCfg.requirePrefix });
+  ndjson.write('agent:main', 'WAKE_WORD_UPDATED', { invoker, field: 'requirePrefix', value: wakeWordCfg.requirePrefix });
+  return wakeWordCfg.requirePrefix;
+}
+
+function setWakeWordAckOnWakeOnly(ackOnWakeOnly, invoker = 'system') {
+  wakeWordCfg.ackOnWakeOnly = !!ackOnWakeOnly;
+  appendEvent('agent:main', 'WAKE_WORD_UPDATED', { invoker, field: 'ackOnWakeOnly', value: wakeWordCfg.ackOnWakeOnly });
+  ndjson.write('agent:main', 'WAKE_WORD_UPDATED', { invoker, field: 'ackOnWakeOnly', value: wakeWordCfg.ackOnWakeOnly });
+  return wakeWordCfg.ackOnWakeOnly;
+}
+
+async function generateStartupGreeting() {
+  const wakeWord = wakeWordCfg.value || 'andyria';
+  const prompt = `Generate one short livestream greeting. Mention wake word "${wakeWord}" exactly once.`;
+  const messages = llm.buildMessages(prompt, {
+    systemPrompt: config.llm?.system_prompt,
+    history: [],
+    maxHistory: 0,
+  });
+
+  const generated = await llm.thread(messages, { user: 'system-startup' });
+  const compact = String(generated || '').replace(/\s+/g, ' ').trim();
+  if (!compact) {
+    return `Agent online. Say "${wakeWord}" to chat with me.`;
+  }
+  if (compact.toLowerCase().includes(wakeWord.toLowerCase())) {
+    return compact;
+  }
+  return `${compact} Say "${wakeWord}" to chat with me.`;
+}
+
+async function bootstrapConversation() {
+  if (!argv['conversational-off']) {
+    conversational.enable('startup');
+  }
+
+  appendEvent('agent:main', 'WAKE_WORD_CONFIGURED', {
+    enabled: wakeWordCfg.enabled,
+    wake_word: wakeWordCfg.value,
+    require_prefix: wakeWordCfg.requirePrefix,
+  });
+  ndjson.write('agent:main', 'WAKE_WORD_CONFIGURED', {
+    enabled: wakeWordCfg.enabled,
+    wake_word: wakeWordCfg.value,
+    require_prefix: wakeWordCfg.requirePrefix,
+  });
+
+  try {
+    const greeting = await generateStartupGreeting();
+    speakAndLog(greeting, {}, { source: 'startup-greeting' });
+  } catch (err) {
+    const fallback = `Agent online. Say "${wakeWordCfg.value || 'andyria'}" to chat with me.`;
+    speakAndLog(fallback, {}, { source: 'startup-greeting-fallback', error: String(err.message || err) });
+  }
+}
+
 // Global context object
 const ctx = {
   user  : 'viewer',
@@ -147,6 +265,13 @@ const ctx = {
   config,
   metrics,
   commandPermissions: config.commands?.permissions || {},
+  wakeWord: {
+    status: getWakeWordStatus,
+    setValue: setWakeWordValue,
+    setEnabled: setWakeWordEnabled,
+    setRequirePrefix: setWakeWordRequirePrefix,
+    setAckOnWakeOnly: setWakeWordAckOnWakeOnly,
+  },
   speak : (text, opts) => speakAndLog(text, opts),
   log   : (type, payload) => appendEvent('agent:main', type, payload),
 };
@@ -189,6 +314,7 @@ chokidar.watch(SKILLS_DIR, { ignoreInitial: true }).on('change', file => {
 
 // ── Dry-run mode (stdin commands, no TikTok) ──────────────────────────────────
 const dryRun = argv['dry-run'] || config.dry_run || false;
+bootstrapConversation();
 
 if (dryRun) {
   console.log('[agent] DRY-RUN mode — type /commands below (Ctrl+C to quit)');
@@ -382,7 +508,21 @@ async function processEvent(ev) {
       appendEvent('trace:chat', 'CHAT_COMMAND_RESULT', { user, cmd: msg.split(/\s+/)[0].toLowerCase(), result });
     } else {
       // ── Non-command message ───────────────────────────────────────────────
-      const intent = classifyIntent(msg);
+      const wakeCheck = checkWakeWord(msg);
+      if (!wakeCheck.accepted) {
+        appendEvent('trace:chat', 'WAKE_WORD_MISS', { user, msg: msg.slice(0, 200) });
+        ndjson.write('trace:chat', 'WAKE_WORD_MISS', { user, msg: msg.slice(0, 200) });
+        return;
+      }
+
+      if (wakeCheck.triggered && !wakeCheck.cleaned && wakeWordCfg.ackOnWakeOnly) {
+        const wakeReply = format('{user}, I am awake and listening.', { user });
+        speakAndLog(wakeReply, {}, { source: 'wake-word-ack' });
+        return;
+      }
+
+      const conversationalMessage = wakeCheck.cleaned || msg;
+      const intent = classifyIntent(conversationalMessage);
       appendEvent('trace:chat', 'CHAT_INTENT', { user, intent: intent.intent, confidence: intent.confidence });
       ndjson.write('trace:chat', 'CHAT_INTENT', { user, intent: intent.intent, confidence: intent.confidence });
 
@@ -400,8 +540,8 @@ async function processEvent(ev) {
         } else {
           metrics.incConversational();
           conversational.markResponded(user);
-          ndjson.write('conversational:reply', 'CONV_REPLY_START', { user, msg: msg.slice(0, 200) });
-          await route(msg, { ...ctx, user, role: ctx.role });
+          ndjson.write('conversational:reply', 'CONV_REPLY_START', { user, msg: conversationalMessage.slice(0, 200) });
+          await route(conversationalMessage, { ...ctx, user, role: ctx.role });
           ndjson.write('conversational:reply', 'CONV_REPLY_COMPLETE', { user });
         }
       }

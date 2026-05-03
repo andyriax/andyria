@@ -41,6 +41,35 @@ function get() {
   return _current;
 }
 
+function updateCurrentPersona(patch = {}) {
+  const current = get();
+  if (patch.style && typeof patch.style === 'object') {
+    current.style = { ...(current.style || {}), ...patch.style };
+  }
+  if (patch.voice && typeof patch.voice === 'object') {
+    current.voice = { ...(current.voice || {}), ...patch.voice };
+  }
+  if (patch.behavior && typeof patch.behavior === 'object') {
+    current.behavior = { ...(current.behavior || {}), ...patch.behavior };
+  }
+
+  for (const [k, v] of Object.entries(patch)) {
+    if (k === 'style' || k === 'voice' || k === 'behavior') continue;
+    current[k] = v;
+  }
+  return current;
+}
+
+function saveCurrentPersona(name) {
+  const id = String(name || '').trim().toLowerCase().replace(/[^a-z0-9_-]+/g, '-');
+  if (!id) {
+    throw new Error('Persona name is required');
+  }
+  const file = path.join(PERSONA_DIR, `${id}.json`);
+  fs.writeFileSync(file, JSON.stringify(get(), null, 2));
+  return id;
+}
+
 // ---------------------------------------------------------------------------
 // Message formatting
 // ---------------------------------------------------------------------------
@@ -79,4 +108,4 @@ function listPersonas() {
     .map(f => f.replace('.json', ''));
 }
 
-module.exports = { loadPersona, get, format, listPersonas };
+module.exports = { loadPersona, get, format, listPersonas, updateCurrentPersona, saveCurrentPersona };

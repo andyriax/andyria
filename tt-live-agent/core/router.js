@@ -14,7 +14,7 @@
 'use strict';
 
 const { getSkill, loadSkills, listSkills } = require('./skillLoader');
-const { loadPersona, listPersonas }        = require('./persona');
+const { loadPersona, listPersonas, get: getPersona, updateCurrentPersona, saveCurrentPersona } = require('./persona');
 const { appendEvent, setMemory, getMemory } = require('./db');
 const llm                                  = require('./llm');
 const conversational                       = require('./conversational');
@@ -43,6 +43,7 @@ const DEFAULT_COMMAND_PERMS = {
   '/conversational:off': 'mod',
   '/conversational:toggle': 'mod',
   '/conversational:status': 'viewer',
+  '/wakeword': 'mod',
 };
 
 // ---------------------------------------------------------------------------
@@ -198,8 +199,44 @@ async function route(message, ctx) {
       } catch (e) {
         ctx.speak(`Unknown persona: ${name}. Available: ${listPersonas().join(', ')}`);
       }
+    } else if (sub === 'status') {
+      const p = getPersona();
+      ctx.speak(`Persona: ${p?.name || 'default'} | mission: ${p?.mission || 'n/a'} | prefix: ${p?.style?.prefix || '-'} | suffix: ${p?.style?.suffix || '-'}`);
+    } else if (sub === 'set') {
+      const field = String(args[1] || '').toLowerCase();
+      const value = args.slice(2).join(' ').trim();
+      if (!field || !value) {
+        ctx.speak('Usage: /persona set mission|prefix|suffix|name <value>');
+        return { handled: true, kind: 'builtin' };
+      }
+      if (field === 'mission') {
+        updateCurrentPersona({ mission: value });
+      } else if (field === 'prefix') {
+        updateCurrentPersona({ style: { prefix: value } });
+      } else if (field === 'suffix') {
+        updateCurrentPersona({ style: { suffix: value } });
+      } else if (field === 'name') {
+        updateCurrentPersona({ name: value });
+      } else {
+        ctx.speak('Supported fields: mission, prefix, suffix, name');
+        return { handled: true, kind: 'builtin' };
+      }
+      ctx.speak(`Persona ${field} updated.`);
+      appendEvent('router:builtin', 'PERSONA_UPDATED', { field, value, user: ctx.user });
+    } else if (sub === 'save') {
+      const target = args[1];
+      if (!target) {
+        ctx.speak('Usage: /persona save <name>');
+        return { handled: true, kind: 'builtin' };
+      }
+      try {
+        const id = saveCurrentPersona(target);
+        ctx.speak(`Persona saved as ${id}.`);
+      } catch (e) {
+        ctx.speak(`Failed to save persona: ${e.message}`);
+      }
     } else {
-      ctx.speak(`Available personas: ${listPersonas().join(', ')}`);
+      ctx.speak(`Available personas: ${listPersonas().join(', ')}. Commands: /persona switch <name> | /persona status | /persona set mission|prefix|suffix|name <value> | /persona save <name>`);
     }
     return { handled: true, kind: 'builtin' };
   }
@@ -323,6 +360,67 @@ async function route(message, ctx) {
     const sleeper = require('./sleeper');
     sleeper.wake();
     ctx.speak('Agent is awake.');
+    return { handled: true, kind: 'builtin' };
+  }
+
+  if (cmd === '/wakeword') {
+    const sub = String(args[0] || 'status').toLowerCase();
+    const ww = ctx.wakeWord;
+    if (!ww || typeof ww.status !== 'function') {
+      ctx.speak('Wake-word controls are unavailable in this runtime.');
+      return { handled: true, kind: 'builtin' };
+    }
+
+    if (sub === 'status') {
+      const s = ww.status();
+      ctx.speak(`Wake word: ${s.enabled ? 'ON' : 'OFF'} | value: ${s.value} | prefix-only: ${s.requirePrefix ? 'ON' : 'OFF'} | ack-only: ${s.ackOnWakeOnly ? 'ON' : 'OFF'}`);
+      return { handled: true, kind: 'builtin' };
+    }
+
+    if (sub === 'set') {
+      const next = args.slice(1).join(' ').trim();
+      if (!next) {
+        ctx.speak('Usage: /wakeword set <word or phrase>');
+        return { handled: true, kind: 'builtin' };
+      }
+      const ok = ww.setValue(next, ctx.user || 'viewer');
+      if (!ok) {
+        ctx.speak('Wake word cannot be empty.');
+      } else {
+        ctx.speak(`Wake word updated to "${next}".`);
+      }
+      return { handled: true, kind: 'builtin' };
+    }
+
+    if (sub === 'on' || sub === 'off') {
+      const enabled = ww.setEnabled(sub === 'on', ctx.user || 'viewer');
+      ctx.speak(`Wake-word gate is now ${enabled ? 'ON' : 'OFF'}.`);
+      return { handled: true, kind: 'builtin' };
+    }
+
+    if (sub === 'prefix') {
+      const value = String(args[1] || '').toLowerCase();
+      if (value !== 'on' && value !== 'off') {
+        ctx.speak('Usage: /wakeword prefix on|off');
+        return { handled: true, kind: 'builtin' };
+      }
+      const next = ww.setRequirePrefix(value === 'on', ctx.user || 'viewer');
+      ctx.speak(`Wake-word prefix mode is now ${next ? 'ON' : 'OFF'}.`);
+      return { handled: true, kind: 'builtin' };
+    }
+
+    if (sub === 'ack') {
+      const value = String(args[1] || '').toLowerCase();
+      if (value !== 'on' && value !== 'off') {
+        ctx.speak('Usage: /wakeword ack on|off');
+        return { handled: true, kind: 'builtin' };
+      }
+      const next = ww.setAckOnWakeOnly(value === 'on', ctx.user || 'viewer');
+      ctx.speak(`Wake-word ack-only mode is now ${next ? 'ON' : 'OFF'}.`);
+      return { handled: true, kind: 'builtin' };
+    }
+
+    ctx.speak('Wake-word commands: /wakeword status | /wakeword set <word> | /wakeword on|off | /wakeword prefix on|off | /wakeword ack on|off');
     return { handled: true, kind: 'builtin' };
   }
 

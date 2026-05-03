@@ -238,6 +238,7 @@ class AgentCreateRequest(BaseModel):
     memory_scope: AgentMemoryScope = AgentMemoryScope.ISOLATED
     state: Dict[str, Any] = Field(default_factory=dict)
     edges: List[str] = Field(default_factory=list)
+    persona: Optional[str] = None
 
 
 class AgentUpdateRequest(BaseModel):
@@ -248,6 +249,7 @@ class AgentUpdateRequest(BaseModel):
     memory_scope: Optional[AgentMemoryScope] = None
     state: Optional[Dict[str, Any]] = None
     edges: Optional[List[str]] = None
+    persona: Optional[str] = None
     active: Optional[bool] = None
 
 
