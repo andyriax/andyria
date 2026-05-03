@@ -193,9 +193,77 @@ install_system_deps() {
   fi
 }
 
+install_or_update_ollama() {
+  if [[ "${IS_TERMUX}" == "1" ]]; then
+    warn "Termux detected — automatic Ollama install is not supported in this installer"
+    return 1
+  fi
+
+  if has ollama; then
+    log "Ollama detected — checking for updates"
+  else
+    log "Installing Ollama"
+  fi
+
+  if has curl; then
+    curl -fsSL https://ollama.com/install.sh | sh >/dev/null 2>&1 || true
+  fi
+
+  if has ollama; then
+    ok "Ollama CLI available"
+    return 0
+  fi
+
+  warn "Ollama CLI not found after install/update attempt"
+  return 1
+}
+
+ensure_ollama_running() {
+  local endpoint="http://127.0.0.1:11434/api/tags"
+  local retries=0
+
+  if ! has ollama; then
+    warn "Ollama CLI not installed"
+    return 1
+  fi
+
+  if curl -sf "${endpoint}" >/dev/null 2>&1; then
+    ok "Ollama is already running"
+    return 0
+  fi
+
+  if has systemctl && systemctl list-unit-files 2>/dev/null | grep -q '^ollama\.service'; then
+    log "Starting Ollama system service"
+    sudo systemctl enable --now ollama >/dev/null 2>&1 || true
+  fi
+
+  if ! curl -sf "${endpoint}" >/dev/null 2>&1; then
+    log "Starting Ollama background process"
+    nohup ollama serve >/tmp/andyria-ollama.log 2>&1 &
+  fi
+
+  until curl -sf "${endpoint}" >/dev/null 2>&1 || [[ $retries -ge 30 ]]; do
+    sleep 1
+    retries=$((retries+1))
+  done
+
+  if curl -sf "${endpoint}" >/dev/null 2>&1; then
+    ok "Ollama is running"
+    return 0
+  fi
+
+  warn "Ollama did not become ready at ${endpoint}"
+  return 1
+}
+
 # ── Docker mode ───────────────────────────────────────────────────────────────
 install_docker() {
   log "Setting up Docker Compose environment"
+
+  if [[ "${IS_TERMUX}" != "1" ]]; then
+    install_or_update_ollama || die "Failed to install/update Ollama"
+    ensure_ollama_running || die "Ollama is required but did not start"
+  fi
 
   # Write .env if not present
   if [[ ! -f .env ]]; then
@@ -219,6 +287,11 @@ install_docker() {
 # ── Python mode ───────────────────────────────────────────────────────────────
 install_python() {
   install_system_deps
+
+  if [[ "${IS_TERMUX}" != "1" ]]; then
+    install_or_update_ollama || die "Failed to install/update Ollama"
+    ensure_ollama_running || die "Ollama is required but did not start"
+  fi
 
   VENV="${INSTALL_DIR}/python/.venv"
   log "Creating virtual environment at ${VENV}"
