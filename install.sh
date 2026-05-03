@@ -58,6 +58,38 @@ die()  { printf "${RED}[andyria] ✗${RESET} %s\n" "$*" >&2; exit 1; }
 
 has() { command -v "$1" >/dev/null 2>&1; }
 
+open_ui() {
+  local url="$1"
+  if [[ -z "${url}" ]]; then
+    return 0
+  fi
+
+  if [[ "${IS_TERMUX}" == "1" ]] && has termux-open-url; then
+    termux-open-url "${url}" >/dev/null 2>&1 || true
+    return 0
+  fi
+
+  if [[ "${IS_WSL}" == "1" ]]; then
+    if has powershell.exe; then
+      powershell.exe -NoProfile -Command "Start-Process '${url}'" >/dev/null 2>&1 || true
+      return 0
+    fi
+    if has cmd.exe; then
+      cmd.exe /C start "" "${url}" >/dev/null 2>&1 || true
+      return 0
+    fi
+  fi
+
+  if [[ "${OS}" == "Darwin" ]] && has open; then
+    open "${url}" >/dev/null 2>&1 || true
+    return 0
+  fi
+
+  if has xdg-open; then
+    xdg-open "${url}" >/dev/null 2>&1 || true
+  fi
+}
+
 ask() {
   local prompt="$1" default="$2" answer
   if [[ "${YES}" == "1" ]]; then echo "${default}"; return; fi
@@ -148,15 +180,15 @@ install_system_deps() {
   elif [[ "${OS}" == "Linux" ]]; then
     if has apt-get; then
       log "Installing apt packages"
-      sudo apt-get install -y --no-install-recommends python3 python3-pip python3-venv curl git build-essential libssl-dev 2>/dev/null || true
+      sudo apt-get install -y --no-install-recommends python3 python3-pip python3-venv curl git build-essential libssl-dev rustc cargo 2>/dev/null || true
     elif has dnf; then
-      sudo dnf install -y python3 python3-pip curl git gcc openssl-devel 2>/dev/null || true
+      sudo dnf install -y python3 python3-pip curl git gcc openssl-devel rust cargo 2>/dev/null || true
     elif has pacman; then
-      sudo pacman -Sy --noconfirm python python-pip curl git base-devel 2>/dev/null || true
+      sudo pacman -Sy --noconfirm python python-pip curl git base-devel rust 2>/dev/null || true
     fi
   elif [[ "${OS}" == "Darwin" ]]; then
     if has brew; then
-      brew install python3 git curl 2>/dev/null || true
+      brew install python3 git curl rust 2>/dev/null || true
     fi
   fi
 }
@@ -340,10 +372,14 @@ if [[ -n "${AUTO_AGENT}" ]]; then
   seed_agent "${AUTO_AGENT}"
 fi
 
+UI_URL="http://localhost:${PORT}"
+log "Opening UI: ${UI_URL}"
+open_ui "${UI_URL}"
+
 echo ""
 echo "${BOLD}${GREEN}Installation complete!${RESET}"
 echo ""
-echo "  UI     → http://localhost:${PORT}"
+echo "  UI     → ${UI_URL}"
 echo "  API    → http://localhost:${PORT}/v1"
 echo "  Docs   → http://localhost:${PORT}/docs"
 echo ""

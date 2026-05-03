@@ -212,6 +212,25 @@ function setWakeWordAckOnWakeOnly(ackOnWakeOnly, invoker = 'system') {
   return wakeWordCfg.ackOnWakeOnly;
 }
 
+function renderStartupExperience() {
+  const persona = getPersona();
+  const wakeWord = wakeWordCfg.value || 'andyria';
+  const convo = conversational.isEnabled() ? 'ON' : 'OFF';
+  const gate = wakeWordCfg.enabled ? `WAKE WORD: ${wakeWord}` : 'WAKE WORD: OFF';
+  const mission = String(persona?.mission || 'Engage, assist, and keep momentum high.').slice(0, 90);
+
+  console.log('');
+  console.log('╭──────────────────────────────────────────────────────────────╮');
+  console.log('│                      LIVE EXPERIENCE                         │');
+  console.log(`│ Persona: ${(persona?.name || personaName).padEnd(52).slice(0, 52)}│`);
+  console.log(`│ ${gate.padEnd(61).slice(0, 61)}│`);
+  console.log(`│ Conversational: ${convo.padEnd(47).slice(0, 47)}│`);
+  console.log(`│ Mission: ${mission.padEnd(53).slice(0, 53)}│`);
+  console.log('│ Controls: /persona status | /wakeword status | /stats       │');
+  console.log('╰──────────────────────────────────────────────────────────────╯');
+  console.log('');
+}
+
 async function generateStartupGreeting() {
   const wakeWord = wakeWordCfg.value || 'andyria';
   const prompt = `Generate one short livestream greeting. Mention wake word "${wakeWord}" exactly once.`;
@@ -236,6 +255,8 @@ async function bootstrapConversation() {
   if (!argv['conversational-off']) {
     conversational.enable('startup');
   }
+
+  renderStartupExperience();
 
   appendEvent('agent:main', 'WAKE_WORD_CONFIGURED', {
     enabled: wakeWordCfg.enabled,
@@ -655,6 +676,7 @@ async function connectLive() {
   reconnectAttempt = 0;
   appendEvent('agent:main', 'CONNECTED', { username: USERNAME });
   console.log(`[agent] Connected to @${USERNAME}`);
+  console.log('[agent] Scene is live. Audience interactions are now flowing through the runtime.');
   globalDag.transition('LISTENING', { source: 'tiktok' });
 }
 

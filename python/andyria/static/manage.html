@@ -84,6 +84,60 @@
       background: var(--surface); border: 1px solid var(--border);
       border-radius: var(--radius); padding: 16px 18px;
     }
+    .experience-card {
+      background:
+        radial-gradient(circle at 12% 18%, rgba(32,201,151,0.18), transparent 38%),
+        radial-gradient(circle at 82% 12%, rgba(13,143,107,0.2), transparent 42%),
+        linear-gradient(130deg, #10222a, #172a33 52%, #122027);
+      border: 1px solid #245165;
+      position: relative;
+      overflow: hidden;
+    }
+    .experience-card::after {
+      content: "";
+      position: absolute;
+      inset: -40% -15% auto auto;
+      width: 320px;
+      height: 320px;
+      background: radial-gradient(circle, rgba(32,201,151,0.18), transparent 65%);
+      pointer-events: none;
+    }
+    .exp-title {
+      font-size: 1.05rem;
+      font-weight: 700;
+      letter-spacing: 0.3px;
+      margin-bottom: 6px;
+    }
+    .exp-sub {
+      color: #b7d4e3;
+      font-size: 0.88rem;
+      line-height: 1.6;
+      margin-bottom: 12px;
+      max-width: 70ch;
+    }
+    .exp-chips {
+      display: flex;
+      gap: 7px;
+      flex-wrap: wrap;
+      margin-bottom: 10px;
+    }
+    .exp-chip {
+      border: 1px solid #31667b;
+      background: rgba(11,18,22,0.45);
+      color: #a5d7ea;
+      border-radius: 999px;
+      padding: 3px 10px;
+      font-size: 0.73rem;
+      letter-spacing: 0.35px;
+      text-transform: uppercase;
+    }
+    .exp-script {
+      font-size: 0.82rem;
+      color: var(--text);
+      line-height: 1.65;
+      border-left: 2px solid rgba(32,201,151,0.55);
+      padding-left: 10px;
+    }
     .card-title {
       font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.8px;
       color: var(--muted); margin-bottom: 14px; display: flex;
@@ -436,6 +490,12 @@
 
     <!-- ── Dashboard ── -->
     <section class="view active" id="view-dashboard">
+      <div class="card experience-card">
+        <div class="exp-title" id="exp-headline">Booting Experience Layer…</div>
+        <div class="exp-sub" id="exp-sub">Loading runtime signals and persona context.</div>
+        <div class="exp-chips" id="exp-chips"></div>
+        <div class="exp-script" id="exp-script">Synchronizing node telemetry…</div>
+      </div>
       <div class="card">
         <div class="card-title">Node Status <button class="btn" id="dash-refresh">↻</button></div>
         <div class="stat-grid" id="dash-stats">
@@ -937,9 +997,13 @@ setInterval(updateGlobalBadge, 30_000);
 
 // ── Dashboard ─────────────────────────────────────────────────────────────
 async function loadDashboard() {
+  let statusData = null;
+  let latestEvents = [];
+
   // Status
   try {
     const s = await api("/v1/status");
+    statusData = s;
     document.getElementById("ds-node-id").textContent  = s.node_id ?? "—";
     const statusEl = document.getElementById("ds-status");
     statusEl.textContent = s.ready === false ? "degraded" : (s.readiness_detail && s.readiness_detail !== "ok" ? "stub" : "ready");
@@ -961,6 +1025,7 @@ async function loadDashboard() {
   // Events
   try {
     const evts = await api("/v1/events");
+    latestEvents = evts;
     const list = document.getElementById("dash-events-list");
     if (!evts.length) { list.innerHTML = `<li style="color:var(--muted)">No events yet.</li>`; return; }
     list.innerHTML = evts.slice(-15).reverse().map(e => `
@@ -968,6 +1033,35 @@ async function loadDashboard() {
         ${e.timestamp ? `<span style="color:var(--muted);float:right">${esc(new Date(e.timestamp).toLocaleTimeString())}</span>` : ""}
       </li>`).join("");
   } catch { document.getElementById("dash-events-list").innerHTML = `<li style="color:var(--danger)">Failed.</li>`; }
+
+  // Experience layer
+  try {
+    const agents = await api("/v1/agents");
+    const lead = agents.find(a => a.agent_id === "default") || agents[0] || null;
+    const persona = lead?.persona?.codename || lead?.persona?.archetype || "adaptive";
+    const model = statusData?.ollama_model || (statusData?.model_loaded ? "llm-online" : "stub");
+    const readiness = statusData?.ready === false ? "degraded" : (statusData?.readiness_detail && statusData.readiness_detail !== "ok" ? "stub" : "ready");
+    const lastEvent = latestEvents.length ? latestEvents[latestEvents.length - 1]?.event_type : "quiet";
+
+    document.getElementById("exp-headline").textContent = `Live Node Experience: ${readiness.toUpperCase()}`;
+    document.getElementById("exp-sub").textContent = `Persona ${persona} is active${lead?.name ? ` on agent ${lead.name}` : ""}. Runtime model ${model} is currently shaping responses.`;
+    document.getElementById("exp-chips").innerHTML = [
+      `requests ${statusData?.requests_processed ?? 0}`,
+      `beacons ${statusData?.entropy_beacons_generated ?? 0}`,
+      `events ${statusData?.events_stored ?? latestEvents.length}`,
+      `last ${String(lastEvent || "none").toLowerCase().replace(/_/g, " ")}`,
+    ].map(t => `<span class="exp-chip">${esc(t)}</span>`).join("");
+
+    document.getElementById("exp-script").textContent =
+      readiness === "ready"
+        ? "System cadence stable. You can tune persona and prompts to shape tone, rhythm, and behavior in real time."
+        : "System is online with reduced intelligence depth. Adjust config and model connectivity to bring the full experience online.";
+  } catch {
+    document.getElementById("exp-headline").textContent = "Live Node Experience: OFFLINE";
+    document.getElementById("exp-sub").textContent = "Runtime is unreachable right now. Start the node to unlock the full interactive experience.";
+    document.getElementById("exp-chips").innerHTML = `<span class=\"exp-chip\">no telemetry</span>`;
+    document.getElementById("exp-script").textContent = "When the node reconnects, this panel will narrate active persona, runtime state, and system momentum.";
+  }
 }
 document.getElementById("dash-refresh").addEventListener("click", loadDashboard);
 
