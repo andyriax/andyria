@@ -35,6 +35,17 @@
 				"& \"c:\\andyria\\.venv\\Scripts\\python.exe\" -m pip install -r \"c:\\andyria\\python\\requirements.txt\""
 			],
 			"isBackground": false
+		},
+		{
+			"label": "Install Python packages via pip.exe",
+			"type": "shell",
+			"command": "/mnt/c/Windows/System32/WindowsPowerShell/v1.0/powershell.exe",
+			"args": [
+				"-NoProfile",
+				"-Command",
+				"& \"c:\\andyria\\.venv\\Scripts\\pip.exe\" install -r \"c:\\andyria\\python\\requirements.txt\""
+			],
+			"isBackground": false
 		}
 	]
 }
