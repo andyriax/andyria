@@ -12,34 +12,27 @@ Full path for one request:
 
 from __future__ import annotations
 
-import asyncio
 import ast
+import asyncio
 import contextlib
 import hashlib
 import json
-import operator
 import logging
+import operator
 import queue
 import time
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
-from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
-
+from .atm import AutomatedThoughtMachine
+from .auto_learn import AutoLearner
+from .chain_labeler import ChainLabeler
+from .chains import ChainRegistry
 from .dag import topological_sort
 from .entropy import EntropyBeaconFactory
+from .gist_store import GistStore
 from .memory import ContentAddressedMemory
 from .mesh import MeshManager
-from .chains import ChainRegistry
-from .atm import AutomatedThoughtMachine
-from .reasoning import ReasoningEngine
-from .auto_learn import AutoLearner
-from .orc import OuterReasoningCortex
-from .persistent_memory import PersistentMemory
-from .gist_store import GistStore
-from .chain_labeler import ChainLabeler
-from .promptbook import PromptbookRegistry
-from .workflow import WorkflowRegistry, WorkflowRunner
 from .models import (
     AgentCloneRequest,
     AgentCreateRequest,
@@ -58,10 +51,19 @@ from .models import (
     NodeConfig,
     NodeConfigUpdate,
     NodeStatus,
-    PeerStatus,
-    ReflectionResult,
     ORCPatternMatch,
     ORCWitnessResult,
+    PeerStatus,
+    Promptbook,
+    PromptbookCreateRequest,
+    PromptbookMutateRequest,
+    PromptbookRenderRequest,
+    PromptbookRenderResponse,
+    PromptbookUpdateRequest,
+    PromptFlowInputRequest,
+    PromptFlowResponse,
+    PromptFlowStartRequest,
+    ReflectionResult,
     SessionContext,
     TabCreateRequest,
     TabProjection,
@@ -72,23 +74,19 @@ from .models import (
     WorkflowDefinition,
     WorkflowRunRequest,
     WorkflowRunResult,
-    Promptbook,
-    PromptbookCreateRequest,
-    PromptbookMutateRequest,
-    PromptFlowInputRequest,
-    PromptFlowResponse,
-    PromptFlowStartRequest,
-    PromptbookRenderRequest,
-    PromptbookRenderResponse,
-    PromptbookUpdateRequest,
 )
 from .node import NodeIdentityManager
+from .orc import OuterReasoningCortex
+from .persistent_memory import PersistentMemory
 from .planner import Planner
 from .projections import PromptFlowStore, TabProjectionStore
+from .promptbook import PromptbookRegistry
+from .reasoning import ReasoningEngine
 from .registry import AgentRegistry
 from .store import EventStore
 from .tools import ToolRegistry
 from .verifier import Verifier
+from .workflow import WorkflowRegistry, WorkflowRunner
 
 logger = logging.getLogger(__name__)
 
@@ -472,8 +470,26 @@ class Coordinator:
             auto_learner=self._learner,
         )
 
+        # Wire mesh callbacks so it can emit events and ingest learned patterns
+        self.mesh.set_emit_event(self._emit_control_event_str)
+        self.mesh.set_ingest_learned(self._mesh_ingest_learned)
+
+    # ------------------------------------------------------------------
+    # Mesh auto-learning callback
+    # ------------------------------------------------------------------
+
+    def _mesh_ingest_learned(self, pattern: str, confidence: float) -> bool:
+        """Ingest a learned pattern sourced from a mesh peer."""
+        return self._learner.record(
+            prompt="[mesh-peer]",
+            output=pattern,
+            confidence=confidence,
+            source="mesh",
+            model_used="peer",
+        )
+
     async def start_background_tasks(self) -> None:
-        """Start periodic background tasks (entropy sampler)."""
+        """Start periodic background tasks (entropy sampler, mesh sync)."""
         if self._entropy_sampler_interval_ms <= 0:
             return
         if self._entropy_sampler_task is not None and not self._entropy_sampler_task.done():
@@ -695,6 +711,17 @@ class Coordinator:
         except Exception:
             logger.warning("AutoLearner.record failed", exc_info=True)
 
+        # Record high-confidence outputs as machine dreams for mesh sharing
+        if avg_confidence >= 0.80 and combined:
+            try:
+                self.mesh.add_dream(
+                    thought=combined[:500],
+                    confidence=avg_confidence,
+                    tags=[final_model, "process"],
+                )
+            except Exception:
+                pass
+
         # 8. Persist session turn
         if request.session_id:
             self._memory.append_session_turn(
@@ -756,7 +783,7 @@ class Coordinator:
             "Generate a creative brief for an AR experience that rewards community engagement.",
         ]
         if not self._router.is_model_available():
-            return random.choice(_FALLBACK)
+            return random.choice(_FALLBACK)  # noqa: S311 — non-crypto model selection
         try:
             ctx = {}
             learned = self._learner.learned_context_block()
@@ -772,7 +799,7 @@ class Coordinator:
                 return output.strip()
         except Exception:
             pass
-        return random.choice(_FALLBACK)
+        return random.choice(_FALLBACK)  # noqa: S311 — non-crypto model selection
 
     def get_learned_entries(self) -> list:
         """Return all current [learned] entries from MEMORY.md."""
@@ -1495,7 +1522,7 @@ class Coordinator:
         identity = self._identity_mgr.identity
         ready, detail = self._readiness()
         model_loaded, _ = self._router.backend_health()
-        
+
         # Collect peer statuses
         peer_statuses = []
         if self.mesh:
@@ -1507,7 +1534,7 @@ class Coordinator:
                     events_synced=status.events_synced,
                     reachable=status.reachable,
                 ))
-        
+
         return NodeStatus(
             node_id=self._node_id,
             deployment_class=identity.deployment_class if identity else "unknown",

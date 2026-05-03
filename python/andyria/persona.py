@@ -51,7 +51,7 @@ _QUIRKS = [
 
 def generate_persona(agent_name: str, seed: str) -> AgentPersona:
     """Generate a stable persona from a seed."""
-    rng = random.Random(seed)
+    rng = random.Random(seed)  # noqa: S311 — seeded for stable deterministic persona generation
     archetype = rng.choice(_ARCHETYPES)
     domain = rng.choice(_DOMAINS)
     style = rng.choice(_STYLES)
@@ -93,4 +93,4 @@ def render_avatar_svg(seed: str, label: str) -> str:
 
     circles_svg = "\n    ".join(circles)
 
-    return f"""<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"128\" height=\"128\" viewBox=\"0 0 128 128\" role=\"img\" aria-label=\"{label}\">\n  <defs>\n    <linearGradient id=\"bg\" x1=\"0%\" y1=\"0%\" x2=\"100%\" y2=\"100%\">\n      <stop offset=\"0%\" stop-color=\"{c1}\" />\n      <stop offset=\"100%\" stop-color=\"{c2}\" />\n    </linearGradient>\n  </defs>\n  <rect width=\"128\" height=\"128\" rx=\"22\" fill=\"url(#bg)\" />\n  {circles_svg}\n  <circle cx=\"64\" cy=\"64\" r=\"40\" fill=\"#0b1020\" fill-opacity=\"0.24\" />\n  <text x=\"64\" y=\"74\" text-anchor=\"middle\" font-family=\"Verdana, sans-serif\" font-size=\"36\" font-weight=\"700\" fill=\"white\">{initials}</text>\n</svg>"""
+    return f"""<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"128\" height=\"128\" viewBox=\"0 0 128 128\" role=\"img\" aria-label=\"{label}\">\n  <defs>\n    <linearGradient id=\"bg\" x1=\"0%\" y1=\"0%\" x2=\"100%\" y2=\"100%\">\n      <stop offset=\"0%\" stop-color=\"{c1}\" />\n      <stop offset=\"100%\" stop-color=\"{c2}\" />\n    </linearGradient>\n  </defs>\n  <rect width=\"128\" height=\"128\" rx=\"22\" fill=\"url(#bg)\" />\n  {circles_svg}\n  <circle cx=\"64\" cy=\"64\" r=\"40\" fill=\"#0b1020\" fill-opacity=\"0.24\" />\n  <text x=\"64\" y=\"74\" text-anchor=\"middle\" font-family=\"Verdana, sans-serif\" font-size=\"36\" font-weight=\"700\" fill=\"white\">{initials}</text>\n</svg>"""  # noqa: E501

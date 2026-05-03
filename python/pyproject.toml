@@ -40,7 +40,7 @@ where = ["."]
 include = ["andyria*"]
 
 [tool.ruff]
-line-length = 100
+line-length = 120
 target-version = "py311"
 
 [tool.ruff.lint]
@@ -48,6 +48,9 @@ select = ["E", "F", "W", "I", "N", "S"]
 ignore = [
     "S101",   # assert is fine in tests
     "S603",   # subprocess checked at call sites
+    "S110",   # try-except-pass: intentional silent fallback pattern
+    "S112",   # try-except-continue: intentional silent fallback pattern
+    "N806",   # in-function uppercase "constants" are a project convention
 ]
 
 [tool.pytest.ini_options]

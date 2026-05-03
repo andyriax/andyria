@@ -15,17 +15,20 @@ from fastapi import FastAPI, HTTPException, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, RedirectResponse, Response
 
-from .coordinator import Coordinator
 from .agent_features import (
     default_agent_environments,
     default_agent_modes,
     predominant_skills_for_agent,
 )
+from .coordinator import Coordinator
+from .cron import CronScheduler
+from .delegation import DelegationManager
+from .demo import DemoManager
 from .models import (
     AgentCloneRequest,
     AgentCreateRequest,
-    AgentDevWorkspace,
     AgentDefinition,
+    AgentDevWorkspace,
     AgentUpdateRequest,
     AndyriaRequest,
     AndyriaResponse,
@@ -34,54 +37,49 @@ from .models import (
     ChainCreateRequest,
     ChainDefinition,
     ChainRunRequest,
+    CronJobCreate,
+    CronJobInfo,
+    DelegateRequest,
+    DelegateResponse,
     DemoStatus,
     Event,
     EventType,
+    MemoryOpRequest,
+    MemoryOpResponse,
     NodeConfig,
     NodeConfigUpdate,
     NodeStatus,
+    Promptbook,
+    PromptbookCreateRequest,
+    PromptbookMutateRequest,
+    PromptbookRenderRequest,
+    PromptbookRenderResponse,
+    PromptbookUpdateRequest,
     PromptFlowInputRequest,
     PromptFlowResponse,
     PromptFlowStartRequest,
     SessionContext,
+    SessionSearchRequest,
+    SessionSearchResponse,
+    SkillRequest,
+    SkillResponse,
     TabCreateRequest,
     TabProjection,
     TabUpdateRequest,
+    TodoRequest,
+    TodoResponse,
+    WorkflowCreateRequest,
+    WorkflowDefinition,
+    WorkflowRunRequest,
+    WorkflowRunResult,
 )
-from .models import (
-     CronJobCreate,
-     CronJobInfo,
-     DelegateRequest,
-     DelegateResponse,
-     MemoryOpRequest,
-     MemoryOpResponse,
-     Promptbook,
-     PromptbookCreateRequest,
-     PromptbookMutateRequest,
-     PromptbookRenderRequest,
-     PromptbookRenderResponse,
-     PromptbookUpdateRequest,
-     SessionSearchRequest,
-     SessionSearchResponse,
-     SkillRequest,
-     SkillResponse,
-     TodoRequest,
-     TodoResponse,
-     WorkflowCreateRequest,
-     WorkflowDefinition,
-     WorkflowRunRequest,
-     WorkflowRunResult,
-)
-from .soul              import SoulFile
 from .persistent_memory import PersistentMemory
-from .skills            import SkillRegistry
-from .session_store     import SessionStore
-from .cron              import CronScheduler
-from .todo              import TodoStore
-from .delegation        import DelegationManager
 from .persona import render_avatar_svg
-from .demo import DemoManager
+from .session_store import SessionStore
+from .skills import SkillRegistry
 from .slash_commands import list_slash_commands
+from .soul import SoulFile
+from .todo import TodoStore
 
 _coordinator: Optional[Coordinator] = None
 
@@ -698,6 +696,53 @@ def create_app(coordinator: Coordinator) -> FastAPI:
             })
         return result
 
+    # ------------------------------------------------------------------
+    # Machine dreams
+    # ------------------------------------------------------------------
+
+    @app.get("/v1/dreams", response_model=List[Dict[str, Any]])
+    async def get_dreams(limit: int = 20) -> List[Dict[str, Any]]:
+        """Return recent machine dreams (ATM outputs shared across the mesh)."""
+        if _coordinator is None:
+            raise HTTPException(status_code=503, detail="Coordinator not initialized")
+        return _coordinator.mesh.get_dreams(limit=min(limit, 100))
+
+    # ------------------------------------------------------------------
+    # Mesh autonomous operations
+    # ------------------------------------------------------------------
+
+    @app.post("/v1/mesh/sync-learn", response_model=Dict[str, Any])
+    async def mesh_sync_learn() -> Dict[str, Any]:
+        """Pull [learned] patterns from all reachable peers and ingest them."""
+        if _coordinator is None:
+            raise HTTPException(status_code=503, detail="Coordinator not initialized")
+        results = await _coordinator.mesh.sync_learned_from_peers()
+        total = sum(results.values())
+        return {"absorbed": total, "by_peer": results}
+
+    @app.post("/v1/mesh/copy-homework", response_model=Dict[str, Any])
+    async def mesh_copy_homework() -> Dict[str, Any]:
+        """Pull promptbooks and chains from all reachable peers."""
+        if _coordinator is None:
+            raise HTTPException(status_code=503, detail="Coordinator not initialized")
+        items = await _coordinator.mesh.copy_homework_from_peers()
+        return {"count": len(items), "items": items[:50]}  # cap response size
+
+    @app.post("/v1/mesh/sync-dreams", response_model=Dict[str, Any])
+    async def mesh_sync_dreams() -> Dict[str, Any]:
+        """Pull machine dreams from all reachable peers."""
+        if _coordinator is None:
+            raise HTTPException(status_code=503, detail="Coordinator not initialized")
+        absorbed = await _coordinator.mesh.sync_dreams_from_peers()
+        return {"absorbed": absorbed}
+
+    @app.get("/v1/mesh/health", response_model=Dict[str, Any])
+    async def mesh_growth_health() -> Dict[str, Any]:
+        """Return mesh topology growth and reachability health report."""
+        if _coordinator is None:
+            raise HTTPException(status_code=503, detail="Coordinator not initialized")
+        return _coordinator.mesh.growth_report()
+
     @app.get("/health")
     async def health() -> Dict[str, Any]:
         if _coordinator is None:
@@ -727,8 +772,8 @@ def create_app(coordinator: Coordinator) -> FastAPI:
             lines.append(f"{name}{label_str} {value}")
 
         now_ms = int(time.time() * 1000)
-        lines.append(f"# HELP andyria_scrape_timestamp_ms Unix timestamp of this scrape in milliseconds")
-        lines.append(f"# TYPE andyria_scrape_timestamp_ms gauge")
+        lines.append("# HELP andyria_scrape_timestamp_ms Unix timestamp of this scrape in milliseconds")
+        lines.append("# TYPE andyria_scrape_timestamp_ms gauge")
         lines.append(f"andyria_scrape_timestamp_ms {now_ms}")
 
         if _coordinator is not None:
@@ -946,6 +991,28 @@ def create_app(coordinator: Coordinator) -> FastAPI:
         _skill_reg     = SkillRegistry(_data_dir_path)
         _session_store = SessionStore(_data_dir_path)
         _cron          = CronScheduler(_data_dir_path)
+
+        # Wire cron executor so self-wake jobs emit events into the coordinator
+        def _cron_executor(task: str) -> str:
+            if _cron.is_self_wake_task(task):
+                try:
+                    _coordinator._emit_control_event_str(
+                        "SELF_WAKE_FIRED",
+                        {"task": task},
+                        None,
+                    )
+                except Exception:
+                    pass
+                return f"[self-wake] {task} fired"
+            return f"[cron] {task}"
+
+        _cron.set_executor(_cron_executor)
+
+        # Register the default recurring self-wake (every 30 min) if not already present
+        _existing_wake = [j for j in _cron.list() if j.name == "self-wake"]
+        if not _existing_wake:
+            _cron.schedule_self_wake("every 30 minutes", name="self-wake")
+
         _cron.start()
         _todo          = TodoStore(_data_dir_path)
         _delegation    = DelegationManager(

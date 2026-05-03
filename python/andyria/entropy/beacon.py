@@ -25,9 +25,9 @@ from cryptography.hazmat.primitives.asymmetric.ed25519 import (
     Ed25519PublicKey,
 )
 
+from ..models import EntropyBeacon
 from .collectors import EntropySource, build_collector_chain
 from .health import EntropyHealthMonitor
-from ..models import EntropyBeacon
 
 
 def _content_hash(data: bytes) -> str:

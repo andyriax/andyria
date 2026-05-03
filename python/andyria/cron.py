@@ -27,9 +27,9 @@ import sqlite3
 import threading
 import time
 import uuid
-from dataclasses import dataclass, asdict
+from dataclasses import dataclass
 from pathlib import Path
-from typing import Callable, Dict, List, Optional
+from typing import Callable, List, Optional
 
 _POLL_INTERVAL = 30          # seconds between scheduler ticks
 _NATURAL_PATTERNS: list[tuple[re.Pattern, str]] = [
@@ -164,7 +164,7 @@ class CronScheduler:
         """Add a new cron job. Returns the job ID."""
         job_id = str(uuid.uuid4())[:8]
         now = time.time()
-        schedule = _parse_schedule(expression)
+        _parse_schedule(expression)  # validate expression; raises if invalid
         c = self._conn.cursor()
         c.execute(
             "INSERT INTO jobs(id,name,expression,task,platform,last_run,next_run,active,created_at) "
@@ -268,3 +268,44 @@ class CronScheduler:
             except Exception as exc:
                 return f"[cron error] {exc}"
         return f"[cron] Job '{job.name}' fired: {job.task}"
+
+    # ------------------------------------------------------------------
+    # Self-wake helpers
+    # ------------------------------------------------------------------
+
+    _SELF_WAKE_TASK_PREFIX = "__self_wake__"
+
+    def schedule_self_wake(
+        self,
+        expression: str = "every 30 minutes",
+        name: str = "self-wake",
+        on_wake: Optional[Callable[[], None]] = None,
+    ) -> str:
+        """Register a recurring self-wake job.
+
+        When fired the job invokes *on_wake* (if provided) and then the
+        normal push callback so callers can treat it as a regular event.
+
+        Returns the new job ID.
+        """
+        task_payload = f"{self._SELF_WAKE_TASK_PREFIX}{name}"
+        if on_wake is not None:
+            # Wrap executor to call on_wake before normal execution
+            _orig_exec = self._executor
+
+            def _wake_executor(task: str) -> str:
+                if task.startswith(self._SELF_WAKE_TASK_PREFIX):
+                    try:
+                        on_wake()
+                    except Exception:
+                        pass
+                    return f"[self-wake] {name} activated"
+                return _orig_exec(task) if _orig_exec else f"[cron] {task}"
+
+            self._executor = _wake_executor
+
+        return self.add(name=name, expression=expression, task=task_payload, platform="andyria")
+
+    def is_self_wake_task(self, task: str) -> bool:
+        """Return True if *task* was created by :meth:`schedule_self_wake`."""
+        return task.startswith(self._SELF_WAKE_TASK_PREFIX)

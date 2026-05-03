@@ -50,7 +50,6 @@ import time
 import uuid
 from typing import Any, Callable, Dict, List, Optional, Tuple
 
-
 # ---------------------------------------------------------------------------
 # Type aliases (mirrors ATM/ReasoningEngine conventions)
 # ---------------------------------------------------------------------------

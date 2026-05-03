@@ -30,12 +30,17 @@ jobs:
       - name: Lint (ruff)
         run: |
           cd python
-          ruff check andyria/ || true
+          ruff check andyria/
+
+      - name: Format check (ruff)
+        run: |
+          cd python
+          ruff format --check andyria/
 
       - name: Type check (mypy)
         run: |
           cd python
-          mypy andyria/ --ignore-missing-imports || true
+          mypy andyria/ --ignore-missing-imports
 
       - name: Run tests
         run: |
@@ -63,6 +68,11 @@ jobs:
         run: |
           cd rust
           cargo build --release
+
+      - name: Lint Rust (clippy)
+        run: |
+          cd rust
+          cargo clippy -- -D warnings
 
       - name: Test Rust crates
         run: |

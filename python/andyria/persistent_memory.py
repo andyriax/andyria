@@ -18,11 +18,8 @@ Usage::
 
 from __future__ import annotations
 
-import re
-import textwrap
-import time
 from pathlib import Path
-from typing import Literal, Optional
+from typing import Literal
 
 MemFile = Literal["MEMORY", "USER"]
 

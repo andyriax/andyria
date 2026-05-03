@@ -145,7 +145,7 @@ class DemoManager:
         if self._state.active:
             return self._state  # idempotent
 
-        from .models import AgentCreateRequest, EventType
+        from .models import AgentCreateRequest
 
         agent_ids: List[str] = []
         session_ids: List[str] = []
@@ -213,7 +213,6 @@ class DemoManager:
         if not self._state.active:
             return self._state
 
-        from .models import EventType
 
         for agent_id in self._state.agent_ids:
             try:

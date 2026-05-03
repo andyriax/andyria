@@ -15,9 +15,7 @@ Key properties:
 from __future__ import annotations
 
 import time
-import uuid
 from typing import Any, Callable, Dict, List, Optional
-
 
 # ---------------------------------------------------------------------------
 # Domain types

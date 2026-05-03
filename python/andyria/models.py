@@ -91,7 +91,7 @@ class EventType(str, Enum):
     PROMPTBOOK_RENDERED = "promptbook_rendered"
     PROMPTBOOK_MUTATED = "promptbook_mutated"
     # Outer Reasoning Cortex
-    ORC_WITNESS_PASS = "orc_witness_pass"
+    ORC_WITNESS_PASS = "orc_witness_pass"  # noqa: S105 — event type name, not a credential
     ORC_MINIMIZATION_DETECTED = "orc_minimization_detected"
     ORC_REFLECTION_STARTED = "orc_reflection_started"
     ORC_REFLECTION_COMPLETE = "orc_reflection_complete"
@@ -106,6 +106,16 @@ class EventType(str, Enum):
     CHAIN_LABEL_STARTED = "chain_label_started"
     CHAIN_LABEL_COMPLETE = "chain_label_complete"
     CHAIN_LABEL_INGESTED = "chain_label_ingested"
+    # Scheduled self-wakes
+    SELF_WAKE_FIRED = "self_wake_fired"
+    # Mesh autonomous learning
+    MESH_LEARNED = "mesh_learned"
+    MESH_HOMEWORK_COPIED = "mesh_homework_copied"
+    # Machine dreams
+    MESH_DREAM_ADDED = "mesh_dream_added"
+    MESH_DREAM_SYNCED = "mesh_dream_synced"
+    # Mesh growth health
+    MESH_GROWTH_REPORT = "mesh_growth_report"
 
 
 class EntropyBeacon(BaseModel):
@@ -786,3 +796,48 @@ class WorkflowRunResult(BaseModel):
     final_output: str = ""
     total_ms: int = 0
     timestamp_ns: int = 0
+
+
+# ---------------------------------------------------------------------------
+# Mesh — machine dreams, copy-homework, growth health
+# ---------------------------------------------------------------------------
+
+class MachineDream(BaseModel):
+    """A single ATM thought shared across the mesh."""
+    id: str = Field(default_factory=lambda: str(uuid.uuid4())[:12])
+    origin_node_id: str
+    thought: str
+    confidence: float = 0.0
+    timestamp_ns: int = Field(default_factory=lambda: int(__import__("time").time_ns()))
+    tags: List[str] = Field(default_factory=list)
+
+
+class HomeworkItem(BaseModel):
+    """A promptbook or chain definition imported from a peer."""
+    peer_url: str
+    kind: str                   # "promptbook" | "chain"
+    id: str
+    name: str
+    body: Dict[str, Any] = Field(default_factory=dict)
+    imported_at_ns: int = Field(default_factory=lambda: int(__import__("time").time_ns()))
+
+
+class MeshGrowthSnapshot(BaseModel):
+    """One timestamped sample of mesh topology."""
+    timestamp_ns: int = Field(default_factory=lambda: int(__import__("time").time_ns()))
+    total_peers: int
+    reachable_peers: int
+    unreachable_peers: int
+
+
+class MeshGrowthReport(BaseModel):
+    """Aggregated mesh growth health report."""
+    node_id: str
+    generated_at_ns: int = Field(default_factory=lambda: int(__import__("time").time_ns()))
+    snapshots: List[MeshGrowthSnapshot] = Field(default_factory=list)
+    current_peers: int = 0
+    reachable_now: int = 0
+    reachability_pct: float = 0.0
+    growth_rate_per_hour: float = 0.0   # peers added per hour over observation window
+    healthy: bool = True
+    warnings: List[str] = Field(default_factory=list)

@@ -39,10 +39,10 @@ import uuid
 from collections import defaultdict
 from typing import TYPE_CHECKING, Any, Dict, List, Optional
 
+from .memory import ContentAddressedMemory
 from .models import (
-    ATMThinkRequest,
     AndyriaRequest,
-    ChainRunRequest,
+    ATMThinkRequest,
     WorkflowDefinition,
     WorkflowRunRequest,
     WorkflowRunResult,
@@ -50,7 +50,6 @@ from .models import (
     WorkflowStepResult,
     WorkflowStepType,
 )
-from .memory import ContentAddressedMemory
 
 if TYPE_CHECKING:
     from .coordinator import Coordinator
