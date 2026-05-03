@@ -40,6 +40,9 @@ from .models import (
     NodeConfig,
     NodeConfigUpdate,
     NodeStatus,
+    PromptFlowInputRequest,
+    PromptFlowResponse,
+    PromptFlowStartRequest,
     SessionContext,
     TabCreateRequest,
     TabProjection,
@@ -78,6 +81,7 @@ from .todo              import TodoStore
 from .delegation        import DelegationManager
 from .persona import render_avatar_svg
 from .demo import DemoManager
+from .slash_commands import list_slash_commands
 
 _coordinator: Optional[Coordinator] = None
 
@@ -147,6 +151,76 @@ def create_app(coordinator: Coordinator) -> FastAPI:
         if _coordinator is None:
             raise HTTPException(status_code=503, detail="Coordinator not initialized")
         return await _coordinator.process(request)
+
+    @app.get("/v1/slash-commands", response_model=List[Dict[str, Any]])
+    async def get_slash_commands(target: str = "web") -> List[Dict[str, Any]]:
+        return list_slash_commands(target)
+
+    _FLOW_KIND_REGISTRY = [
+        {
+            "kind": "game_builder",
+            "name": "Game Builder Wizard",
+            "description": "Design a game from type to art style and get a full implementation plan.",
+            "triggers": ["create a game", "make a game", "build a game", "new game", "game wizard"],
+        },
+        {
+            "kind": "project_planner",
+            "name": "Project Planner",
+            "description": "Plan a software project with milestones, architecture, and a first-week task list.",
+            "triggers": ["plan a project", "new project", "project planner", "project wizard", "plan my project"],
+        },
+        {
+            "kind": "agent_onboarding",
+            "name": "Agent Onboarding Wizard",
+            "description": "Configure a new AI agent with role, personality, tools, and a ready-to-use system prompt.",
+            "triggers": ["create an agent", "new agent", "onboard agent", "agent wizard", "configure agent"],
+        },
+        {
+            "kind": "deployment_wizard",
+            "name": "Deployment Wizard",
+            "description": "Generate a deployment config for Docker, Kubernetes, cloud, or bare metal.",
+            "triggers": ["deploy", "deployment wizard", "setup deployment", "deploy my app", "deployment config"],
+        },
+        {
+            "kind": "api_builder",
+            "name": "API Builder",
+            "description": "Scaffold a REST API with OpenAPI spec, route stubs, auth, and pagination.",
+            "triggers": ["build an api", "create an api", "api wizard", "new api", "rest api", "api builder"],
+        },
+    ]
+
+    @app.get("/v1/prompt-flows/kinds")
+    async def list_prompt_flow_kinds() -> List[Dict[str, Any]]:
+        return _FLOW_KIND_REGISTRY
+
+    @app.post("/v1/prompt-flows/start", response_model=PromptFlowResponse)
+    async def start_prompt_flow(request: PromptFlowStartRequest) -> PromptFlowResponse:
+        if _coordinator is None:
+            raise HTTPException(status_code=503, detail="Coordinator not initialized")
+        try:
+            return _coordinator.start_prompt_flow(request)
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    @app.get("/v1/prompt-flows/{flow_id}", response_model=PromptFlowResponse)
+    async def get_prompt_flow(flow_id: str) -> PromptFlowResponse:
+        if _coordinator is None:
+            raise HTTPException(status_code=503, detail="Coordinator not initialized")
+        flow = _coordinator.get_prompt_flow(flow_id)
+        if flow is None:
+            raise HTTPException(status_code=404, detail="Prompt flow not found")
+        return flow
+
+    @app.post("/v1/prompt-flows/{flow_id}/respond", response_model=PromptFlowResponse)
+    async def respond_prompt_flow(flow_id: str, request: PromptFlowInputRequest) -> PromptFlowResponse:
+        if _coordinator is None:
+            raise HTTPException(status_code=503, detail="Coordinator not initialized")
+        try:
+            return _coordinator.respond_prompt_flow(flow_id, request)
+        except ValueError as exc:
+            detail = str(exc)
+            status = 404 if "not found" in detail.lower() else 400
+            raise HTTPException(status_code=status, detail=detail) from exc
 
     @app.get("/v1/status", response_model=NodeStatus)
     async def status() -> NodeStatus:

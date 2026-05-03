@@ -40,12 +40,20 @@ docker compose up -d
 | 🧠 **ReasoningEngine** | Decompose → Analyze → Synthesize chain-of-thought, fully local |
 | 📚 **Auto-Learn Loop** | Distils high-confidence responses into persistent memory, injected into future prompts |
 | 🔄 **ATM** | Automated Thought Machine — iterative generate/critique/revise with reasoning escalation |
+| 🤖 **Multi-Agent Orchestration** | Persona-driven agents with skill profiles, clone/retire, DAG execution chains |
+| 🔗 **Agent Chains** | Sequential multi-agent pipelines via `ChainRegistry` |
+| 🪄 **Delegation** | Parallel sub-agent spawning and result collection via `DelegationManager` |
+| 🎭 **Persona Engine** | Procedural codename, archetype, style, mission + SVG avatar generation |
+| 🧩 **Skill Registry** | Create, search, and load agent skills; per-agent skill profiles |
+| 📅 **Cron Scheduler** | Background recurring tasks; per-agent auto-develop crons |
+| ✅ **Todo Tracking** | Per-node task tracking with status lifecycle |
 | 🌐 **Mesh Networking** | Gossip-based peer sync, no central coordinator, runs on any topology |
 | 🔐 **Cryptographic DAG** | Ed25519-signed, BLAKE3-hashed append-only event ledger (Rust native) |
 | ⚡ **Entropy Beacons** | Physical entropy anchors every event chain to real-world hardware state |
 | 🎛️ **Multi-Model Router** | Local GGUF → Ollama → stub fallback. Cheapest path always first |
-| 🤖 **Multi-Agent Orchestration** | Persona-driven agents with skill profiles, DAG execution chains |
-| 🔋 **Edge-First Runtime** | Runs on 2GB RAM, first-class Raspberry Pi + Termux support |
+| 💾 **Persistent Memory** | MEMORY.md / USER.md / SOUL.md flat-file knowledge persistence |
+| 📺 **TT Live Agent** | TikTok Live monetization runtime (Node.js) — personas, skills, revenue, DAG |
+| 🔋 **Edge-First Runtime** | Runs on 2 GB RAM, first-class Raspberry Pi + Termux support |
 
 ---
 
@@ -55,19 +63,40 @@ docker compose up -d
 HTTP/WebSocket
       │
   Coordinator
-    ├── ReasoningEngine   (decompose → analyze → synthesize)
+    ├── ReasoningEngine     (decompose → analyze → synthesize)
     ├── AutomatedThoughtMachine  (generate → critique → revise)
-    ├── AutoLearner       (pattern distillation → MEMORY.md)
-    ├── ModelRouter       (GGUF | Ollama | stub)
+    ├── AutoLearner         (pattern distillation → MEMORY.md)
+    ├── ModelRouter         (GGUF | Ollama | stub)
     ├── Planner + Verifier
-    └── MeshManager       (gossip P2P)
+    │
+    ├── Agent Platform
+    │   ├── AgentRegistry   (CRUD, clone, retire)
+    │   ├── PersonaEngine   (codename, archetype, avatar SVG)
+    │   ├── SkillRegistry   (create, search, load)
+    │   ├── ChainRegistry   (sequential pipelines)
+    │   ├── DelegationManager  (parallel sub-agents)
+    │   ├── SessionStore    (multi-turn history)
+    │   ├── TabProjectionStore  (UI viewports)
+    │   ├── CronScheduler   (background tasks)
+    │   └── TodoStore       (task tracking)
+    │
+    └── MeshManager         (gossip P2P)
           │
     EventDAG  ←──── Rust (BLAKE3 + Ed25519)
           │
     Memory Layer
     ├── ContentAddressedMemory  (BLAKE3 content hashing)
     ├── PersistentMemory        (MEMORY.md + USER.md)
+    ├── SoulFile                (SOUL.md identity)
     └── SessionStore            (turn history)
+
+TT Live Agent (Node.js)
+    ├── Orchestrator        (multi-agent dispatch)
+    ├── DAGStateMachine     (mirrors Python DAG)
+    ├── PersonaEngine       (JSON-driven personas)
+    ├── SkillLoader         (hot-reload skills)
+    ├── OpenClaw            (self-explorer / gap discovery)
+    └── Revenue tracking    (gift handling + stats)
 ```
 
 See [docs/architecture.md](docs/architecture.md) for the full specification.
@@ -123,12 +152,13 @@ make dev
 
 | Milestone | Status |
 |---|---|
-| v1 — Core DAG + Mesh + ATM | ✅ Shipped |
-| v1.5 — Agent Platform (personas, skills, sessions) | ✅ Shipped |
-| **v2 — ReasoningEngine + Auto-Learn** | 🔄 Active |
-| v2.5 — TT Live Agent + JETS token rewards | ⏳ Next |
-| v3 — Distributed swarm, Rust ARM runtime, WASM sandbox | 📋 Planned |
-| v4 — Foundation governance + community grants | 📋 Planned |
+| v1 — Core DAG + Entropy + ModelRouter | ✅ Shipped |
+| v1.5 — ReasoningEngine + ATM + AutoLearner | ✅ Shipped |
+| **v2 — Full Agent Platform** (personas, skills, chains, delegation, sessions, cron, todos, dev workspaces) | ✅ Shipped |
+| **v2.5 — TT Live Agent + Mesh P2P** | ✅ Shipped |
+| v3 — Distributed swarm, mDNS peer discovery, Rust ARM runtime | 🔄 Active |
+| v4 — Post-quantum cryptography (ML-DSA), WASM sandbox | 📋 Planned |
+| v5 — Foundation governance + community grants | 📋 Planned |
 
 Full roadmap: [docs/roadmap.md](docs/roadmap.md)
 
@@ -138,21 +168,38 @@ Full roadmap: [docs/roadmap.md](docs/roadmap.md)
 
 ```
 andyria/
-├── python/andyria/      # Core Python runtime (FastAPI + all agents)
-│   ├── coordinator.py   # Main intelligence loop
-│   ├── reasoning.py     # Chain-of-thought ReasoningEngine
-│   ├── auto_learn.py    # Self-recording AutoLearner
-│   ├── atm.py           # Automated Thought Machine
-│   ├── models.py        # Shared Pydantic models + EventType enum
-│   ├── mesh.py          # P2P gossip networking
-│   └── static/          # Web UI
-├── rust/crates/         # Cryptographic DAG ledger (Rust)
-│   ├── ledger/          # Ed25519 signing + BLAKE3 event DAG
-│   └── runtime/         # Hardware profiling + entropy
-├── tt-live-agent/       # TikTok Live monetization agent (Node.js)
-├── deploy/              # Docker + Raspberry Pi deployment configs
-├── docs/                # GitHub Pages site + architecture docs
-└── schemas/             # JSON event schemas
+├── python/andyria/         # Core Python runtime (FastAPI + all agents)
+│   ├── coordinator.py      # Main intelligence loop
+│   ├── reasoning.py        # Chain-of-thought ReasoningEngine
+│   ├── auto_learn.py       # Self-recording AutoLearner
+│   ├── atm.py              # Automated Thought Machine
+│   ├── models.py           # Shared Pydantic models + EventType enum
+│   ├── registry.py         # AgentRegistry (CRUD, clone, retire)
+│   ├── persona.py          # PersonaEngine + avatar SVG generation
+│   ├── chains.py           # ChainRegistry (sequential pipelines)
+│   ├── delegation.py       # DelegationManager (parallel sub-agents)
+│   ├── session_store.py    # Multi-turn conversation history
+│   ├── projections.py      # TabProjectionStore (UI viewports)
+│   ├── skills.py           # SkillRegistry
+│   ├── cron.py             # CronScheduler
+│   ├── todo.py             # TodoStore
+│   ├── persistent_memory.py# MEMORY.md / USER.md
+│   ├── soul.py             # SOUL.md identity file
+│   ├── mesh.py             # P2P gossip networking
+│   ├── demo.py             # DemoManager
+│   └── static/             # Web UI
+├── rust/crates/            # Cryptographic DAG ledger (Rust)
+│   ├── ledger/             # Ed25519 signing + BLAKE3 event DAG
+│   └── runtime/            # Hardware profiling + entropy
+├── tt-live-agent/          # TikTok Live monetization agent (Node.js)
+│   ├── core/               # Orchestrator, DAG, persona, LLM, skills, revenue
+│   ├── agents/             # Per-agent config JSON
+│   ├── personas/           # Persona definitions
+│   └── skills/             # Revenue, hype, shoutout, sales, greet
+├── deploy/                 # Docker + Raspberry Pi deployment configs
+│   └── presets/agents.json # Agent preset templates
+├── docs/                   # GitHub Pages site + architecture docs
+└── schemas/                # JSON event schemas
 ```
 
 ---

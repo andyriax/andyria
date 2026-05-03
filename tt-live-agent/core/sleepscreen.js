@@ -32,7 +32,7 @@ let _html    = null;  // cached HTML (re-read on each launch so edits take effec
 
 /**
  * Push a typed event to all connected browser clients.
- * @param {string} type  - 'thought' | 'status' | 'wake' | 'openclaw'
+ * @param {string} type  - 'thought' | 'status' | 'wake' | 'openclaw' | 'jina'
  * @param {object} data
  */
 function push(type, data) {

@@ -18,6 +18,7 @@ import contextlib
 import hashlib
 import json
 import operator
+import logging
 import queue
 import time
 from pathlib import Path
@@ -84,6 +85,8 @@ from .store import EventStore
 from .tools import ToolRegistry
 from .verifier import Verifier
 
+logger = logging.getLogger(__name__)
+
 
 def _hash(data: bytes) -> str:
     try:
@@ -130,7 +133,7 @@ def _safe_eval_math(expr: str) -> float:
     """Evaluate a basic arithmetic expression using AST only. No eval()."""
     tree = ast.parse(expr.strip(), mode="eval")
 
-    def _eval(node: ast.expr) -> float:  # type: ignore[return]
+    def _eval(node: ast.AST) -> float:  # type: ignore[return]
         if isinstance(node, ast.Expression):
             return _eval(node.body)
         if isinstance(node, ast.Constant):
@@ -149,7 +152,7 @@ def _safe_eval_math(expr: str) -> float:
             return op_fn(_eval(node.operand))
         raise ValueError(f"Unsupported AST node: {type(node).__name__}")
 
-    return _eval(tree)
+    return _eval(tree.body)
 
 
 # ---------------------------------------------------------------------------
@@ -607,7 +610,7 @@ class Coordinator:
             if learned_block:
                 merged_context["_learned"] = learned_block
         except Exception:
-            pass
+            logger.warning("learned_context_block failed", exc_info=True)
 
         # 7. Self-reflection — ATM reflect pass (only when a real LLM backend answered)
         reflection_result: Optional[ReflectionResult] = None
@@ -636,7 +639,7 @@ class Coordinator:
                     combined = log.final_output
                     avg_confidence = log.final_confidence
             except Exception:
-                pass  # reflection is best-effort; never fail the main response
+                logger.warning("ATM reflection failed (best-effort)", exc_info=True)
 
         # 7b. Auto-learn — record high-quality outputs for future context injection
 
@@ -677,7 +680,7 @@ class Coordinator:
                 model_used=final_model,
             )
         except Exception:
-            pass
+            logger.warning("AutoLearner.record failed", exc_info=True)
 
         # 8. Persist session turn
         if request.session_id:
@@ -993,7 +996,7 @@ class Coordinator:
                         )
                         return result, f"tool:{name}", 0.99
                     except Exception:
-                        pass
+                        logger.warning("Tool dispatch failed: %s", name, exc_info=True)
         return self._router.route(task_type, description, context)
 
     # ------------------------------------------------------------------

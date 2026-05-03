@@ -151,6 +151,19 @@ const ctx = {
   log   : (type, payload) => appendEvent('agent:main', type, payload),
 };
 
+function _emitAssistantSignal(channel, event, payload = {}) {
+  try {
+    dispatch(channel, {
+      uniqueId: payload.user || payload.username || 'system',
+      userId: payload.user || payload.username || 'system',
+      event,
+      ...payload,
+    }, ctx);
+  } catch (_) {
+    // Assistant signals are additive and should never block the live runtime.
+  }
+}
+
 // ── Sleep / Use-Case Finder ─────────────────────────────────────────────────
 sleeper.init({
   speak  : (text, opts) => speakAndLog(text, { ...opts }, { source: 'sleeper' }),
@@ -439,6 +452,12 @@ function scheduleReconnect(reason = 'unknown') {
     reason,
     attempt: reconnectAttempt + 1,
     delay_ms: delay,
+  });
+  _emitAssistantSignal('host', 'gift_received', {
+    severity: 'high',
+    user: data.uniqueId,
+    gift: data.giftName,
+    coins: data.diamondCount || data.repeatCount || 0,
   });
 
   reconnectTimer = setTimeout(() => {

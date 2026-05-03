@@ -2,7 +2,7 @@
   "id": "chat-commander",
   "persona": "creator",
   "triggers": ["chat"],
-  "skills": ["/greet", "/hype", "/shoutout", "/drop", "/revenue", "/game", "/persona", "/skill", "/dag", "/help"],
+  "skills": ["/greet", "/hype", "/shoutout", "/drop", "/revenue", "/game", "/persona", "/skill", "/dag", "/help", "/jina"],
   "autonomous": false,
   "active": true,
   "description": "Routes /commands from chat — the BotFather-style command handler"

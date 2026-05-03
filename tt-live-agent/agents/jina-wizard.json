@@ -1,0 +1,9 @@
+{
+  "id": "jina-wizard",
+  "persona": "jina",
+  "triggers": ["host", "system"],
+  "skills": ["/jina"],
+  "autonomous": true,
+  "active": true,
+  "description": "Floating architect assistant for host and system events"
+}
