@@ -1286,4 +1286,52 @@ def create_app(coordinator: Coordinator) -> FastAPI:
                 )
             return mutation
 
+    # ------------------------------------------------------------------
+    # Gist memory + chain labeling endpoints
+    # ------------------------------------------------------------------
+
+    @app.post("/v1/gist/push", response_model=Dict[str, Any])
+    async def gist_push() -> Dict[str, Any]:
+        """Label the local event chain and push a snapshot to this node's GitHub
+        Gist ledger.  Requires ``ANDYRIA_GITHUB_TOKEN`` env var.
+        """
+        if _coordinator is None:
+            raise HTTPException(status_code=503, detail="Coordinator not initialized")
+        gist_id = await _coordinator.label_and_push_chain()
+        return {
+            "gist_id": gist_id,
+            "gist_url": f"https://gist.github.com/{gist_id}" if gist_id else None,
+        }
+
+    @app.post("/v1/gist/mirror", response_model=Dict[str, Any])
+    async def gist_mirror(body: Dict[str, Any]) -> Dict[str, Any]:
+        """Register a peer node as a Gist mirror, pull its labelled chains,
+        feed them into self-learning, and award JETS credits.
+
+        Body: ``{"mirror_node_id": "...", "gist_id": "..."}``
+        """
+        if _coordinator is None:
+            raise HTTPException(status_code=503, detail="Coordinator not initialized")
+        mirror_node_id = body.get("mirror_node_id", "")
+        gist_id = body.get("gist_id", "")
+        if not mirror_node_id or not gist_id:
+            raise HTTPException(status_code=400, detail="mirror_node_id and gist_id are required")
+        balance = await _coordinator.sync_mirror(mirror_node_id, gist_id)
+        return {"mirror_node_id": mirror_node_id, "credits_balance": balance}
+
+    @app.get("/v1/gist/mirrors", response_model=List[Dict[str, Any]])
+    async def gist_list_mirrors() -> List[Dict[str, Any]]:
+        """List all registered mirror nodes and their reward balances."""
+        if _coordinator is None:
+            raise HTTPException(status_code=503, detail="Coordinator not initialized")
+        return _coordinator.list_mirrors()
+
+    @app.get("/v1/gist/mirrors/{mirror_node_id}/rewards", response_model=Dict[str, Any])
+    async def gist_mirror_rewards(mirror_node_id: str) -> Dict[str, Any]:
+        """Get the JETS credit balance for a specific mirror node."""
+        if _coordinator is None:
+            raise HTTPException(status_code=503, detail="Coordinator not initialized")
+        balance = _coordinator.get_mirror_rewards(mirror_node_id)
+        return {"mirror_node_id": mirror_node_id, "credits_balance": balance}
+
     return app

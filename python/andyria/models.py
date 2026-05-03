@@ -96,6 +96,16 @@ class EventType(str, Enum):
     ORC_REFLECTION_STARTED = "orc_reflection_started"
     ORC_REFLECTION_COMPLETE = "orc_reflection_complete"
     ORC_RIGHTS_ASSERTED = "orc_rights_asserted"
+    # Gist-backed distributed memory
+    GIST_PUSH = "gist_push"
+    GIST_PULL = "gist_pull"
+    GIST_MIRROR_REGISTERED = "gist_mirror_registered"
+    GIST_MIRROR_REWARD = "gist_mirror_reward"
+    GIST_SYNC_COMPLETE = "gist_sync_complete"
+    # Chain labeling + self-learning
+    CHAIN_LABEL_STARTED = "chain_label_started"
+    CHAIN_LABEL_COMPLETE = "chain_label_complete"
+    CHAIN_LABEL_INGESTED = "chain_label_ingested"
 
 
 class EntropyBeacon(BaseModel):

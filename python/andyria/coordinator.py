@@ -36,6 +36,8 @@ from .reasoning import ReasoningEngine
 from .auto_learn import AutoLearner
 from .orc import OuterReasoningCortex
 from .persistent_memory import PersistentMemory
+from .gist_store import GistStore
+from .chain_labeler import ChainLabeler
 from .promptbook import PromptbookRegistry
 from .workflow import WorkflowRegistry, WorkflowRunner
 from .models import (
@@ -457,6 +459,13 @@ class Coordinator:
         self._orc = OuterReasoningCortex(
             inference_fn=self._atm_infer,
             emit_event_fn=self._emit_control_event_str,
+        )
+
+        # Gist-backed distributed memory + chain labeling
+        self._gist_store = GistStore(node_id=node_id)
+        self._chain_labeler = ChainLabeler(
+            memory=self._memory,
+            auto_learner=self._learner,
         )
 
     async def start_background_tasks(self) -> None:
@@ -1270,6 +1279,67 @@ class Coordinator:
             ollama_model=self._router._ollama_model,
             model_path=str(self._router._model_path) if self._router._model_path else None,
         )
+
+    # ------------------------------------------------------------------
+    # Gist memory + chain labeling public API
+    # ------------------------------------------------------------------
+
+    async def label_and_push_chain(self) -> Optional[str]:
+        """Label the local event chain, learn from it, and push a snapshot to
+        this node's GitHub Gist ledger.
+
+        Returns the gist ID on success, or ``None`` if no token is configured.
+        Steps:
+          1. Topological-sort all local events.
+          2. Label sessions via ChainLabeler (self-learning side-effect).
+          3. Persist labels to ContentAddressedMemory.
+          4. Push ledger NDJSON + labels JSON to GitHub Gist.
+        """
+        events = self._event_log[:]
+        sessions = self._chain_labeler.label(events)
+        self._chain_labeler.flush_to_memory(sessions)
+        chains_export = self._chain_labeler.as_export_dicts(sessions)
+        gist_id = await self._gist_store.push(events, chains_export)
+        self._emit_control_event_str(
+            "chain_label_complete",
+            {
+                "sessions_labelled": len(sessions),
+                "gist_id": gist_id,
+                "node_id": self._node_id,
+            },
+            None,
+        )
+        return gist_id
+
+    async def sync_mirror(self, mirror_node_id: str, gist_id: str) -> int:
+        """Pull a peer's Gist, ingest labelled chains into self-learning loop,
+        and reward the mirror node.
+
+        Returns the mirror's updated credit balance.
+        """
+        self._gist_store.register_mirror(mirror_node_id, gist_id)
+        remote_labels = await self._gist_store.pull_labels(gist_id, node_id_hint=mirror_node_id)
+        ingested = self._chain_labeler.ingest_remote_labels(remote_labels)
+        balance = self._gist_store.record_mirror_sync(mirror_node_id)
+        self._emit_control_event_str(
+            "gist_mirror_reward",
+            {
+                "mirror_node_id": mirror_node_id,
+                "gist_id": gist_id,
+                "labels_ingested": ingested,
+                "credits_balance": balance,
+            },
+            None,
+        )
+        return balance
+
+    def get_mirror_rewards(self, mirror_node_id: str) -> int:
+        """Return accumulated JETS credit balance for a mirror node."""
+        return self._gist_store.get_rewards(mirror_node_id)
+
+    def list_mirrors(self) -> list:
+        """Return all registered mirror nodes with their stats."""
+        return self._gist_store.list_mirrors()
 
     def update_config(self, update: NodeConfigUpdate) -> NodeConfig:
         self._router.update(
