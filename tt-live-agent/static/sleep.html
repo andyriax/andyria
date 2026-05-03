@@ -34,8 +34,13 @@
       background: var(--panel);
       border: 1px solid var(--border);
       border-radius: 12px;
-      backdrop-filter: blur(8px);
+      backdrop-filter: none;
       padding: 20px;
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      .panel { backdrop-filter: none; }
+      #idle-badge, #agent-id, #thought-hdr::before { animation: none; }
     }
 
     /* ── Clock ── */
@@ -50,7 +55,7 @@
       margin-top: 6px; padding: 4px 12px;
       border: 1px solid var(--border); border-radius: 20px;
       color: var(--glow); font-size: 10px; letter-spacing: 2px;
-      animation: pulse 3s ease-in-out infinite;
+      animation: none;
     }
 
     /* ── Thoughts ── */
@@ -60,7 +65,7 @@
       text-transform: uppercase; margin-bottom: 14px;
       display: flex; align-items: center; gap: 8px;
     }
-    #thought-hdr::before { content: ''; display: block; width: 6px; height: 6px; border-radius: 50%; background: var(--glow); animation: pulse 2s ease-in-out infinite; }
+    #thought-hdr::before { content: ''; display: block; width: 6px; height: 6px; border-radius: 50%; background: var(--glow); animation: none; }
     #thought-stream {
       flex: 1; overflow: hidden; display: flex; flex-direction: column;
       justify-content: flex-end; gap: 10px;
@@ -93,7 +98,7 @@
       padding-top: 12px;
       color: var(--dim); font-size: 10px; letter-spacing: 1px;
     }
-    #agent-id  { color: var(--glow); animation: pulse 3s ease-in-out infinite; }
+    #agent-id  { color: var(--glow); animation: none; }
     #llm-prov  { }
     #uptime-st { }
 
@@ -173,12 +178,24 @@
   const canvas = document.getElementById('scene');
   const ctx    = canvas.getContext('2d');
   let W, H, stars = [], trees = [], shoots = [], t = 0;
+  const CALM_MODE = true;
+  const STATIC_MODE = true;
+  let dpr = 1;
+  const targetFps = 30;
+  const frameMs = 1000 / targetFps;
+  let lastFrameTime = 0;
 
   const rnd = (a, b) => Math.random() * (b - a) + a;
 
   function resize() {
-    W = canvas.width  = window.innerWidth;
-    H = canvas.height = window.innerHeight;
+    W = window.innerWidth;
+    H = window.innerHeight;
+    dpr = Math.min(window.devicePixelRatio || 1, 2);
+    canvas.style.width = `${W}px`;
+    canvas.style.height = `${H}px`;
+    canvas.width = Math.floor(W * dpr);
+    canvas.height = Math.floor(H * dpr);
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     buildScene();
   }
 
@@ -228,7 +245,7 @@
   }
 
   function drawStar(s) {
-    const tw = 0.4 + 0.6 * (0.5 + 0.5 * Math.sin(t * s.ts + s.tp));
+    const tw = CALM_MODE ? 0.85 : (0.4 + 0.6 * (0.5 + 0.5 * Math.sin(t * s.ts + s.tp)));
     ctx.beginPath();
     ctx.arc(s.x, s.y, s.r * tw, 0, Math.PI * 2);
     ctx.fillStyle = `rgba(200,220,255,${s.b * tw})`;
@@ -290,6 +307,7 @@
   }
 
   function spawnShoot() {
+    if (CALM_MODE) return;
     if (shoots.length < 3 && Math.random() < 0.0018) {
       shoots.push({ x: rnd(W * 0.1, W * 0.9), y: rnd(H * 0.04, H * 0.3), vx: rnd(3, 8), vy: rnd(1.2, 3), len: rnd(60, 130), a: 1 });
     }
@@ -307,8 +325,13 @@
     });
   }
 
-  function frame() {
-    t += 0.016;
+  function frame(now) {
+    if (!STATIC_MODE && lastFrameTime && (now - lastFrameTime) < frameMs) {
+      requestAnimationFrame(frame);
+      return;
+    }
+    lastFrameTime = now;
+    if (!CALM_MODE && !STATIC_MODE) t += 0.016;
     ctx.clearRect(0, 0, W, H);
     // Sky
     const sky = ctx.createLinearGradient(0, 0, 0, H);
@@ -319,11 +342,18 @@
     spawnShoot(); drawShoots();
     drawMoon();
     drawTrees();
-    requestAnimationFrame(frame);
+    if (!STATIC_MODE) {
+      requestAnimationFrame(frame);
+    }
   }
 
   window.addEventListener('resize', resize);
-  resize(); frame();
+  resize();
+  if (STATIC_MODE) {
+    frame(0);
+  } else {
+    requestAnimationFrame(frame);
+  }
 })();
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -351,16 +381,16 @@
 
   function tick() {
     const n = new Date();
-    const h = n.getHours(), m = n.getMinutes(), s = n.getSeconds(), ms = n.getMilliseconds();
+    const h = n.getHours(), m = n.getMinutes(), s = n.getSeconds();
     hH.setAttribute('transform', `rotate(${((h % 12) + m / 60) / 12 * 360 - 90})`);
     hM.setAttribute('transform', `rotate(${(m + s / 60) / 60 * 360 - 90})`);
-    hS.setAttribute('transform', `rotate(${(s + ms / 1000) / 60 * 360 - 90})`);
+    hS.setAttribute('transform', `rotate(${s / 60 * 360 - 90})`);
     document.getElementById('time-txt').textContent =
       String(h).padStart(2,'0') + ':' + String(m).padStart(2,'0') + ':' + String(s).padStart(2,'0');
     document.getElementById('date-txt').textContent =
       days[n.getDay()] + '  ·  ' + months[n.getMonth()] + ' ' + n.getDate() + ', ' + n.getFullYear();
   }
-  setInterval(tick, 50); tick();
+  setInterval(tick, 1000); tick();
 })();
 
 // ─────────────────────────────────────────────────────────────────────────────

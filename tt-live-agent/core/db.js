@@ -16,6 +16,7 @@ const { seal } = require('./identity');
 
 const DATA_DIR = path.join(__dirname, '..', 'data');
 if (!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR, { recursive: true });
+const NDJSON_PATH = path.join(DATA_DIR, 'events.ndjson');
 
 const db = new Database(path.join(DATA_DIR, 'runtime.db'));
 
@@ -93,6 +94,21 @@ function appendEvent(streamId, eventType, payload) {
     seal       : sealed._seal,
     ts,
   });
+
+  // Structured log stream for tailing and external ingestion.
+  try {
+    fs.appendFileSync(NDJSON_PATH, JSON.stringify({
+      ts,
+      iso_ts: new Date(ts).toISOString(),
+      stream_id: streamId,
+      event_type: eventType,
+      payload,
+      seal: sealed._seal,
+    }) + '\n', 'utf8');
+  } catch (_) {
+    // Keep runtime resilient if filesystem logging fails.
+  }
+
   return sealed;
 }
 

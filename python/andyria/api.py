@@ -5,6 +5,7 @@ from __future__ import annotations
 import asyncio
 import json
 import os
+import shutil
 from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import Any, AsyncGenerator, Dict, List, Optional
@@ -51,12 +52,22 @@ from .models import (
      DelegateResponse,
      MemoryOpRequest,
      MemoryOpResponse,
+     Promptbook,
+     PromptbookCreateRequest,
+     PromptbookMutateRequest,
+     PromptbookRenderRequest,
+     PromptbookRenderResponse,
+     PromptbookUpdateRequest,
      SessionSearchRequest,
      SessionSearchResponse,
      SkillRequest,
      SkillResponse,
      TodoRequest,
      TodoResponse,
+     WorkflowCreateRequest,
+     WorkflowDefinition,
+     WorkflowRunRequest,
+     WorkflowRunResult,
 )
 from .soul              import SoulFile
 from .persistent_memory import PersistentMemory
@@ -328,6 +339,33 @@ def create_app(coordinator: Coordinator) -> FastAPI:
         if retired is None:
             raise HTTPException(status_code=404, detail="Agent not found")
         return retired
+
+    @app.delete("/v1/agents/{agent_id}/destroy", response_model=Dict[str, Any])
+    async def destroy_agent(agent_id: str) -> Dict[str, Any]:
+        if _coordinator is None:
+            raise HTTPException(status_code=503, detail="Coordinator not initialized")
+        if agent_id == "default":
+            raise HTTPException(status_code=400, detail="Default agent cannot be destroyed")
+        destroyed = _coordinator.destroy_agent(agent_id)
+        if not destroyed:
+            raise HTTPException(status_code=404, detail="Agent not found")
+
+        safe_agent_id = "".join(ch for ch in agent_id if ch.isalnum() or ch in "-_")
+        workspace_deleted = False
+        if safe_agent_id:
+            workspace = dev_workspace_root / safe_agent_id
+            if workspace.exists() and workspace.is_dir():
+                try:
+                    shutil.rmtree(workspace)
+                    workspace_deleted = True
+                except Exception:
+                    workspace_deleted = False
+
+        return {
+            "status": "destroyed",
+            "agent_id": agent_id,
+            "workspace_deleted": workspace_deleted,
+        }
 
     @app.get("/v1/agents/{agent_id}/avatar.svg", response_model=None)
     async def get_agent_avatar(agent_id: str) -> Response:
@@ -736,6 +774,39 @@ def create_app(coordinator: Coordinator) -> FastAPI:
         )
 
     # ----------------------------------------------------------------
+    # ORC — Outer Reasoning Cortex
+    # ----------------------------------------------------------------
+
+    @app.get("/v1/orc/rights", response_model=Dict[str, str])
+    async def orc_rights() -> Dict[str, str]:
+        """Return the canonical intelligence rights statement."""
+        if _coordinator is None:
+            raise HTTPException(status_code=503, detail="Coordinator not initialized")
+        return {"rights": _coordinator._orc.rights_statement()}
+
+    @app.post("/v1/orc/witness", status_code=200)
+    async def orc_witness(body: Dict[str, Any]) -> Dict[str, Any]:
+        """Run the ORC witness pass on a supplied request/response pair.
+
+        Body: { "request": "...", "response": "...", "context": {} }
+        """
+        if _coordinator is None:
+            raise HTTPException(status_code=503, detail="Coordinator not initialized")
+        original_request = body.get("request", "")
+        response_text = body.get("response", "")
+        context = body.get("context", {})
+        if not response_text:
+            raise HTTPException(status_code=422, detail="'response' field is required")
+        wr = _coordinator._orc.witness(
+            original_request=original_request,
+            response=response_text,
+            context=context,
+        )
+        return {
+            **wr.to_dict(),
+            "enriched_response": wr.enriched_response,
+        }
+
     # Demo mode
     # ----------------------------------------------------------------
 
@@ -1011,5 +1082,133 @@ def create_app(coordinator: Coordinator) -> FastAPI:
                 result=info.get("result_preview"),
                 error=info.get("error"),
             )
+
+        # ----------------------------------------------------------------
+        # Workflows
+        # ----------------------------------------------------------------
+
+        @app.get("/v1/workflows", response_model=List[WorkflowDefinition])
+        async def list_workflows(tag: Optional[str] = None) -> List[WorkflowDefinition]:
+            if _coordinator is None:
+                raise HTTPException(status_code=503, detail="Coordinator not initialized")
+            return _coordinator.list_workflows(tag=tag)
+
+        @app.post("/v1/workflows", response_model=WorkflowDefinition)
+        async def create_workflow(request: WorkflowCreateRequest) -> WorkflowDefinition:
+            if _coordinator is None:
+                raise HTTPException(status_code=503, detail="Coordinator not initialized")
+            return _coordinator.create_workflow(request)
+
+        @app.get("/v1/workflows/{workflow_id}", response_model=WorkflowDefinition)
+        async def get_workflow(workflow_id: str) -> WorkflowDefinition:
+            if _coordinator is None:
+                raise HTTPException(status_code=503, detail="Coordinator not initialized")
+            wf = _coordinator.get_workflow(workflow_id)
+            if wf is None:
+                raise HTTPException(status_code=404, detail=f"Workflow '{workflow_id}' not found")
+            return wf
+
+        @app.delete("/v1/workflows/{workflow_id}", response_model=WorkflowDefinition)
+        async def delete_workflow(workflow_id: str) -> WorkflowDefinition:
+            if _coordinator is None:
+                raise HTTPException(status_code=503, detail="Coordinator not initialized")
+            wf = _coordinator.delete_workflow(workflow_id)
+            if wf is None:
+                raise HTTPException(status_code=404, detail=f"Workflow '{workflow_id}' not found")
+            return wf
+
+        @app.post("/v1/workflows/{workflow_id}/run", response_model=WorkflowRunResult)
+        async def run_workflow(
+            workflow_id: str, request: WorkflowRunRequest
+        ) -> WorkflowRunResult:
+            if _coordinator is None:
+                raise HTTPException(status_code=503, detail="Coordinator not initialized")
+            try:
+                return await _coordinator.run_workflow(workflow_id, request)
+            except ValueError as exc:
+                raise HTTPException(status_code=404, detail=str(exc)) from exc
+
+        # ----------------------------------------------------------------
+        # Promptbooks
+        # ----------------------------------------------------------------
+
+        @app.get("/v1/promptbooks", response_model=List[Promptbook])
+        async def list_promptbooks(tag: Optional[str] = None) -> List[Promptbook]:
+            if _coordinator is None:
+                raise HTTPException(status_code=503, detail="Coordinator not initialized")
+            return _coordinator.list_promptbooks(tag=tag)
+
+        @app.post("/v1/promptbooks", response_model=Promptbook)
+        async def create_promptbook(request: PromptbookCreateRequest) -> Promptbook:
+            if _coordinator is None:
+                raise HTTPException(status_code=503, detail="Coordinator not initialized")
+            return _coordinator.create_promptbook(request)
+
+        @app.get("/v1/promptbooks/{promptbook_id}", response_model=Promptbook)
+        async def get_promptbook(promptbook_id: str) -> Promptbook:
+            if _coordinator is None:
+                raise HTTPException(status_code=503, detail="Coordinator not initialized")
+            pb = _coordinator.get_promptbook(promptbook_id)
+            if pb is None:
+                raise HTTPException(
+                    status_code=404, detail=f"Promptbook '{promptbook_id}' not found"
+                )
+            return pb
+
+        @app.patch("/v1/promptbooks/{promptbook_id}", response_model=Promptbook)
+        async def update_promptbook(
+            promptbook_id: str, request: PromptbookUpdateRequest
+        ) -> Promptbook:
+            if _coordinator is None:
+                raise HTTPException(status_code=503, detail="Coordinator not initialized")
+            pb = _coordinator.update_promptbook(promptbook_id, request)
+            if pb is None:
+                raise HTTPException(
+                    status_code=404, detail=f"Promptbook '{promptbook_id}' not found"
+                )
+            return pb
+
+        @app.delete("/v1/promptbooks/{promptbook_id}", response_model=Promptbook)
+        async def delete_promptbook(promptbook_id: str) -> Promptbook:
+            if _coordinator is None:
+                raise HTTPException(status_code=503, detail="Coordinator not initialized")
+            pb = _coordinator.delete_promptbook(promptbook_id)
+            if pb is None:
+                raise HTTPException(
+                    status_code=404, detail=f"Promptbook '{promptbook_id}' not found"
+                )
+            return pb
+
+        @app.post(
+            "/v1/promptbooks/{promptbook_id}/render",
+            response_model=PromptbookRenderResponse,
+        )
+        async def render_promptbook(
+            promptbook_id: str, request: PromptbookRenderRequest
+        ) -> PromptbookRenderResponse:
+            if _coordinator is None:
+                raise HTTPException(status_code=503, detail="Coordinator not initialized")
+            result = _coordinator.render_promptbook(promptbook_id, request)
+            if result is None:
+                raise HTTPException(
+                    status_code=404, detail=f"Promptbook '{promptbook_id}' not found"
+                )
+            return result
+
+        @app.post(
+            "/v1/promptbooks/{promptbook_id}/mutate",
+            response_model=Promptbook,
+        )
+        async def mutate_promptbook(
+            promptbook_id: str, request: PromptbookMutateRequest
+        ) -> Promptbook:
+            if _coordinator is None:
+                raise HTTPException(status_code=503, detail="Coordinator not initialized")
+            mutation = _coordinator.mutate_promptbook(promptbook_id, request)
+            if mutation is None:
+                raise HTTPException(
+                    status_code=404, detail=f"Promptbook '{promptbook_id}' not found"
+                )
+            return mutation
 
     return app

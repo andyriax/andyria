@@ -1,6 +1,7 @@
 """CLI entry point for Andyria."""
 
 from __future__ import annotations
+import os
 import sys
 import uuid
 
@@ -42,6 +43,7 @@ def serve(
     from .coordinator import Coordinator
 
     cfg = _load_config(config)
+    perf_cfg = cfg.get("performance", {})
     resolved_node_id = node_id or cfg.get("node_id", "andyria-node-0")
     resolved_data_dir = Path(cfg.get("data_dir", str(data_dir)))
     model_path = Path(cfg["model_path"]) if cfg.get("model_path") else None
@@ -58,6 +60,17 @@ def serve(
         node_id=resolved_node_id,
         deployment_class=cfg.get("deployment_class", "edge"),
         entropy_sources=cfg.get("entropy_sources"),
+        entropy_sampler_interval_ms=int(
+            os.environ.get(
+                "ANDYRIA_ENTROPY_SAMPLER_INTERVAL_MS",
+                perf_cfg.get("beacon_interval_ms", 0),
+            )
+        ),
+        entropy_min_active_sources=int(os.environ.get("ANDYRIA_ENTROPY_MIN_ACTIVE_SOURCES", 1)),
+        entropy_max_consecutive_degraded=int(
+            os.environ.get("ANDYRIA_ENTROPY_MAX_CONSECUTIVE_DEGRADED", 3)
+        ),
+        entropy_fail_closed=os.environ.get("ANDYRIA_ENTROPY_FAIL_CLOSED", "0") == "1",
         model_path=model_path,
         ollama_url=ollama_url or cfg.get("ollama_url"),
         ollama_model=ollama_model or cfg.get("ollama_model"),
@@ -89,6 +102,7 @@ def ask(
     from .models import AndyriaRequest
 
     cfg = _load_config(config)
+    perf_cfg = cfg.get("performance", {})
     resolved_node_id = node_id or cfg.get("node_id", "andyria-node-0")
     model_path = Path(cfg["model_path"]) if cfg.get("model_path") else None
 
@@ -97,6 +111,17 @@ def ask(
         node_id=resolved_node_id,
         deployment_class=cfg.get("deployment_class", "edge"),
         entropy_sources=cfg.get("entropy_sources"),
+        entropy_sampler_interval_ms=int(
+            os.environ.get(
+                "ANDYRIA_ENTROPY_SAMPLER_INTERVAL_MS",
+                perf_cfg.get("beacon_interval_ms", 0),
+            )
+        ),
+        entropy_min_active_sources=int(os.environ.get("ANDYRIA_ENTROPY_MIN_ACTIVE_SOURCES", 1)),
+        entropy_max_consecutive_degraded=int(
+            os.environ.get("ANDYRIA_ENTROPY_MAX_CONSECUTIVE_DEGRADED", 3)
+        ),
+        entropy_fail_closed=os.environ.get("ANDYRIA_ENTROPY_FAIL_CLOSED", "0") == "1",
         model_path=model_path,
         ollama_url=ollama_url or cfg.get("ollama_url"),
         ollama_model=ollama_model or cfg.get("ollama_model"),
@@ -180,6 +205,7 @@ def chat(
     from .context_compressor import ContextCompressor
 
     cfg = _load_config(config)
+    perf_cfg = cfg.get("performance", {})
     resolved_node_id = node_id or cfg.get("node_id", "andyria-node-0")
     resolved_data_dir = Path(cfg.get("data_dir", str(data_dir)))
     model_path = Path(cfg["model_path"]) if cfg.get("model_path") else None
@@ -205,6 +231,17 @@ def chat(
         node_id=resolved_node_id,
         deployment_class=cfg.get("deployment_class", "edge"),
         entropy_sources=cfg.get("entropy_sources"),
+        entropy_sampler_interval_ms=int(
+            os.environ.get(
+                "ANDYRIA_ENTROPY_SAMPLER_INTERVAL_MS",
+                perf_cfg.get("beacon_interval_ms", 0),
+            )
+        ),
+        entropy_min_active_sources=int(os.environ.get("ANDYRIA_ENTROPY_MIN_ACTIVE_SOURCES", 1)),
+        entropy_max_consecutive_degraded=int(
+            os.environ.get("ANDYRIA_ENTROPY_MAX_CONSECUTIVE_DEGRADED", 3)
+        ),
+        entropy_fail_closed=os.environ.get("ANDYRIA_ENTROPY_FAIL_CLOSED", "0") == "1",
         model_path=model_path,
         ollama_url=ollama_url or cfg.get("ollama_url"),
         ollama_model=ollama_model or cfg.get("ollama_model"),
