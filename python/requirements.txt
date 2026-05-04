@@ -8,5 +8,6 @@ cryptography>=42.0.0
 aiofiles>=23.0.0
 pyyaml>=6.0
 psutil>=5.9.0
+pyserial>=3.5
 # Optional — uncomment for local LLM inference via llama.cpp:
 # llama-cpp-python>=0.2.50

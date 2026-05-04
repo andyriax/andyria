@@ -197,12 +197,15 @@ def build_collector_chain(sources: Optional[List[str]] = None) -> List[EntropySo
         sources: Optional allowlist of source names. Defaults to all available.
                  ``os_urandom`` is always included as a fallback floor.
     """
+    from .mcu_collector import McuEntropySource  # local import avoids circular deps
+
     all_sources: List[EntropySource] = [
         OsUrandomSource(),
         HwRngSource(),
         ClockJitterSource(),
         ThermalSource(),
         SystemStatsSource(),
+        McuEntropySource(),
     ]
 
     available = [s for s in all_sources if s.available]

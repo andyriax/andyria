@@ -743,6 +743,35 @@ def create_app(coordinator: Coordinator) -> FastAPI:
             raise HTTPException(status_code=503, detail="Coordinator not initialized")
         return _coordinator.mesh.growth_report()
 
+    # ── MCU device endpoints ─────────────────────────────────────────────────
+    @app.post("/v1/mcu/heartbeat", response_model=Dict[str, Any])
+    async def mcu_heartbeat(payload: Dict[str, Any]) -> Dict[str, Any]:
+        """Receive a heartbeat from a connected MCU edge node.
+
+        Written to ``<data_dir>/mcu_telemetry.ndjson`` as an append-only
+        structured log so device liveness is auditable without requiring
+        a full DAG event round-trip.
+        """
+        import time as _time
+
+        node_id = str(payload.get("node_id") or "unknown")
+        record = {
+            "ts":        _time.time(),
+            "node_id":   node_id,
+            "agent_id":  payload.get("agent_id"),
+            "uptime_ms": payload.get("uptime_ms"),
+            "free_heap": payload.get("free_heap"),
+            "rssi":      payload.get("rssi"),
+        }
+        if _coordinator is not None:
+            telem_path = _coordinator._data_dir / "mcu_telemetry.ndjson"
+            try:
+                with open(telem_path, "a", encoding="utf-8") as fh:
+                    fh.write(json.dumps(record) + "\n")
+            except OSError:
+                pass
+        return {"ok": True, "node_id": node_id}
+
     @app.get("/health")
     async def health() -> Dict[str, Any]:
         if _coordinator is None:
