@@ -230,6 +230,10 @@ The **Andyria Foundation** is committed to:
 - **Radical transparency** — every decision is a signed, auditable event
 - **Community governance** — roadmap driven by contributors, not investors
 
+Operational guidance for sovereign runtime controls:
+
+- [Sovereign Governance Baseline](docs/sovereign-governance-baseline.md)
+
 ### 💛 CFF Commitment
 
 **50% of all Andyria Foundation profits are donated to the [Cystic Fibrosis Foundation](https://www.cff.org).**  

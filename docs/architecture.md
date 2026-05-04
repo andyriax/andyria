@@ -204,6 +204,7 @@ This binds:
 | PQ upgrade path | `NodeKeyPair` sign/verify swappable → ML-DSA |
 | Entropy health | NIST SP 800-90B RCT + APT tests |
 | Safe symbolic eval | AST-only evaluator; no `eval()` or `exec()` |
+| Tool governance gate | Allow/deny lists, input length caps, injection-pattern blocking |
 | Key storage | Identity PEM, mode 0o600 |
 | CORS restriction | localhost/127.0.0.1 only |
 | Policy filter | Blocks shell injection patterns in outputs |

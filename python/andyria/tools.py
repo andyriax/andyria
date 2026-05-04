@@ -6,11 +6,70 @@ Custom tools can be registered via ToolRegistry.register().
 
 from __future__ import annotations
 
+import os
+import re
 import time
+from dataclasses import dataclass, field
 from typing import Any, Callable, Dict, List
 
 # Function signature: (text: str, context: dict) -> str
 _ToolFn = Callable[[str, Dict[str, Any]], str]
+
+
+@dataclass
+class ToolPolicy:
+    """Runtime policy controls for tool execution."""
+
+    max_input_chars: int = 4096
+    allowed_tools: set[str] = field(default_factory=set)
+    denied_tools: set[str] = field(default_factory=set)
+    blocked_input_patterns: List[re.Pattern[str]] = field(
+        default_factory=lambda: [
+            # Basic command-injection primitives should never reach tool bodies.
+            re.compile(r"(;|&&|\|\||`|\$\(|<\(|\n)")
+        ]
+    )
+
+    @classmethod
+    def from_env(cls) -> "ToolPolicy":
+        """Build policy from environment variables.
+
+        Supported env vars:
+        - ANDYRIA_TOOL_MAX_INPUT_CHARS (int)
+        - ANDYRIA_ALLOWED_TOOLS (comma-separated names)
+        - ANDYRIA_DENIED_TOOLS (comma-separated names)
+        """
+        max_input_chars = 4096
+        raw_max = os.getenv("ANDYRIA_TOOL_MAX_INPUT_CHARS", "").strip()
+        if raw_max:
+            try:
+                max_input_chars = max(1, int(raw_max))
+            except ValueError:
+                max_input_chars = 4096
+
+        def _csv(name: str) -> set[str]:
+            raw = os.getenv(name, "")
+            return {v.strip() for v in raw.split(",") if v.strip()}
+
+        return cls(
+            max_input_chars=max_input_chars,
+            allowed_tools=_csv("ANDYRIA_ALLOWED_TOOLS"),
+            denied_tools=_csv("ANDYRIA_DENIED_TOOLS"),
+        )
+
+    def validate(self, tool_name: str, text: str) -> None:
+        """Raise ValueError when a request violates policy."""
+        if self.allowed_tools and tool_name not in self.allowed_tools:
+            raise ValueError(f"Tool '{tool_name}' not allowed by policy")
+        if tool_name in self.denied_tools:
+            raise ValueError(f"Tool '{tool_name}' denied by policy")
+        if len(text) > self.max_input_chars:
+            raise ValueError(
+                f"Tool input too large ({len(text)} > {self.max_input_chars})"
+            )
+        for pattern in self.blocked_input_patterns:
+            if pattern.search(text):
+                raise ValueError("Tool input blocked by policy pattern")
 
 
 class ToolRegistry:
@@ -22,6 +81,7 @@ class ToolRegistry:
 
     def __init__(self) -> None:
         self._tools: Dict[str, _ToolFn] = {}
+        self._policy = ToolPolicy.from_env()
         self._register_builtins()
 
     def _register_builtins(self) -> None:
@@ -40,6 +100,10 @@ class ToolRegistry:
     def has(self, name: str) -> bool:
         return name in self._tools
 
+    def set_policy(self, policy: ToolPolicy) -> None:
+        """Override tool execution policy at runtime."""
+        self._policy = policy
+
     def dispatch(
         self,
         name: str,
@@ -49,4 +113,18 @@ class ToolRegistry:
         """Call the named tool. Raises ``KeyError`` if not registered."""
         if name not in self._tools:
             raise KeyError(f"Tool '{name}' not registered")
+        self._policy.validate(name, text)
         return self._tools[name](text, context or {})
+
+    async def call(self, name: str, **params: Any) -> str:
+        """Async-compatible call used by workflow tool steps.
+
+        Accepts ``text`` and optional ``context`` kwargs.
+        """
+        text = str(params.pop("text", ""))
+        context = params.pop("context", None)
+        if params:
+            # Keep unknown params visible for callers rather than silently dropping.
+            extras = ", ".join(sorted(params.keys()))
+            raise ValueError(f"Unknown tool parameters: {extras}")
+        return self.dispatch(name, text=text, context=context)
