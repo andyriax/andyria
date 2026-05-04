@@ -32,7 +32,6 @@ import hashlib
 import hmac
 import json
 import logging
-import os
 import secrets
 import time
 from dataclasses import dataclass, field
