@@ -42,6 +42,12 @@ _SLASH_COMMANDS: List[Dict[str, object]] = [
         "targets": ["cli", "web"],
     },
     {
+        "command": "/create-skill",
+        "description": "Create a reusable skill scaffold",
+        "arg_hint": "<name> | <description> | <tags> | <content>",
+        "targets": ["cli", "web"],
+    },
+    {
         "command": "/memory",
         "description": "Show MEMORY and USER notes",
         "arg_hint": None,

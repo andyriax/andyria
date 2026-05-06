@@ -31,6 +31,11 @@ docker compose up -d
 # → http://localhost:7700
 ```
 
+```bash
+# Easiest install (auto mode + defaults + non-interactive)
+curl -fsSL https://andyriax.github.io/andyria/install.sh | bash -s -- --easy
+```
+
 ---
 
 ## Core Capabilities
