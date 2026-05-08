@@ -101,6 +101,7 @@ class NodeIdentityManager:
             caps.append("hwrng")
         try:
             import llama_cpp  # noqa: F401
+
             caps.append("llm_local")
         except ImportError:
             pass

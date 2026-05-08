@@ -31,17 +31,17 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Callable, List, Optional
 
-_POLL_INTERVAL = 30          # seconds between scheduler ticks
+_POLL_INTERVAL = 30  # seconds between scheduler ticks
 _NATURAL_PATTERNS: list[tuple[re.Pattern, str]] = [
     # "every N minutes/hours"
     (re.compile(r"every\s+(\d+)\s+minute", re.I), "interval_minutes"),
-    (re.compile(r"every\s+(\d+)\s+hour",   re.I), "interval_hours"),
+    (re.compile(r"every\s+(\d+)\s+hour", re.I), "interval_hours"),
     # "every minute" / "every hour"
-    (re.compile(r"every\s+minute",  re.I), "every_minute"),
-    (re.compile(r"every\s+hour",    re.I), "every_hour"),
+    (re.compile(r"every\s+minute", re.I), "every_minute"),
+    (re.compile(r"every\s+hour", re.I), "every_hour"),
     (re.compile(r"every\s+day\s+at\s+(\d{1,2}):(\d{2})", re.I), "daily_hhmm"),
-    (re.compile(r"every\s+day\s+at\s+(\d{1,2})(am|pm)", re.I),  "daily_ampm"),
-    (re.compile(r"daily\s+at\s+(\d{1,2}):(\d{2})",       re.I), "daily_hhmm"),
+    (re.compile(r"every\s+day\s+at\s+(\d{1,2})(am|pm)", re.I), "daily_ampm"),
+    (re.compile(r"daily\s+at\s+(\d{1,2}):(\d{2})", re.I), "daily_hhmm"),
 ]
 
 
@@ -93,6 +93,7 @@ def _is_due(schedule: dict, last_run: float, now: float) -> bool:
         return (now - last_run) >= schedule["interval_seconds"]
     if schedule.get("daily"):
         import datetime
+
         dt = datetime.datetime.fromtimestamp(now)
         if dt.hour == schedule["hour"] and dt.minute == schedule["minute"]:
             last_dt = datetime.datetime.fromtimestamp(last_run)
@@ -102,9 +103,10 @@ def _is_due(schedule: dict, last_run: float, now: float) -> bool:
         # Basic cron: only support minute/hour fields (1 and 2)
         fields = schedule["cron"].split()
         import datetime
+
         dt = datetime.datetime.fromtimestamp(now)
         minute_ok = fields[0] == "*" or int(fields[0]) == dt.minute
-        hour_ok   = fields[1] == "*" or int(fields[1]) == dt.hour
+        hour_ok = fields[1] == "*" or int(fields[1]) == dt.hour
         if minute_ok and hour_ok:
             last_dt = datetime.datetime.fromtimestamp(last_run)
             return not (last_dt.hour == dt.hour and last_dt.minute == dt.minute)

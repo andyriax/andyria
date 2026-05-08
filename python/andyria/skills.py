@@ -43,7 +43,7 @@ _FRONT_MATTER_RE = re.compile(r"^---\s*\n(.*?)\n---\s*\n", re.DOTALL)
 class Skill:
     name: str
     description: str
-    content: str            # full file text including front-matter
+    content: str  # full file text including front-matter
     tags: List[str] = field(default_factory=list)
     author: str = ""
     version: str = "1.0"
@@ -115,12 +115,14 @@ class SkillRegistry:
         for skill in sorted(self._cache.values(), key=lambda s: s.name):
             if category and category.lower() not in [t.lower() for t in skill.tags]:
                 continue
-            result.append({
-                "name": skill.name,
-                "description": skill.description,
-                "tags": skill.tags,
-                "version": skill.version,
-            })
+            result.append(
+                {
+                    "name": skill.name,
+                    "description": skill.description,
+                    "tags": skill.tags,
+                    "version": skill.version,
+                }
+            )
         return result
 
     def skill_view(self, name: str) -> Optional[str]:
@@ -192,10 +194,9 @@ class SkillRegistry:
         self._refresh_cache()
         q = query.lower()
         return [
-            s for s in self._cache.values()
-            if q in s.name.lower()
-            or q in s.description.lower()
-            or q in s.content.lower()
+            s
+            for s in self._cache.values()
+            if q in s.name.lower() or q in s.description.lower() or q in s.content.lower()
         ]
 
     # ------------------------------------------------------------------

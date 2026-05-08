@@ -34,6 +34,7 @@ def _content_hash(data: bytes) -> str:
     """Hash with BLAKE3 when available, else SHA3-256. Returns hex string."""
     try:
         import blake3  # type: ignore
+
         return blake3.blake3(data).hexdigest()
     except ImportError:
         return hashlib.sha3_256(data).hexdigest()
@@ -43,6 +44,7 @@ def _derive_bytes(data: bytes, label: bytes, length: int) -> bytes:
     """Derive ``length`` bytes keyed from ``data`` and a domain ``label``."""
     try:
         import blake3  # type: ignore
+
         return blake3.blake3(data + label).digest(length=length)
     except ImportError:
         return hashlib.shake_256(data + label).digest(length)
@@ -86,9 +88,7 @@ class EntropyBeaconFactory:
         self._node_id = node_id
         self._private_key = private_key
         self._collectors: List[EntropySource] = build_collector_chain(sources)
-        self._health: dict[str, EntropyHealthMonitor] = {
-            c.name: EntropyHealthMonitor() for c in self._collectors
-        }
+        self._health: dict[str, EntropyHealthMonitor] = {c.name: EntropyHealthMonitor() for c in self._collectors}
 
     @property
     def source_names(self) -> List[str]:
@@ -121,6 +121,7 @@ class EntropyBeaconFactory:
                     for f in failures:
                         if not f.passed:
                             import logging
+
                             _log = logging.getLogger(__name__)
                             # clock_jitter APT failures are expected on WSL/virtual
                             # environments where perf_counter_ns has low resolution.
@@ -133,7 +134,9 @@ class EntropyBeaconFactory:
                             _log.log(
                                 _level,
                                 "Entropy health check %s failed for %s: %s",
-                                f.test_name, collector.name, f.detail,
+                                f.test_name,
+                                collector.name,
+                                f.detail,
                             )
                     raw_parts.append(raw)
                     active_sources.append(collector.name)

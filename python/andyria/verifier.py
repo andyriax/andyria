@@ -19,6 +19,7 @@ from .models import Event, EventType, TaskResult
 def _hash(data: bytes) -> str:
     try:
         import blake3  # type: ignore
+
         return blake3.blake3(data).hexdigest()
     except ImportError:
         return hashlib.sha3_256(data).hexdigest()

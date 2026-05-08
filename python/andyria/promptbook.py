@@ -122,7 +122,7 @@ class PromptbookRegistry:
 
     def create(self, request: PromptbookCreateRequest) -> Promptbook:
         now = int(time.time_ns())
-        pb_id = f"pb-{now % (10 ** 12):012d}"
+        pb_id = f"pb-{now % (10**12):012d}"
         pb = Promptbook(
             promptbook_id=pb_id,
             name=request.name,
@@ -227,7 +227,7 @@ class PromptbookRegistry:
             return None
 
         now = int(time.time_ns())
-        pb_id = f"pb-{now % (10 ** 12):012d}"
+        pb_id = f"pb-{now % (10**12):012d}"
 
         # Build new template list
         new_templates: List[PromptTemplate] = []
@@ -272,8 +272,7 @@ class PromptbookRegistry:
         result = self.render(promptbook_id, variables)
         if result is None:
             return ""
-        parts = [f"### Promptbook block [{r['name']}] ({r['role']})\n{r['content']}"
-                 for r in result.rendered]
+        parts = [f"### Promptbook block [{r['name']}] ({r['role']})\n{r['content']}" for r in result.rendered]
         return "\n\n".join(parts)
 
     def _save(self, pb: Promptbook) -> None:

@@ -42,18 +42,18 @@ logger = logging.getLogger(__name__)
 # ---------------------------------------------------------------------------
 
 _DOMAIN_MAP: List[Tuple[str, str]] = [
-    ("atm_",          "atm"),
-    ("reasoning_",    "reasoning"),
-    ("chain_",        "chain"),
-    ("workflow_",     "workflow"),
-    ("tool_",         "tool"),
-    ("memory_",       "memory"),
-    ("user_profile",  "memory"),
-    ("auto_learn",    "self_learning"),
-    ("orc_",          "orc"),
-    ("agent_",        "agent"),
-    ("delegate_",     "delegation"),
-    ("session_",      "session"),
+    ("atm_", "atm"),
+    ("reasoning_", "reasoning"),
+    ("chain_", "chain"),
+    ("workflow_", "workflow"),
+    ("tool_", "tool"),
+    ("memory_", "memory"),
+    ("user_profile", "memory"),
+    ("auto_learn", "self_learning"),
+    ("orc_", "orc"),
+    ("agent_", "agent"),
+    ("delegate_", "delegation"),
+    ("session_", "session"),
 ]
 
 
@@ -85,6 +85,7 @@ def _extract_confidence(event: Event) -> Optional[float]:
 # ---------------------------------------------------------------------------
 # LabelledSession dataclass (plain dict-serialisable)
 # ---------------------------------------------------------------------------
+
 
 class LabelledSession:
     """One labelled logical session extracted from the DAG."""
@@ -144,6 +145,7 @@ class LabelledSession:
 # ChainLabeler
 # ---------------------------------------------------------------------------
 
+
 class ChainLabeler:
     """Walk the local event DAG, label sessions, and feed them back to
     AutoLearner so the node learns from its own historical chains.
@@ -158,8 +160,8 @@ class ChainLabeler:
 
     def __init__(
         self,
-        memory: Any,           # ContentAddressedMemory — avoid circular import
-        auto_learner: Any,     # AutoLearner
+        memory: Any,  # ContentAddressedMemory — avoid circular import
+        auto_learner: Any,  # AutoLearner
         min_events_per_session: int = 2,
     ) -> None:
         self._memory = memory
@@ -273,9 +275,7 @@ class ChainLabeler:
     # Internal helpers
     # ------------------------------------------------------------------
 
-    def _group_sessions(
-        self, sorted_events: List[Event]
-    ) -> Dict[str, List[Event]]:
+    def _group_sessions(self, sorted_events: List[Event]) -> Dict[str, List[Event]]:
         """Group events into sessions by tracing parent edges back to roots."""
         event_map = {e.id: e for e in sorted_events}
         # Map each event_id → session root id
@@ -303,9 +303,7 @@ class ChainLabeler:
 
         return sessions
 
-    def _label_session(
-        self, root_id: str, events: List[Event]
-    ) -> LabelledSession:
+    def _label_session(self, root_id: str, events: List[Event]) -> LabelledSession:
         """Derive labels for one session."""
         import uuid as _uuid
 

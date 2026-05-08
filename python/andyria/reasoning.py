@@ -27,6 +27,7 @@ EmitFn = Callable[[str, Dict[str, Any], Optional[Dict[str, Any]]], None]
 # Internal data types (plain dataclasses — models.py has the Pydantic versions)
 # ---------------------------------------------------------------------------
 
+
 class _Step:
     __slots__ = ("number", "question", "answer", "confidence", "model_used", "elapsed_ms")
 
@@ -93,6 +94,7 @@ class ReasoningResult:
 # ReasoningEngine
 # ---------------------------------------------------------------------------
 
+
 class ReasoningEngine:
     """Chain-of-thought reasoning: decompose → analyze → synthesize.
 
@@ -136,10 +138,14 @@ class ReasoningEngine:
         trace_id = f"reason-{uuid.uuid4().hex[:12]}"
         start = time.monotonic()
 
-        self._fire("REASONING_STARTED", {
-            "trace_id": trace_id,
-            "prompt": prompt[:200],
-        }, trace_id)
+        self._fire(
+            "REASONING_STARTED",
+            {
+                "trace_id": trace_id,
+                "prompt": prompt[:200],
+            },
+            trace_id,
+        )
 
         # Phase 1 — Decompose
         sub_questions = self._decompose(prompt, ctx)
@@ -150,13 +156,17 @@ class ReasoningEngine:
             for i, question in enumerate(sub_questions[: self.MAX_SUB_QUESTIONS], start=1):
                 step = self._analyze(i, question, prompt, ctx)
                 steps.append(step)
-                self._fire("REASONING_STEP", {
-                    "trace_id": trace_id,
-                    "step": i,
-                    "question": question[:200],
-                    "confidence": round(step.confidence, 4),
-                    "model": step.model_used,
-                }, trace_id)
+                self._fire(
+                    "REASONING_STEP",
+                    {
+                        "trace_id": trace_id,
+                        "step": i,
+                        "question": question[:200],
+                        "confidence": round(step.confidence, 4),
+                        "model": step.model_used,
+                    },
+                    trace_id,
+                )
 
         # Phase 3 — Synthesize
         synthesis, synth_model, synth_conf = self._synthesize(prompt, steps, ctx)
@@ -167,13 +177,17 @@ class ReasoningEngine:
 
         total_ms = int((time.monotonic() - start) * 1000)
 
-        self._fire("REASONING_COMPLETE", {
-            "trace_id": trace_id,
-            "steps_taken": len(steps),
-            "final_confidence": round(synth_conf, 4),
-            "total_ms": total_ms,
-            "model": synth_model,
-        }, trace_id)
+        self._fire(
+            "REASONING_COMPLETE",
+            {
+                "trace_id": trace_id,
+                "steps_taken": len(steps),
+                "final_confidence": round(synth_conf, 4),
+                "total_ms": total_ms,
+                "model": synth_model,
+            },
+            trace_id,
+        )
 
         return ReasoningResult(
             trace_id=trace_id,
@@ -247,10 +261,7 @@ class ReasoningEngine:
             # No sub-answers — direct single inference
             return self._infer(original, ctx)
 
-        sub_answers = "\n".join(
-            f"  {s.number}. Q: {s.question}\n     A: {s.answer}"
-            for s in steps
-        )
+        sub_answers = "\n".join(f"  {s.number}. Q: {s.question}\n     A: {s.answer}" for s in steps)
         synth_prompt = (
             f"[Reasoning: Synthesize]\n"
             f"Original question: {original}\n\n"
@@ -272,6 +283,7 @@ class ReasoningEngine:
     def _parse_numbered_list(self, text: str) -> List[str]:
         """Extract items from a numbered list (1. ... / 1) ... / - ...)."""
         import re
+
         lines = text.strip().splitlines()
         items: List[str] = []
         for line in lines:

@@ -16,7 +16,7 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger(__name__)
 
-_DREAMS_MAX = 100        # ring-buffer size for local dreams
+_DREAMS_MAX = 100  # ring-buffer size for local dreams
 _LEARNED_PREFIX = "[learned] "
 
 
@@ -35,6 +35,7 @@ class PeerStatus:
 # Mesh growth health
 # ---------------------------------------------------------------------------
 
+
 class MeshGrowthHealth:
     """Tracks peer topology over time and computes growth / reachability health.
 
@@ -42,7 +43,7 @@ class MeshGrowthHealth:
     :meth:`report`.
     """
 
-    _WINDOW_SECONDS = 3600      # 1-hour observation window for growth rate
+    _WINDOW_SECONDS = 3600  # 1-hour observation window for growth rate
 
     def __init__(self, node_id: str) -> None:
         self._node_id = node_id
@@ -55,9 +56,9 @@ class MeshGrowthHealth:
     def report(self) -> dict[str, Any]:
         """Return a growth-health dict matching MeshGrowthReport schema."""
         from .models import MeshGrowthReport, MeshGrowthSnapshot
+
         snaps = [
-            MeshGrowthSnapshot(timestamp_ns=ts, total_peers=t, reachable_peers=r,
-                               unreachable_peers=max(0, t - r))
+            MeshGrowthSnapshot(timestamp_ns=ts, total_peers=t, reachable_peers=r, unreachable_peers=max(0, t - r))
             for ts, t, r in self._history
         ]
         current_total = self._history[-1][1] if self._history else 0
@@ -80,7 +81,7 @@ class MeshGrowthHealth:
 
         report = MeshGrowthReport(
             node_id=self._node_id,
-            snapshots=snaps[-60:],       # last 60 samples in response
+            snapshots=snaps[-60:],  # last 60 samples in response
             current_peers=current_total,
             reachable_now=current_reach,
             reachability_pct=round(reachability_pct, 2),
@@ -94,6 +95,7 @@ class MeshGrowthHealth:
 # ---------------------------------------------------------------------------
 # MeshManager
 # ---------------------------------------------------------------------------
+
 
 class MeshManager:
     """Manages peer discovery, event gossip, auto-learning via mesh,
@@ -172,6 +174,7 @@ class MeshManager:
     def add_dream(self, thought: str, confidence: float = 0.0, tags: list[str] | None = None) -> dict:
         """Record an ATM output as a machine dream for mesh sharing."""
         from .models import MachineDream
+
         dream = MachineDream(
             origin_node_id=self.node_id,
             thought=thought,
@@ -284,17 +287,18 @@ class MeshManager:
                     if not line.startswith(_LEARNED_PREFIX):
                         continue
                     # Strip metadata suffix e.g. "  [src=mesh, conf=0.85]"
-                    pattern = line[len(_LEARNED_PREFIX):]
+                    pattern = line[len(_LEARNED_PREFIX) :]
                     # Extract confidence if present
                     conf = 0.82
                     import re
+
                     m = re.search(r"conf=([\d.]+)", pattern)
                     if m:
                         try:
                             conf = float(m.group(1))
                         except ValueError:
                             pass
-                        pattern = pattern[:m.start()].rstrip()
+                        pattern = pattern[: m.start()].rstrip()
                     if self._ingest_learned(pattern, conf):
                         absorbed += 1
         except Exception as exc:
@@ -332,6 +336,7 @@ class MeshManager:
     async def _pull_homework_from_peer(self, peer_url: str) -> list[dict]:
         """Fetch promptbooks and chains from one peer."""
         from .models import HomeworkItem
+
         items: list[dict] = []
         async with httpx.AsyncClient(timeout=8.0) as client:
             # promptbooks
@@ -366,8 +371,7 @@ class MeshManager:
                 pass
         if items and self._emit_event:
             try:
-                self._emit_event("MESH_HOMEWORK_COPIED",
-                                 {"peer": peer_url, "count": len(items)}, None)
+                self._emit_event("MESH_HOMEWORK_COPIED", {"peer": peer_url, "count": len(items)}, None)
             except Exception:
                 pass
         return items

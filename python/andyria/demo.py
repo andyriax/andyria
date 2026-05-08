@@ -112,10 +112,11 @@ DEMO_SEEDS: Dict[str, List[Dict]] = {
 # State container
 # ---------------------------------------------------------------------------
 
+
 @dataclass
 class DemoState:
     active: bool = False
-    started_at: Optional[int] = None   # Unix nanoseconds
+    started_at: Optional[int] = None  # Unix nanoseconds
     stopped_at: Optional[int] = None
     agent_ids: List[str] = field(default_factory=list)
     session_ids: List[str] = field(default_factory=list)
@@ -125,6 +126,7 @@ class DemoState:
 # ---------------------------------------------------------------------------
 # DemoManager
 # ---------------------------------------------------------------------------
+
 
 class DemoManager:
     """Manages the lifecycle of demo mode for the Andyria platform."""
@@ -162,6 +164,7 @@ class DemoManager:
 
             # Seed a dedicated session for this agent
             import uuid
+
             session_id = f"demo-{blueprint['tag']}-{uuid.uuid4().hex[:8]}"
             session_ids.append(session_id)
 
@@ -212,7 +215,6 @@ class DemoManager:
         """Retire all demo agents and clear demo sessions."""
         if not self._state.active:
             return self._state
-
 
         for agent_id in self._state.agent_ids:
             try:

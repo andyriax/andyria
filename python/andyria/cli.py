@@ -104,9 +104,7 @@ def ask(
     console.print(f"\n[bold]Andyria[/] [dim](beacon {beacon_short}…)[/]\n")
     console.print(response.output)
     console.print(
-        f"\n[dim]tasks={response.tasks_completed}  "
-        f"verified={response.verified}  "
-        f"events={len(response.event_ids)}[/]"
+        f"\n[dim]tasks={response.tasks_completed}  verified={response.verified}  events={len(response.event_ids)}[/]"
     )
 
 

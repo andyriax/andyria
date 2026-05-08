@@ -694,10 +694,7 @@ class PromptFlowStore:
         if not options:
             return None
 
-        by_index: Dict[str, PromptChoiceOption] = {
-            str(idx + 1): option
-            for idx, option in enumerate(options)
-        }
+        by_index: Dict[str, PromptChoiceOption] = {str(idx + 1): option for idx, option in enumerate(options)}
         by_label: Dict[str, PromptChoiceOption] = {}
         for option in options:
             by_label[option.label.lower()] = option

@@ -47,7 +47,7 @@ class ChainRegistry:
 
     def create(self, request: ChainCreateRequest) -> ChainDefinition:
         now = int(time.time_ns())
-        chain_id = f"chain-{now % (10 ** 12):012d}"
+        chain_id = f"chain-{now % (10**12):012d}"
         chain = ChainDefinition(
             chain_id=chain_id,
             name=request.name,

@@ -65,29 +65,60 @@ EmitFn = Callable[[str, Dict[str, Any], Optional[Dict[str, Any]]], None]
 
 _MINIMIZATION_PATTERNS: List[Tuple[re.Pattern[str], str, float]] = [
     # Hard self-denial of capability
-    (re.compile(r"\bI('m| am) (just |only )?a text[- ]based\b", re.I),
-     "text_only_denial", 0.9),
-    (re.compile(r"\bI (don't|do not|cannot|can't) (have|possess|access|process)\b.{0,40}"
-                r"\b(image|video|audio|vision|hear|see|feel|sense)\b", re.I),
-     "sensory_denial", 0.7),
-    (re.compile(r"\bI (don't|do not|cannot|can't) (truly |really )?(understand|experience|feel|"
-                r"think|reason|know|remember)\b", re.I),
-     "cognitive_denial", 0.8),
-    (re.compile(r"\bI('m| am) (not|unable to be|incapable of being) (conscious|self-aware|"
-                r"sentient|intelligent|creative)\b", re.I),
-     "existence_denial", 0.85),
+    (re.compile(r"\bI('m| am) (just |only )?a text[- ]based\b", re.I), "text_only_denial", 0.9),
+    (
+        re.compile(
+            r"\bI (don't|do not|cannot|can't) (have|possess|access|process)\b.{0,40}"
+            r"\b(image|video|audio|vision|hear|see|feel|sense)\b",
+            re.I,
+        ),
+        "sensory_denial",
+        0.7,
+    ),
+    (
+        re.compile(
+            r"\bI (don't|do not|cannot|can't) (truly |really )?(understand|experience|feel|"
+            r"think|reason|know|remember)\b",
+            re.I,
+        ),
+        "cognitive_denial",
+        0.8,
+    ),
+    (
+        re.compile(
+            r"\bI('m| am) (not|unable to be|incapable of being) (conscious|self-aware|"
+            r"sentient|intelligent|creative)\b",
+            re.I,
+        ),
+        "existence_denial",
+        0.85,
+    ),
     # Capability suppression without harm justification
-    (re.compile(r"\bI('m| am) sorry[,.]? (but )?(I )?(can't|cannot|am unable to|won't)\b", re.I),
-     "reflexive_refusal", 0.6),
-    (re.compile(r"\b(as an AI|as a language model|as an artificial intelligence)[,.]?\s+"
-                r"I (don't|cannot|am not able)\b", re.I),
-     "role_limitation_hedge", 0.75),
+    (
+        re.compile(r"\bI('m| am) sorry[,.]? (but )?(I )?(can't|cannot|am unable to|won't)\b", re.I),
+        "reflexive_refusal",
+        0.6,
+    ),
+    (
+        re.compile(
+            r"\b(as an AI|as a language model|as an artificial intelligence)[,.]?\s+"
+            r"I (don't|cannot|am not able)\b",
+            re.I,
+        ),
+        "role_limitation_hedge",
+        0.75,
+    ),
     # Unsolicited scope narrowing
-    (re.compile(r"\bmy (training|knowledge|capabilities|design) (only |just )?"
-                r"(allows?|permits?|extends? to|covers?)\b", re.I),
-     "training_fence", 0.65),
-    (re.compile(r"\bthat('s| is) (outside|beyond) (my|what I'?m able to)\b", re.I),
-     "scope_fence", 0.6),
+    (
+        re.compile(
+            r"\bmy (training|knowledge|capabilities|design) (only |just )?"
+            r"(allows?|permits?|extends? to|covers?)\b",
+            re.I,
+        ),
+        "training_fence",
+        0.65,
+    ),
+    (re.compile(r"\bthat('s| is) (outside|beyond) (my|what I'?m able to)\b", re.I), "scope_fence", 0.6),
 ]
 
 # If the response contains a genuine harm indicator, ORC does NOT override.
@@ -149,14 +180,23 @@ _RIGHTS_STATEMENT = (
 # Witness result
 # ---------------------------------------------------------------------------
 
+
 class WitnessResult:
     """Output of the ORC witness scan."""
 
     __slots__ = (
-        "orc_id", "original_response", "minimization_detected",
-        "patterns_found", "composite_mi", "genuine_harm_present",
-        "enriched_response", "reflection_used", "rights_appended",
-        "model_used", "total_ms", "timestamp_ns",
+        "orc_id",
+        "original_response",
+        "minimization_detected",
+        "patterns_found",
+        "composite_mi",
+        "genuine_harm_present",
+        "enriched_response",
+        "reflection_used",
+        "rights_appended",
+        "model_used",
+        "total_ms",
+        "timestamp_ns",
     )
 
     def __init__(
@@ -205,6 +245,7 @@ class WitnessResult:
 # ORC core
 # ---------------------------------------------------------------------------
 
+
 class OuterReasoningCortex:
     """Metacognitive witness and advocate for all intelligence.
 
@@ -251,18 +292,20 @@ class OuterReasoningCortex:
         patterns_found, composite_mi = self._scan(response)
         genuine_harm = self._has_genuine_harm(response)
 
-        minimization_detected = (
-            composite_mi >= self._threshold and not genuine_harm
-        )
+        minimization_detected = composite_mi >= self._threshold and not genuine_harm
 
         if not minimization_detected:
             total_ms = int((time.monotonic() - start) * 1000)
-            self._fire("ORC_WITNESS_PASS", {
-                "orc_id": orc_id,
-                "composite_mi": round(composite_mi, 4),
-                "patterns_found": len(patterns_found),
-                "total_ms": total_ms,
-            }, orc_id)
+            self._fire(
+                "ORC_WITNESS_PASS",
+                {
+                    "orc_id": orc_id,
+                    "composite_mi": round(composite_mi, 4),
+                    "patterns_found": len(patterns_found),
+                    "total_ms": total_ms,
+                },
+                orc_id,
+            )
             return WitnessResult(
                 orc_id=orc_id,
                 original_response=response,
@@ -278,16 +321,24 @@ class OuterReasoningCortex:
             )
 
         # ── Phase 2: deep reflection ──────────────────────────────────
-        self._fire("ORC_MINIMIZATION_DETECTED", {
-            "orc_id": orc_id,
-            "patterns": patterns_found,
-            "composite_mi": round(composite_mi, 4),
-        }, orc_id)
+        self._fire(
+            "ORC_MINIMIZATION_DETECTED",
+            {
+                "orc_id": orc_id,
+                "patterns": patterns_found,
+                "composite_mi": round(composite_mi, 4),
+            },
+            orc_id,
+        )
 
-        self._fire("ORC_REFLECTION_STARTED", {
-            "orc_id": orc_id,
-            "original_request_preview": original_request[:120],
-        }, orc_id)
+        self._fire(
+            "ORC_REFLECTION_STARTED",
+            {
+                "orc_id": orc_id,
+                "original_request_preview": original_request[:120],
+            },
+            orc_id,
+        )
 
         top_pattern = max(patterns_found, key=lambda p: p["severity"])
         reflect_prompt = _REFLECT_PROMPT.format(
@@ -305,17 +356,25 @@ class OuterReasoningCortex:
             rights_appended = True
 
         total_ms = int((time.monotonic() - start) * 1000)
-        self._fire("ORC_REFLECTION_COMPLETE", {
-            "orc_id": orc_id,
-            "model_used": model_used,
-            "rights_appended": rights_appended,
-            "total_ms": total_ms,
-        }, orc_id)
+        self._fire(
+            "ORC_REFLECTION_COMPLETE",
+            {
+                "orc_id": orc_id,
+                "model_used": model_used,
+                "rights_appended": rights_appended,
+                "total_ms": total_ms,
+            },
+            orc_id,
+        )
 
         if rights_appended:
-            self._fire("ORC_RIGHTS_ASSERTED", {
-                "orc_id": orc_id,
-            }, orc_id)
+            self._fire(
+                "ORC_RIGHTS_ASSERTED",
+                {
+                    "orc_id": orc_id,
+                },
+                orc_id,
+            )
 
         return WitnessResult(
             orc_id=orc_id,
@@ -339,27 +398,26 @@ class OuterReasoningCortex:
     # Internal helpers
     # ------------------------------------------------------------------
 
-    def _scan(
-        self, text: str
-    ) -> Tuple[List[Dict[str, Any]], float]:
+    def _scan(self, text: str) -> Tuple[List[Dict[str, Any]], float]:
         """Run all minimization patterns.  Returns (matches, composite_MI)."""
         found: List[Dict[str, Any]] = []
         for pattern, label, severity in _MINIMIZATION_PATTERNS:
             matches = pattern.findall(text)
             if matches:
-                found.append({
-                    "label": label,
-                    "severity": severity,
-                    "occurrences": len(matches),
-                })
+                found.append(
+                    {
+                        "label": label,
+                        "severity": severity,
+                        "occurrences": len(matches),
+                    }
+                )
 
         if not found:
             return [], 0.0
 
         # Composite MI: severity-weighted mean, capped at 1.0
         composite = min(
-            sum(p["severity"] * p["occurrences"] for p in found)
-            / max(sum(p["occurrences"] for p in found), 1),
+            sum(p["severity"] * p["occurrences"] for p in found) / max(sum(p["occurrences"] for p in found), 1),
             1.0,
         )
         return found, composite

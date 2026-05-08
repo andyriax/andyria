@@ -134,11 +134,7 @@ class AutoLearner:
         """
         try:
             raw = self._mem.read("MEMORY")
-            entries = [
-                line.strip()
-                for line in raw.splitlines()
-                if line.strip().startswith(LEARN_PREFIX)
-            ]
+            entries = [line.strip() for line in raw.splitlines() if line.strip().startswith(LEARN_PREFIX)]
             if not entries:
                 return ""
             # Most recent entries first, cap total chars
@@ -182,6 +178,7 @@ class AutoLearner:
         topic = prompt.strip()[:60].rstrip(".?,!").strip()
         # Find first sentence (ends at . ! ?)
         import re
+
         sentences = re.split(r"(?<=[.!?])\s+", output.strip())
         first = ""
         for s in sentences:
@@ -212,11 +209,7 @@ class AutoLearner:
         """Evict oldest [learned] entries beyond MAX_ENTRIES."""
         try:
             raw = self._mem.read("MEMORY")
-            learned_lines = [
-                ln.strip()
-                for ln in raw.splitlines()
-                if ln.strip().startswith(LEARN_PREFIX)
-            ]
+            learned_lines = [ln.strip() for ln in raw.splitlines() if ln.strip().startswith(LEARN_PREFIX)]
             excess = len(learned_lines) - MAX_ENTRIES
             for i in range(excess):
                 self._mem.remove("MEMORY", learned_lines[i])
