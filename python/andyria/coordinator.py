@@ -148,15 +148,15 @@ def _safe_eval_math(expr: str) -> float:
                 return float(node.value)
             raise ValueError(f"Unsupported constant: {node.value!r}")
         if isinstance(node, ast.BinOp):
-            op_fn = _SAFE_BIN_OPS.get(type(node.op))
-            if op_fn is None:
+            op_bin = _SAFE_BIN_OPS.get(type(node.op))
+            if op_bin is None:
                 raise ValueError(f"Unsupported operator: {type(node.op).__name__}")
-            return op_fn(_eval(node.left), _eval(node.right))
+            return op_bin(_eval(node.left), _eval(node.right))
         if isinstance(node, ast.UnaryOp):
-            op_fn = _SAFE_UNARY_OPS.get(type(node.op))
-            if op_fn is None:
+            op_unary = _SAFE_UNARY_OPS.get(type(node.op))
+            if op_unary is None:
                 raise ValueError(f"Unsupported unary op: {type(node.op).__name__}")
-            return op_fn(_eval(node.operand))
+            return op_unary(_eval(node.operand))
         raise ValueError(f"Unsupported AST node: {type(node).__name__}")
 
     return _eval(tree.body)
