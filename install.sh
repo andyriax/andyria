@@ -7,6 +7,7 @@
 # Options:
 #   --docker        Install via Docker Compose (default if docker is available)
 #   --python        Install as local Python service
+#   --easy          One-command install with defaults (non-interactive)
 #   --no-service    Skip systemd/launchd service registration
 #   --dir DIR       Install into DIR (default: ~/andyria)
 #   --port PORT     HTTP port (default: 7700)
@@ -19,6 +20,7 @@ REPO_URL="https://github.com/andyriax/andyria.git"
 PAGES_BASE="https://andyriax.github.io/andyria"
 DEFAULT_DIR="${HOME}/andyria"
 DEFAULT_PORT="7700"
+DEFAULT_OLLAMA_MODEL="phi3"
 
 # ── Parse args ───────────────────────────────────────────────────────────────
 MODE=""          # docker | python | auto
@@ -27,11 +29,13 @@ PORT="${DEFAULT_PORT}"
 INSTALL_SERVICE=1
 AUTO_AGENT=""
 YES=0
+EASY=0
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --docker)          MODE="docker"; shift ;;
     --python)          MODE="python"; shift ;;
+    --easy)            EASY=1; YES=1; shift ;;
     --no-service)      INSTALL_SERVICE=0; shift ;;
     --dir)             INSTALL_DIR="$2"; shift 2 ;;
     --port)            PORT="$2"; shift 2 ;;
@@ -156,6 +160,9 @@ fi
 log "Install mode : ${BOLD}${MODE}${RESET}"
 log "Install dir  : ${BOLD}${INSTALL_DIR}${RESET}"
 log "Port         : ${BOLD}${PORT}${RESET}"
+if [[ "${EASY}" == "1" ]]; then
+  log "Quick mode   : ${BOLD}enabled${RESET}"
+fi
 
 if [[ "${YES}" != "1" ]]; then
   ask_yn "Continue with these settings?" "y" || { log "Aborted."; exit 0; }
@@ -258,6 +265,29 @@ ensure_ollama_running() {
   return 1
 }
 
+ensure_ollama_model() {
+  local model="${1:-${DEFAULT_OLLAMA_MODEL}}"
+
+  if ! has ollama; then
+    warn "Ollama CLI not installed"
+    return 1
+  fi
+
+  log "Ensuring Ollama model is available: ${model}"
+  if ollama list 2>/dev/null | awk '{print $1}' | grep -Fxq "${model}"; then
+    ok "Ollama model already present: ${model}"
+    return 0
+  fi
+
+  if ollama pull "${model}"; then
+    ok "Ollama model pulled: ${model}"
+    return 0
+  fi
+
+  warn "Failed to pull Ollama model '${model}'"
+  return 1
+}
+
 # ── Docker mode ───────────────────────────────────────────────────────────────
 install_docker() {
   log "Setting up Docker Compose environment"
@@ -265,6 +295,7 @@ install_docker() {
   if [[ "${IS_TERMUX}" != "1" ]]; then
     install_or_update_ollama || die "Failed to install/update Ollama"
     ensure_ollama_running || die "Ollama is required but did not start"
+    ensure_ollama_model "${DEFAULT_OLLAMA_MODEL}" || die "Ollama model '${DEFAULT_OLLAMA_MODEL}' is required but unavailable"
   fi
 
   # Write .env if not present
@@ -293,6 +324,7 @@ install_python() {
   if [[ "${IS_TERMUX}" != "1" ]]; then
     install_or_update_ollama || die "Failed to install/update Ollama"
     ensure_ollama_running || die "Ollama is required but did not start"
+    ensure_ollama_model "${DEFAULT_OLLAMA_MODEL}" || die "Ollama model '${DEFAULT_OLLAMA_MODEL}' is required but unavailable"
   fi
 
   VENV="${INSTALL_DIR}/python/.venv"

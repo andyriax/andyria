@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import os
 from pathlib import Path
 from typing import Optional
 
@@ -20,7 +21,8 @@ def _load_config(config_path: Optional[Path]) -> dict:
 
     if config_path and config_path.exists():
         with open(config_path) as f:
-            return yaml.safe_load(f) or {}
+            loaded = yaml.safe_load(f)
+            return loaded if isinstance(loaded, dict) else {}
     return {}
 
 
@@ -39,18 +41,31 @@ def serve(
     from .coordinator import Coordinator
 
     cfg = _load_config(config)
-    resolved_node_id = node_id or cfg.get("node_id", "andyria-node-0")
-    resolved_data_dir = Path(cfg.get("data_dir", str(data_dir)))
+    env_node_id = os.environ.get("ANDYRIA_NODE_ID")
+    env_data_dir = os.environ.get("ANDYRIA_DATA_DIR")
+    env_deployment_class = os.environ.get("ANDYRIA_DEPLOYMENT_CLASS")
+    env_ollama_url = os.environ.get("ANDYRIA_OLLAMA_URL")
+    env_ollama_model = os.environ.get("ANDYRIA_OLLAMA_MODEL")
+    env_entropy_sources = os.environ.get("ANDYRIA_ENTROPY_SOURCES")
+
+    resolved_node_id = node_id or cfg.get("node_id") or env_node_id or "andyria-node-0"
+    resolved_data_dir = Path(cfg.get("data_dir") or env_data_dir or str(data_dir))
+    entropy_sources = cfg.get("entropy_sources")
+    if entropy_sources is None and env_entropy_sources:
+        entropy_sources = [s.strip() for s in env_entropy_sources.split(",") if s.strip()]
+
+    resolved_ollama_url = ollama_url or cfg.get("ollama_url") or env_ollama_url
+    resolved_ollama_model = ollama_model or cfg.get("ollama_model") or env_ollama_model or "phi3"
     model_path = Path(cfg["model_path"]) if cfg.get("model_path") else None
 
     coordinator = Coordinator(
         data_dir=resolved_data_dir,
         node_id=resolved_node_id,
-        deployment_class=cfg.get("deployment_class", "edge"),
-        entropy_sources=cfg.get("entropy_sources"),
+        deployment_class=cfg.get("deployment_class") or env_deployment_class or "edge",
+        entropy_sources=entropy_sources,
         model_path=model_path,
-        ollama_url=ollama_url or cfg.get("ollama_url"),
-        ollama_model=ollama_model or cfg.get("ollama_model"),
+        ollama_url=resolved_ollama_url,
+        ollama_model=resolved_ollama_model,
     )
 
     fastapi_app = create_app(coordinator)

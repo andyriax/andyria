@@ -683,6 +683,97 @@
       }
     }
 
+    function parseCreateSkillCommand(text) {
+      const raw = (text || "").trim();
+      const payload = raw.replace(/^\/create-skill\s+/i, "").trim();
+      if (!payload) {
+        return {
+          error: "Usage: /create-skill <name> | <description> | <tags> | <content>",
+        };
+      }
+
+      const parts = payload.split("|").map((p) => p.trim());
+      const name = (parts[0] || "").toLowerCase().replace(/[^a-z0-9_-]+/g, "-").replace(/^-+|-+$/g, "");
+      if (!name) {
+        return { error: "Skill name is required." };
+      }
+
+      const description = parts[1] || `${name} skill for Andyria workflows`;
+      const tags = (parts[2] || "")
+        .split(/[;,]/)
+        .map((t) => t.trim().toLowerCase())
+        .filter(Boolean);
+      const content = parts[3] || [
+        `## ${name}`,
+        "",
+        "### Purpose",
+        "Define when this skill should be used and what outcome it produces.",
+        "",
+        "### Trigger Conditions",
+        "- Add concrete trigger phrases relevant to this project.",
+        "",
+        "### Inputs",
+        "- Required inputs and expected formats.",
+        "",
+        "### Procedure",
+        "1. Gather required context.",
+        "2. Perform the core operation.",
+        "3. Validate output and capture follow-up actions.",
+        "",
+        "### Output Contract",
+        "- Return concise, action-oriented output.",
+        "",
+        "### Guardrails",
+        "- Avoid destructive operations without explicit user permission.",
+      ].join("\n");
+
+      return { name, description, tags, content };
+    }
+
+    async function runSlashCommand(text) {
+      const normalized = (text || "").trim();
+      if (!normalized.startsWith("/")) {
+        return { handled: false };
+      }
+
+      if (/^\/create-skill(\s|$)/i.test(normalized)) {
+        const parsed = parseCreateSkillCommand(normalized);
+        if (parsed.error) {
+          return { handled: true, output: parsed.error };
+        }
+
+        const res = await fetch("/v1/skills", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            action: "create",
+            name: parsed.name,
+            description: parsed.description,
+            tags: parsed.tags,
+            content: parsed.content,
+          }),
+        });
+
+        if (!res.ok) {
+          const body = await res.json().catch(() => ({}));
+          const detail = body.detail || `HTTP ${res.status}`;
+          return { handled: true, output: `Failed to create skill: ${detail}` };
+        }
+
+        const data = await res.json();
+        const tagsText = parsed.tags.length ? parsed.tags.join(", ") : "none";
+        const message = [
+          data.message || `Skill '${parsed.name}' created`,
+          `Name: ${parsed.name}`,
+          `Description: ${parsed.description}`,
+          `Tags: ${tagsText}`,
+        ].join("\n");
+        return { handled: true, output: message };
+      }
+
+      return { handled: false };
+    }
+
     async function send() {
       const text = promptInput.value.trim();
       if (!text || busy) return;
@@ -696,6 +787,17 @@
       const typing = addTypingIndicator();
 
       try {
+        const slashResult = await runSlashCommand(text);
+        if (slashResult.handled) {
+          if (chatArea.contains(typing)) chatArea.removeChild(typing);
+          renderAssistant(slashResult.output || "Command executed.", {
+            model_used: "slash",
+            confidence: 1,
+          });
+          await loadStatus();
+          return;
+        }
+
         const res = await fetch("/v1/infer", {
           method: "POST",
           headers: { "Content-Type": "application/json" },

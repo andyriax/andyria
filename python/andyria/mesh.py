@@ -7,7 +7,7 @@ import asyncio
 import collections
 import logging
 import time
-from typing import TYPE_CHECKING, Any, Callable, Deque, List, Optional
+from typing import TYPE_CHECKING, Any, Callable, Deque, Optional
 
 import httpx
 
