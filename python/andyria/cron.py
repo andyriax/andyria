@@ -167,32 +167,35 @@ class CronScheduler:
         job_id = str(uuid.uuid4())[:8]
         now = time.time()
         _parse_schedule(expression)  # validate expression; raises if invalid
-        c = self._conn.cursor()
+        conn = self._require_conn()
+        c = conn.cursor()
         c.execute(
             "INSERT INTO jobs(id,name,expression,task,platform,last_run,next_run,active,created_at) "
             "VALUES(?,?,?,?,?,?,?,?,?)",
             (job_id, name, expression, task, platform, 0.0, now, 1, now),
         )
-        self._conn.commit()
+        conn.commit()
         return job_id
 
     def cancel(self, job_id: str) -> bool:
         """Deactivate a job. Returns True if found."""
-        c = self._conn.cursor()
+        conn = self._require_conn()
+        c = conn.cursor()
         c.execute("UPDATE jobs SET active=0 WHERE id=?", (job_id,))
-        self._conn.commit()
+        conn.commit()
         return c.rowcount > 0
 
     def delete(self, job_id: str) -> bool:
         """Permanently delete a job."""
-        c = self._conn.cursor()
+        conn = self._require_conn()
+        c = conn.cursor()
         c.execute("DELETE FROM jobs WHERE id=?", (job_id,))
-        self._conn.commit()
+        conn.commit()
         return c.rowcount > 0
 
     def list(self, include_inactive: bool = False) -> List[CronJob]:
         """Return list of cron jobs."""
-        c = self._conn.cursor()
+        c = self._require_conn().cursor()
         if include_inactive:
             c.execute("SELECT * FROM jobs ORDER BY created_at")
         else:
@@ -200,7 +203,7 @@ class CronScheduler:
         return [CronJob(*row) for row in c.fetchall()]
 
     def get(self, job_id: str) -> Optional[CronJob]:
-        c = self._conn.cursor()
+        c = self._require_conn().cursor()
         c.execute("SELECT * FROM jobs WHERE id=?", (job_id,))
         row = c.fetchone()
         return CronJob(*row) if row else None
@@ -246,7 +249,8 @@ class CronScheduler:
 
     def _tick(self) -> None:
         now = time.time()
-        c = self._conn.cursor()
+        conn = self._require_conn()
+        c = conn.cursor()
         c.execute("SELECT * FROM jobs WHERE active=1")
         for row in c.fetchall():
             job = CronJob(*row)
@@ -256,12 +260,17 @@ class CronScheduler:
             # Fire the job
             output = self._run_job(job)
             c.execute("UPDATE jobs SET last_run=? WHERE id=?", (now, job.id))
-            self._conn.commit()
+            conn.commit()
             if self._push and output:
                 try:
                     self._push(job.id, output)
                 except Exception:
                     pass
+
+    def _require_conn(self) -> sqlite3.Connection:
+        if self._conn is None:
+            raise RuntimeError("Cron scheduler database is not initialized")
+        return self._conn
 
     def _run_job(self, job: CronJob) -> str:
         if self._executor:

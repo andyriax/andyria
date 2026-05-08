@@ -266,7 +266,8 @@ async def _handshake(port: str, db: Dict[str, McuDevice], api_base: str) -> Opti
         device = db[node_id]
         # Verify attestation
         if device.has_hmac():
-            if not _verify_hmac(device.device_key, nonce_hex, hmac_hex):
+            device_key = device.device_key
+            if device_key is None or not _verify_hmac(device_key, nonce_hex, hmac_hex):
                 log.warning("HMAC attestation FAILED for %s on %s — rejecting", node_id, port)
                 conn.close()
                 return None

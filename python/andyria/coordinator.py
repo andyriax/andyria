@@ -22,7 +22,7 @@ import operator
 import queue
 import time
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any, Callable, Dict, List, Optional
 
 from .atm import AutomatedThoughtMachine
 from .auto_learn import AutoLearner
@@ -120,7 +120,7 @@ def _canonical_event(event: Event) -> bytes:
 # Safe math evaluator (no eval(), no exec())
 # ---------------------------------------------------------------------------
 
-_SAFE_OPS = {
+_SAFE_BIN_OPS: Dict[type[ast.operator], Callable[[float, float], float]] = {
     ast.Add: operator.add,
     ast.Sub: operator.sub,
     ast.Mult: operator.mul,
@@ -128,6 +128,9 @@ _SAFE_OPS = {
     ast.FloorDiv: operator.floordiv,
     ast.Mod: operator.mod,
     ast.Pow: operator.pow,
+}
+
+_SAFE_UNARY_OPS: Dict[type[ast.unaryop], Callable[[float], float]] = {
     ast.USub: operator.neg,
     ast.UAdd: operator.pos,
 }
@@ -145,12 +148,12 @@ def _safe_eval_math(expr: str) -> float:
                 return float(node.value)
             raise ValueError(f"Unsupported constant: {node.value!r}")
         if isinstance(node, ast.BinOp):
-            op_fn = _SAFE_OPS.get(type(node.op))
+            op_fn = _SAFE_BIN_OPS.get(type(node.op))
             if op_fn is None:
                 raise ValueError(f"Unsupported operator: {type(node.op).__name__}")
             return op_fn(_eval(node.left), _eval(node.right))
         if isinstance(node, ast.UnaryOp):
-            op_fn = _SAFE_OPS.get(type(node.op))
+            op_fn = _SAFE_UNARY_OPS.get(type(node.op))
             if op_fn is None:
                 raise ValueError(f"Unsupported unary op: {type(node.op).__name__}")
             return op_fn(_eval(node.operand))
