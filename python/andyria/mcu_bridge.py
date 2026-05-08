@@ -25,6 +25,7 @@ Invocation as a library
 
 Requirements: pyserial, httpx (already in requirements.txt)
 """
+
 from __future__ import annotations
 
 import asyncio
@@ -42,11 +43,11 @@ log = logging.getLogger("andyria.mcu_bridge")
 
 # ── Defaults ──────────────────────────────────────────────────────────────────
 _DEFAULT_API = "http://localhost:7700"
-_DEVICE_DB   = Path.home() / ".andyria" / "data" / "mcu_devices.json"
-_ENTROPY_Q   = Path.home() / ".andyria" / "data" / "mcu_entropy.bin"
-_BAUD        = 115_200
-_HANDSHAKE_TIMEOUT = 8.0   # seconds
-_RECONNECT_DELAY   = 5.0   # seconds
+_DEVICE_DB = Path.home() / ".andyria" / "data" / "mcu_devices.json"
+_ENTROPY_Q = Path.home() / ".andyria" / "data" / "mcu_entropy.bin"
+_BAUD = 115_200
+_HANDSHAKE_TIMEOUT = 8.0  # seconds
+_RECONNECT_DELAY = 5.0  # seconds
 
 
 # ── Device registry (persisted as JSON) ──────────────────────────────────────
@@ -57,7 +58,7 @@ class McuDevice:
     firmware: str
     caps: List[str]
     device_key: Optional[str]  # hex; None for Arduino XOR-only devices
-    agent_id: Optional[str]    # Andyria agent UUID assigned on first registration
+    agent_id: Optional[str]  # Andyria agent UUID assigned on first registration
     paired_at: float = field(default_factory=time.time)
 
     def has_hmac(self) -> bool:
@@ -86,10 +87,16 @@ def _list_candidate_ports() -> List[str]:
     """Return all USB serial port paths likely to host an MCU."""
     try:
         from serial.tools import list_ports  # type: ignore
-        return [p.device for p in list_ports.comports()
-                if p.vid is not None  # only USB-attached devices
-                or any(kw in (p.description or "").lower()
-                       for kw in ("arduino", "esp32", "cp210", "ch340", "ftdi", "usb serial"))]
+
+        return [
+            p.device
+            for p in list_ports.comports()
+            if p.vid is not None  # only USB-attached devices
+            or any(
+                kw in (p.description or "").lower()
+                for kw in ("arduino", "esp32", "cp210", "ch340", "ftdi", "usb serial")
+            )
+        ]
     except ImportError:
         log.warning("pyserial not installed — cannot enumerate ports")
         return []
@@ -100,6 +107,7 @@ class _SerialConn:
 
     def __init__(self, port: str, baud: int = _BAUD) -> None:
         import serial  # type: ignore  # deferred so import error is catchable
+
         self._s = serial.Serial(port, baud, timeout=1)
 
     def write_json(self, obj: Dict[str, Any]) -> None:
@@ -141,8 +149,8 @@ class _SerialConn:
 # ── Attestation helpers ───────────────────────────────────────────────────────
 def _verify_hmac(device_key_hex: str, nonce_hex: str, hmac_hex: str) -> bool:
     try:
-        key   = bytes.fromhex(device_key_hex)
-        msg   = bytes.fromhex(nonce_hex)
+        key = bytes.fromhex(device_key_hex)
+        msg = bytes.fromhex(nonce_hex)
         given = bytes.fromhex(hmac_hex)
         expected = hmac.new(key, msg, hashlib.sha256).digest()
         return hmac.compare_digest(expected, given)
@@ -154,21 +162,20 @@ def _verify_xor(node_id_hex: str, nonce_hex: str, response_hex: str) -> bool:
     """Verify Arduino XOR challenge-response."""
     try:
         node_id = bytes.fromhex(node_id_hex)
-        nonce   = bytes.fromhex(nonce_hex)
-        given   = bytes.fromhex(response_hex)
+        nonce = bytes.fromhex(nonce_hex)
+        given = bytes.fromhex(response_hex)
         expected = bytes(nonce[i] ^ node_id[i % len(node_id)] for i in range(len(nonce)))
-        return hmac.compare_digest(expected, given[:len(expected)])
+        return hmac.compare_digest(expected, given[: len(expected)])
     except Exception:
         return False
 
 
 # ── Per-device session ────────────────────────────────────────────────────────
 class _DeviceSession:
-    def __init__(self, port: str, conn: _SerialConn,
-                 device: McuDevice, api_client: Any) -> None:
-        self.port    = port
-        self.conn    = conn
-        self.device  = device
+    def __init__(self, port: str, conn: _SerialConn, device: McuDevice, api_client: Any) -> None:
+        self.port = port
+        self.conn = conn
+        self.device = device
         self._client = api_client
 
     async def run_until_disconnect(self) -> None:
@@ -202,15 +209,16 @@ class _DeviceSession:
 
     async def _post_heartbeat(self, msg: Dict[str, Any]) -> None:
         payload = {
-            "node_id":   self.device.node_id,
-            "agent_id":  self.device.agent_id,
+            "node_id": self.device.node_id,
+            "agent_id": self.device.agent_id,
             "uptime_ms": msg.get("uptime_ms"),
             "free_heap": msg.get("free_heap"),
-            "rssi":      msg.get("rssi"),
-            "ts":        time.time(),
+            "rssi": msg.get("rssi"),
+            "ts": time.time(),
         }
         try:
             import httpx  # type: ignore
+
             async with httpx.AsyncClient(timeout=4.0) as c:
                 await c.post(f"{self._client}/v1/mcu/heartbeat", json=payload)
         except Exception as exc:
@@ -218,8 +226,7 @@ class _DeviceSession:
 
 
 # ── Handshake ─────────────────────────────────────────────────────────────────
-async def _handshake(port: str, db: Dict[str, McuDevice],
-                     api_base: str) -> Optional[_DeviceSession]:
+async def _handshake(port: str, db: Dict[str, McuDevice], api_base: str) -> Optional[_DeviceSession]:
     loop = asyncio.get_running_loop()
     try:
         conn = await loop.run_in_executor(None, lambda: _SerialConn(port))
@@ -244,11 +251,11 @@ async def _handshake(port: str, db: Dict[str, McuDevice],
         conn.close()
         return None
 
-    node_id   = ident.get("node_id", "")
-    firmware  = ident.get("firmware", "unknown")
-    caps      = ident.get("caps") or []
-    key_export= ident.get("key_export")   # non-null on first boot only
-    hmac_hex  = ident.get("hmac", "")
+    node_id = ident.get("node_id", "")
+    firmware = ident.get("firmware", "unknown")
+    caps = ident.get("caps") or []
+    key_export = ident.get("key_export")  # non-null on first boot only
+    hmac_hex = ident.get("hmac", "")
 
     if not node_id:
         conn.close()
@@ -259,7 +266,8 @@ async def _handshake(port: str, db: Dict[str, McuDevice],
         device = db[node_id]
         # Verify attestation
         if device.has_hmac():
-            if not _verify_hmac(device.device_key, nonce_hex, hmac_hex):
+            existing_device_key = device.device_key
+            if existing_device_key is None or not _verify_hmac(existing_device_key, nonce_hex, hmac_hex):
                 log.warning("HMAC attestation FAILED for %s on %s — rejecting", node_id, port)
                 conn.close()
                 return None
@@ -297,8 +305,12 @@ async def _handshake(port: str, db: Dict[str, McuDevice],
         # Register as Andyria agent
         agent_id = await _register_agent(node_id, firmware, caps, api_base)
         device = McuDevice(
-            node_id=node_id, port=port, firmware=firmware, caps=caps,
-            device_key=device_key, agent_id=agent_id,
+            node_id=node_id,
+            port=port,
+            firmware=firmware,
+            caps=caps,
+            device_key=device_key,
+            agent_id=agent_id,
         )
         db[node_id] = device
         _save_db(db)
@@ -306,13 +318,13 @@ async def _handshake(port: str, db: Dict[str, McuDevice],
         # Tell device it is now paired (suppresses future key_export)
         def _ack() -> None:
             conn.write_json({"cmd": "paired_ack"})
+
         await loop.run_in_executor(None, _ack)
 
     return _DeviceSession(port, conn, device, api_base)
 
 
-async def _register_agent(node_id: str, firmware: str,
-                           caps: List[str], api_base: str) -> Optional[str]:
+async def _register_agent(node_id: str, firmware: str, caps: List[str], api_base: str) -> Optional[str]:
     """POST /v1/agents to register the MCU as an Andyria agent."""
     payload = {
         "name": f"mcu-{node_id[:8]}",
@@ -327,6 +339,7 @@ async def _register_agent(node_id: str, firmware: str,
     }
     try:
         import httpx  # type: ignore
+
         async with httpx.AsyncClient(timeout=6.0) as c:
             r = await c.post(f"{api_base}/v1/agents", json=payload)
             if r.status_code == 201:
@@ -358,12 +371,12 @@ class McuBridge:
         ports: Optional[List[str]] = None,
         scan_interval: float = 15.0,
     ) -> None:
-        self._api_base      = api_base
-        self._explicit_ports= ports or []
+        self._api_base = api_base
+        self._explicit_ports = ports or []
         self._scan_interval = scan_interval
-        self._db            = _load_db()
+        self._db = _load_db()
         self._sessions: Dict[str, asyncio.Task[None]] = {}
-        self._stop          = asyncio.Event()
+        self._stop = asyncio.Event()
 
     def cancel(self) -> None:
         self._stop.set()
@@ -420,11 +433,17 @@ async def _main(api: str, ports: List[str], verbose: bool) -> None:
 
 def main() -> None:
     import argparse
+
     p = argparse.ArgumentParser(description="Andyria MCU bridge daemon")
-    p.add_argument("--api",     default=_DEFAULT_API, help="Andyria API base URL")
-    p.add_argument("--port",    action="append", default=[], metavar="PORT",
-                   help="Serial port (repeat for multiple); omit for auto-discover")
-    p.add_argument("--auto",    action="store_true", help="Auto-discover ports (default if --port omitted)")
+    p.add_argument("--api", default=_DEFAULT_API, help="Andyria API base URL")
+    p.add_argument(
+        "--port",
+        action="append",
+        default=[],
+        metavar="PORT",
+        help="Serial port (repeat for multiple); omit for auto-discover",
+    )
+    p.add_argument("--auto", action="store_true", help="Auto-discover ports (default if --port omitted)")
     p.add_argument("--verbose", action="store_true")
     args = p.parse_args()
     asyncio.run(_main(args.api, args.port, args.verbose))

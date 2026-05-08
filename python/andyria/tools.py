@@ -64,9 +64,7 @@ class ToolPolicy:
         if tool_name in self.denied_tools:
             raise ValueError(f"Tool '{tool_name}' denied by policy")
         if len(text) > self.max_input_chars:
-            raise ValueError(
-                f"Tool input too large ({len(text)} > {self.max_input_chars})"
-            )
+            raise ValueError(f"Tool input too large ({len(text)} > {self.max_input_chars})")
         for pattern in self.blocked_input_patterns:
             if pattern.search(text):
                 raise ValueError("Tool input blocked by policy pattern")

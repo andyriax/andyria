@@ -66,23 +66,27 @@ class EntropyHealthMonitor:
         self._last_byte = byte
 
         if self._run_length >= self.rct_cutoff:
-            return [HealthTestResult(
-                passed=False,
-                test_name="RCT",
-                detail=f"Byte 0x{byte:02x} repeated {self._run_length} times consecutively",
-            )]
+            return [
+                HealthTestResult(
+                    passed=False,
+                    test_name="RCT",
+                    detail=f"Byte 0x{byte:02x} repeated {self._run_length} times consecutively",
+                )
+            ]
         return [HealthTestResult(passed=True, test_name="RCT", detail="ok")]
 
     def _apt_check(self) -> List[HealthTestResult]:
         counts = Counter(self._window)
         most_common_byte, count = counts.most_common(1)[0]
         if count >= self.apt_cutoff:
-            return [HealthTestResult(
-                passed=False,
-                test_name="APT",
-                detail=(
-                    f"Byte 0x{most_common_byte:02x} appears {count}/{self.apt_window} times "
-                    f"(threshold {self.apt_cutoff})"
-                ),
-            )]
+            return [
+                HealthTestResult(
+                    passed=False,
+                    test_name="APT",
+                    detail=(
+                        f"Byte 0x{most_common_byte:02x} appears {count}/{self.apt_window} times "
+                        f"(threshold {self.apt_cutoff})"
+                    ),
+                )
+            ]
         return [HealthTestResult(passed=True, test_name="APT", detail="ok")]

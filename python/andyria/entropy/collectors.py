@@ -49,6 +49,7 @@ class EntropySource(ABC):
 # Concrete sources
 # ---------------------------------------------------------------------------
 
+
 class OsUrandomSource(EntropySource):
     """Kernel TRNG via os.urandom(). Always available."""
 
@@ -189,6 +190,7 @@ class SystemStatsSource(EntropySource):
 # ---------------------------------------------------------------------------
 # Builder
 # ---------------------------------------------------------------------------
+
 
 def build_collector_chain(sources: Optional[List[str]] = None) -> List[EntropySource]:
     """Build an ordered list of available entropy sources.

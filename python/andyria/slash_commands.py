@@ -2,9 +2,17 @@
 
 from __future__ import annotations
 
-from typing import Dict, List
+from typing import List, Optional, TypedDict
 
-_SLASH_COMMANDS: List[Dict[str, object]] = [
+
+class SlashCommandDef(TypedDict):
+    command: str
+    description: str
+    arg_hint: Optional[str]
+    targets: List[str]
+
+
+_SLASH_COMMANDS: List[SlashCommandDef] = [
     {
         "command": "/new",
         "description": "Start a new session",
@@ -116,7 +124,7 @@ _SLASH_COMMANDS: List[Dict[str, object]] = [
 ]
 
 
-def list_slash_commands(target: str) -> List[Dict[str, object]]:
+def list_slash_commands(target: str) -> List[dict[str, object]]:
     """Return commands available for a surface target (cli or web)."""
     normalized = (target or "").strip().lower() or "cli"
     return [

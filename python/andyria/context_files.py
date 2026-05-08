@@ -70,8 +70,8 @@ class ContextFileLoader:
     ) -> None:
         self._cwd = Path(cwd) if cwd else Path.cwd()
         self._extra_paths = extra_paths or []
-        self._loaded: Dict[str, str] = {}   # filename → content
-        self._sources: Dict[str, Path] = {} # filename → path
+        self._loaded: Dict[str, str] = {}  # filename → content
+        self._sources: Dict[str, Path] = {}  # filename → path
 
     # ------------------------------------------------------------------
     # Public API

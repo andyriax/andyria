@@ -22,7 +22,7 @@ import operator
 import queue
 import time
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any, Callable, Dict, List, Optional
 
 from .atm import AutomatedThoughtMachine
 from .auto_learn import AutoLearner
@@ -94,6 +94,7 @@ logger = logging.getLogger(__name__)
 def _hash(data: bytes) -> str:
     try:
         import blake3  # type: ignore
+
         return blake3.blake3(data).hexdigest()
     except ImportError:
         return hashlib.sha3_256(data).hexdigest()
@@ -119,7 +120,7 @@ def _canonical_event(event: Event) -> bytes:
 # Safe math evaluator (no eval(), no exec())
 # ---------------------------------------------------------------------------
 
-_SAFE_OPS = {
+_SAFE_BIN_OPS: Dict[type[ast.operator], Callable[[float, float], float]] = {
     ast.Add: operator.add,
     ast.Sub: operator.sub,
     ast.Mult: operator.mul,
@@ -127,6 +128,9 @@ _SAFE_OPS = {
     ast.FloorDiv: operator.floordiv,
     ast.Mod: operator.mod,
     ast.Pow: operator.pow,
+}
+
+_SAFE_UNARY_OPS: Dict[type[ast.unaryop], Callable[[float], float]] = {
     ast.USub: operator.neg,
     ast.UAdd: operator.pos,
 }
@@ -144,15 +148,15 @@ def _safe_eval_math(expr: str) -> float:
                 return float(node.value)
             raise ValueError(f"Unsupported constant: {node.value!r}")
         if isinstance(node, ast.BinOp):
-            op_fn = _SAFE_OPS.get(type(node.op))
-            if op_fn is None:
+            op_bin = _SAFE_BIN_OPS.get(type(node.op))
+            if op_bin is None:
                 raise ValueError(f"Unsupported operator: {type(node.op).__name__}")
-            return op_fn(_eval(node.left), _eval(node.right))
+            return op_bin(_eval(node.left), _eval(node.right))
         if isinstance(node, ast.UnaryOp):
-            op_fn = _SAFE_OPS.get(type(node.op))
-            if op_fn is None:
+            op_unary = _SAFE_UNARY_OPS.get(type(node.op))
+            if op_unary is None:
                 raise ValueError(f"Unsupported unary op: {type(node.op).__name__}")
-            return op_fn(_eval(node.operand))
+            return op_unary(_eval(node.operand))
         raise ValueError(f"Unsupported AST node: {type(node).__name__}")
 
     return _eval(tree.body)
@@ -161,6 +165,7 @@ def _safe_eval_math(expr: str) -> float:
 # ---------------------------------------------------------------------------
 # Model Router
 # ---------------------------------------------------------------------------
+
 
 class ModelRouter:
     """Routes tasks to the smallest capable model or solver.
@@ -187,6 +192,7 @@ class ModelRouter:
         if self._model_path and self._model_path.exists():
             try:
                 from llama_cpp import Llama  # type: ignore
+
                 self._llm = Llama(
                     model_path=str(self._model_path),
                     n_ctx=2048,
@@ -219,6 +225,7 @@ class ModelRouter:
 
     def _symbolic_solve(self, description: str) -> Optional[tuple[str, str, float]]:
         import re
+
         # Require match to start with digit or '(' to avoid spurious whitespace matches
         expr_match = re.search(r"[\d(][\d\s\+\-\*\/\(\)\.]*", description)
         if expr_match:
@@ -259,6 +266,7 @@ class ModelRouter:
             full_prompt = f"{system}\n\nUser: {prompt}\nAssistant:"
         try:
             import httpx
+
             model = self._ollama_model or "phi3"
             resp = httpx.post(
                 f"{self._ollama_url}/api/generate",
@@ -334,15 +342,15 @@ class ModelRouter:
         p = prompt.lower()
         if any(kw in p for kw in ("what is", "who is", "explain", "describe", "how", "why")):
             answer = (
-                f"No language model is currently loaded, so I can\'t give a full answer to: \"{prompt[:200]}\"\n\n"
+                f'No language model is currently loaded, so I can\'t give a full answer to: "{prompt[:200]}"\n\n'
                 "To enable full responses, configure one of:\n"
                 "  • Ollama: set ANDYRIA_OLLAMA_URL and ANDYRIA_OLLAMA_MODEL env vars\n"
                 "  • Local GGUF: set model_path in config.yaml\n\n"
-                "While offline, I can still solve math expressions (e.g. \"42 * 7\") and route symbolic tasks."
+                'While offline, I can still solve math expressions (e.g. "42 * 7") and route symbolic tasks.'
             )
         else:
             answer = (
-                f"Received: \"{prompt[:200]}\"\n"
+                f'Received: "{prompt[:200]}"\n'
                 "No language model backend is available. "
                 "Configure Ollama or a local GGUF model to enable full inference."
             )
@@ -352,6 +360,7 @@ class ModelRouter:
 # ---------------------------------------------------------------------------
 # Coordinator
 # ---------------------------------------------------------------------------
+
 
 class Coordinator:
     """Main intelligence loop for an Andyria node.
@@ -523,15 +532,11 @@ class Coordinator:
                 else:
                     self._entropy_consecutive_degraded = 0
 
-                self._entropy_unhealthy = (
-                    self._entropy_consecutive_degraded >= self._entropy_max_consecutive_degraded
-                )
+                self._entropy_unhealthy = self._entropy_consecutive_degraded >= self._entropy_max_consecutive_degraded
             except Exception:
                 self._entropy_sampler_failures += 1
                 self._entropy_consecutive_degraded += 1
-                self._entropy_unhealthy = (
-                    self._entropy_consecutive_degraded >= self._entropy_max_consecutive_degraded
-                )
+                self._entropy_unhealthy = self._entropy_consecutive_degraded >= self._entropy_max_consecutive_degraded
             await asyncio.sleep(interval_s)
 
     async def process(self, request: AndyriaRequest) -> AndyriaResponse:
@@ -686,9 +691,7 @@ class Coordinator:
             orc_witness_result = ORCWitnessResult(
                 orc_id=wr.orc_id,
                 minimization_detected=wr.minimization_detected,
-                patterns_found=[
-                    ORCPatternMatch(**p) for p in wr.patterns_found
-                ],
+                patterns_found=[ORCPatternMatch(**p) for p in wr.patterns_found],
                 composite_mi=wr.composite_mi,
                 genuine_harm_present=wr.genuine_harm_present,
                 reflection_used=wr.reflection_used,
@@ -772,6 +775,7 @@ class Coordinator:
         curated local fallback pool.  Always local-first, zero cost.
         """
         import random
+
         _FALLBACK = [
             "Design a self-healing mesh protocol for edge devices with intermittent connectivity.",
             "Explain why entropy is the foundation of trust in distributed systems.",
@@ -806,11 +810,8 @@ class Coordinator:
         try:
             raw = self._pmem.read("MEMORY")
             from .auto_learn import LEARN_PREFIX
-            return [
-                ln.strip()
-                for ln in raw.splitlines()
-                if ln.strip().startswith(LEARN_PREFIX)
-            ]
+
+            return [ln.strip() for ln in raw.splitlines() if ln.strip().startswith(LEARN_PREFIX)]
         except Exception:
             return []
 
@@ -998,9 +999,7 @@ class Coordinator:
             timestamp_ns=log.timestamp_ns,
         )
 
-    def _atm_infer(
-        self, prompt: str, context: Dict[str, Any]
-    ) -> tuple[str, str, float]:
+    def _atm_infer(self, prompt: str, context: Dict[str, Any]) -> tuple[str, str, float]:
         """Bridge: route an ATM prompt through the model router."""
         return self._router.route(TaskType.LANGUAGE, prompt, context)
 
@@ -1030,7 +1029,7 @@ class Coordinator:
             for name in self._tools.list():
                 if name in lowered:
                     idx = lowered.index(name)
-                    text = description[idx + len(name):].strip().lstrip(":").strip()
+                    text = description[idx + len(name) :].strip().lstrip(":").strip()
                     try:
                         result = self._tools.dispatch(name, text, context)
                         self._emit_control_event(
@@ -1155,9 +1154,7 @@ class Coordinator:
     def delete_workflow(self, workflow_id: str) -> Optional[WorkflowDefinition]:
         return self._workflows.delete(workflow_id)
 
-    async def run_workflow(
-        self, workflow_id: str, request: WorkflowRunRequest
-    ) -> WorkflowRunResult:
+    async def run_workflow(self, workflow_id: str, request: WorkflowRunRequest) -> WorkflowRunResult:
         wf = self._workflows.get(workflow_id)
         if wf is None or not wf.active:
             raise ValueError(f"Workflow '{workflow_id}' not found")
@@ -1168,11 +1165,7 @@ class Coordinator:
         )
         try:
             result = await self._workflow_runner.run(wf, request)
-            event_type = (
-                EventType.WORKFLOW_COMPLETED
-                if result.status == "completed"
-                else EventType.WORKFLOW_FAILED
-            )
+            event_type = EventType.WORKFLOW_COMPLETED if result.status == "completed" else EventType.WORKFLOW_FAILED
             self._emit_control_event(
                 event_type,
                 {
@@ -1211,9 +1204,7 @@ class Coordinator:
         )
         return pb
 
-    def update_promptbook(
-        self, promptbook_id: str, request: PromptbookUpdateRequest
-    ) -> Optional[Promptbook]:
+    def update_promptbook(self, promptbook_id: str, request: PromptbookUpdateRequest) -> Optional[Promptbook]:
         pb = self._promptbooks.update(promptbook_id, request)
         if pb:
             self._emit_control_event(
@@ -1236,9 +1227,7 @@ class Coordinator:
     def render_promptbook(
         self, promptbook_id: str, request: PromptbookRenderRequest
     ) -> Optional[PromptbookRenderResponse]:
-        result = self._promptbooks.render(
-            promptbook_id, request.variables, template_name=request.template_name
-        )
+        result = self._promptbooks.render(promptbook_id, request.variables, template_name=request.template_name)
         if result:
             self._emit_control_event(
                 EventType.PROMPTBOOK_RENDERED,
@@ -1251,9 +1240,7 @@ class Coordinator:
             )
         return result
 
-    def mutate_promptbook(
-        self, promptbook_id: str, request: PromptbookMutateRequest
-    ) -> Optional[Promptbook]:
+    def mutate_promptbook(self, promptbook_id: str, request: PromptbookMutateRequest) -> Optional[Promptbook]:
         mutation = self._promptbooks.mutate(promptbook_id, request)
         if mutation:
             self._emit_control_event(
@@ -1527,13 +1514,15 @@ class Coordinator:
         peer_statuses = []
         if self.mesh:
             for status in self.mesh.get_peer_statuses().values():
-                peer_statuses.append(PeerStatus(
-                    url=status.url,
-                    node_id=status.node_id,
-                    last_seen_ns=status.last_seen_ns,
-                    events_synced=status.events_synced,
-                    reachable=status.reachable,
-                ))
+                peer_statuses.append(
+                    PeerStatus(
+                        url=status.url,
+                        node_id=status.node_id,
+                        last_seen_ns=status.last_seen_ns,
+                        events_synced=status.events_synced,
+                        reachable=status.reachable,
+                    )
+                )
 
         return NodeStatus(
             node_id=self._node_id,
@@ -1544,11 +1533,10 @@ class Coordinator:
             events_stored=self._events_committed,
             model_loaded=model_loaded,
             memory_objects=len(list((self._data_dir / "memory" / "objects").glob("*")))
-                if (self._data_dir / "memory" / "objects").exists() else 0,
+            if (self._data_dir / "memory" / "objects").exists()
+            else 0,
             entropy_sources=self._beacon_factory.source_names,
-            entropy_sampler_running=(
-                self._entropy_sampler_task is not None and not self._entropy_sampler_task.done()
-            ),
+            entropy_sampler_running=(self._entropy_sampler_task is not None and not self._entropy_sampler_task.done()),
             entropy_sampler_interval_ms=self._entropy_sampler_interval_ms,
             entropy_sampling_fail_closed=self._entropy_fail_closed,
             entropy_min_active_sources=self._entropy_min_active_sources,

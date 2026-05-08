@@ -128,11 +128,17 @@ class WorkflowRegistry:
         except Exception:
             return None
 
-    def create(self, name: str, description: str = "", steps: Optional[List[WorkflowStep]] = None,
-               input_schema: Optional[Dict[str, str]] = None, output_step: Optional[str] = None,
-               tags: Optional[List[str]] = None) -> WorkflowDefinition:
+    def create(
+        self,
+        name: str,
+        description: str = "",
+        steps: Optional[List[WorkflowStep]] = None,
+        input_schema: Optional[Dict[str, str]] = None,
+        output_step: Optional[str] = None,
+        tags: Optional[List[str]] = None,
+    ) -> WorkflowDefinition:
         now = int(time.time_ns())
-        wf_id = f"wf-{now % (10 ** 12):012d}"
+        wf_id = f"wf-{now % (10**12):012d}"
         wf = WorkflowDefinition(
             workflow_id=wf_id,
             name=name,
@@ -207,38 +213,41 @@ class WorkflowRunner:
             try:
                 output = await self._execute_step(step, ctx, request.session_id)
                 elapsed = int((time.monotonic() - step_start) * 1000)
-                step_results.append(WorkflowStepResult(
-                    step_id=step.step_id,
-                    name=step.name,
-                    status="completed",
-                    output=output,
-                    elapsed_ms=elapsed,
-                ))
+                step_results.append(
+                    WorkflowStepResult(
+                        step_id=step.step_id,
+                        name=step.name,
+                        status="completed",
+                        output=output,
+                        elapsed_ms=elapsed,
+                    )
+                )
                 # Publish output into context under output_key or step_id
                 key = step.output_key or step.step_id
                 ctx[key] = output
             except Exception as exc:
                 elapsed = int((time.monotonic() - step_start) * 1000)
-                step_results.append(WorkflowStepResult(
-                    step_id=step.step_id,
-                    name=step.name,
-                    status="failed",
-                    error=str(exc),
-                    elapsed_ms=elapsed,
-                ))
+                step_results.append(
+                    WorkflowStepResult(
+                        step_id=step.step_id,
+                        name=step.name,
+                        status="failed",
+                        error=str(exc),
+                        elapsed_ms=elapsed,
+                    )
+                )
                 status = "failed"
                 # Downstream dependent steps will have no input — mark them skipped
-                dep_ids = {s.step_id for s in ordered_steps
-                           if step.step_id in s.depends_on}
+                dep_ids = {s.step_id for s in ordered_steps if step.step_id in s.depends_on}
                 for s in ordered_steps:
-                    if s.step_id in dep_ids and not any(
-                        r.step_id == s.step_id for r in step_results
-                    ):
-                        step_results.append(WorkflowStepResult(
-                            step_id=s.step_id,
-                            name=s.name,
-                            status="skipped",
-                        ))
+                    if s.step_id in dep_ids and not any(r.step_id == s.step_id for r in step_results):
+                        step_results.append(
+                            WorkflowStepResult(
+                                step_id=s.step_id,
+                                name=s.name,
+                                status="skipped",
+                            )
+                        )
                 break
 
         # Determine final output
@@ -285,9 +294,7 @@ class WorkflowRunner:
             return await self._run_tool_step(step, ctx)
         raise ValueError(f"Unknown step type: {step.type}")
 
-    async def _run_agent_step(
-        self, step: WorkflowStep, ctx: Dict[str, str], session_id: Optional[str]
-    ) -> str:
+    async def _run_agent_step(self, step: WorkflowStep, ctx: Dict[str, str], session_id: Optional[str]) -> str:
         agent_id = step.config.get("agent_id")
         input_template = step.config.get("input_template", "{{input}}")
         prompt = _resolve(input_template, ctx)
@@ -299,9 +306,7 @@ class WorkflowRunner:
         response = await self._coordinator.process(req)
         return response.output
 
-    async def _run_chain_step(
-        self, step: WorkflowStep, ctx: Dict[str, str], session_id: Optional[str]
-    ) -> str:
+    async def _run_chain_step(self, step: WorkflowStep, ctx: Dict[str, str], session_id: Optional[str]) -> str:
         chain_id = step.config.get("chain_id")
         if not chain_id:
             raise ValueError(f"Step '{step.step_id}': chain_id required for chain steps")
@@ -346,10 +351,7 @@ class WorkflowRunner:
             raise ValueError(f"Step '{step.step_id}': tool_name required for tool steps")
         raw_params: Dict[str, Any] = dict(step.config.get("params", {}))
         # Resolve any string param values that contain {{placeholders}}
-        params: Dict[str, Any] = {
-            k: _resolve(v, ctx) if isinstance(v, str) else v
-            for k, v in raw_params.items()
-        }
+        params: Dict[str, Any] = {k: _resolve(v, ctx) if isinstance(v, str) else v for k, v in raw_params.items()}
         tool_registry = getattr(self._coordinator, "_tools", None)
         if tool_registry is None:
             raise RuntimeError("ToolRegistry not available on coordinator")

@@ -130,17 +130,17 @@ class EntropyBeacon(BaseModel):
     timestamp_ns: int
     sources: List[str]
     raw_entropy_hash: str  # BLAKE3 / SHA3-256 hex of mixed raw bytes
-    nonce: str             # 32-byte whitened entropy, hex; usable as salt/nonce
+    nonce: str  # 32-byte whitened entropy, hex; usable as salt/nonce
     node_id: str
-    signature: str         # Ed25519 hex signature over canonical JSON form
+    signature: str  # Ed25519 hex signature over canonical JSON form
 
 
 class NodeIdentity(BaseModel):
     """Cryptographic identity for an Andyria node."""
 
     node_id: str
-    public_key: str        # Ed25519 public key, raw bytes hex
-    created_at: int        # Unix nanoseconds
+    public_key: str  # Ed25519 public key, raw bytes hex
+    created_at: int  # Unix nanoseconds
     deployment_class: str  # "edge" | "server" | "cluster"
     capabilities: List[str]
 
@@ -151,15 +151,16 @@ class Event(BaseModel):
     id: str
     parent_ids: List[str]
     event_type: EventType
-    payload_hash: str      # BLAKE3 / SHA3-256 hex of canonical payload bytes
-    entropy_beacon_id: str # References a signed EntropyBeacon
+    payload_hash: str  # BLAKE3 / SHA3-256 hex of canonical payload bytes
+    entropy_beacon_id: str  # References a signed EntropyBeacon
     timestamp_ns: int
     node_id: str
-    signature: str         # Ed25519 hex signature
+    signature: str  # Ed25519 hex signature
 
 
 class PeerStatus(BaseModel):
     """Runtime status of a peer in the mesh."""
+
     url: str
     node_id: Optional[str] = None
     last_seen_ns: int = 0
@@ -188,7 +189,8 @@ class TaskResult(BaseModel):
 
 class SessionTurn(BaseModel):
     """One turn in a conversation session."""
-    role: str          # "user" or "assistant"
+
+    role: str  # "user" or "assistant"
     content: str
     model_used: str = "stub"
     confidence: float = 0.0
@@ -197,6 +199,7 @@ class SessionTurn(BaseModel):
 
 class SessionContext(BaseModel):
     """Rolling conversation context for a session."""
+
     session_id: str
     turns: List[SessionTurn] = Field(default_factory=list)
     created_at: int = 0
@@ -356,9 +359,9 @@ class AndyriaRequest(BaseModel):
     id: str = Field(default_factory=lambda: str(uuid.uuid4()))
     input: str
     agent_id: Optional[str] = None
-    session_id: Optional[str] = None   # omit for stateless single-turn requests
+    session_id: Optional[str] = None  # omit for stateless single-turn requests
     context: Dict[str, Any] = Field(default_factory=dict)
-    model: Optional[str] = None         # override active model for this request
+    model: Optional[str] = None  # override active model for this request
     system_context: Optional[str] = None  # extra system-prompt block (e.g. from PromptBuilder)
 
 
@@ -409,6 +412,7 @@ class NodeStatus(BaseModel):
 
 class NodeConfig(BaseModel):
     """Runtime-configurable settings for the node."""
+
     ollama_url: Optional[str] = None
     ollama_model: Optional[str] = None
     model_path: Optional[str] = None  # local GGUF path
@@ -416,6 +420,7 @@ class NodeConfig(BaseModel):
 
 class NodeConfigUpdate(BaseModel):
     """Partial update — only provided fields are changed."""
+
     ollama_url: Optional[str] = None
     ollama_model: Optional[str] = None
 
@@ -442,6 +447,7 @@ class ChainRunRequest(BaseModel):
 
 class ATMThinkRequest(BaseModel):
     """Request body for a direct ATM think invocation."""
+
     prompt: str
     max_iterations: int = 3
     context: Dict[str, Any] = Field(default_factory=dict)
@@ -449,6 +455,7 @@ class ATMThinkRequest(BaseModel):
 
 class ATMThoughtStepOut(BaseModel):
     """Serialised view of one ATM thought cycle step."""
+
     step: int
     output: str
     critique: str
@@ -459,6 +466,7 @@ class ATMThoughtStepOut(BaseModel):
 
 class ATMThoughtResponse(BaseModel):
     """HTTP response for a completed ATM think or reflect invocation."""
+
     thought_id: str
     prompt: str
     steps: List[ATMThoughtStepOut]
@@ -470,6 +478,7 @@ class ATMThoughtResponse(BaseModel):
 
 class ReflectionResult(BaseModel):
     """Embedded in AndyriaResponse when self-reflection was performed."""
+
     thought_id: str
     critique: str
     revised: bool
@@ -479,6 +488,7 @@ class ReflectionResult(BaseModel):
 
 class ReasoningStep(BaseModel):
     """One sub-question/answer pair inside a ReasoningTrace."""
+
     step_number: int
     question: str
     answer: str
@@ -489,6 +499,7 @@ class ReasoningStep(BaseModel):
 
 class ReasoningTrace(BaseModel):
     """Complete chain-of-thought trace produced by ReasoningEngine."""
+
     trace_id: str
     original_prompt: str
     steps: List[ReasoningStep]
@@ -500,6 +511,7 @@ class ReasoningTrace(BaseModel):
 
 class AutoLearnEntry(BaseModel):
     """One learned pattern recorded by AutoLearner."""
+
     entry_id: str
     pattern: str
     source: str  # 'atm' | 'reflection' | 'reasoning' | 'direct'
@@ -508,10 +520,9 @@ class AutoLearnEntry(BaseModel):
     recorded_at: int  # timestamp_ns
 
 
-
-
 class ORCPatternMatch(BaseModel):
     """One minimization pattern detected by the ORC witness scan."""
+
     label: str
     severity: float
     occurrences: int
@@ -519,6 +530,7 @@ class ORCPatternMatch(BaseModel):
 
 class ORCWitnessResult(BaseModel):
     """Embedded in AndyriaResponse when the Outer Reasoning Cortex intervened."""
+
     orc_id: str
     minimization_detected: bool
     patterns_found: List["ORCPatternMatch"]
@@ -535,19 +547,21 @@ class ORCWitnessResult(BaseModel):
 # Hermes-agent feature models
 # ---------------------------------------------------------------------------
 
+
 class MemoryOp(str, Enum):
-    ADD    = "add"
+    ADD = "add"
     REMOVE = "remove"
     UPDATE = "update"
-    READ   = "read"
-    CLEAR  = "clear"
+    READ = "read"
+    CLEAR = "clear"
 
 
 class MemoryOpRequest(BaseModel):
     """Body for /v1/memory endpoints."""
-    file: str = "MEMORY"          # "MEMORY" or "USER"
+
+    file: str = "MEMORY"  # "MEMORY" or "USER"
     op: MemoryOp = MemoryOp.READ
-    text: Optional[str] = None    # entry text (add / remove)
+    text: Optional[str] = None  # entry text (add / remove)
     old_text: Optional[str] = None
     new_text: Optional[str] = None
 
@@ -564,8 +578,8 @@ class SkillAction(str, Enum):
     CREATE = "create"
     UPDATE = "update"
     DELETE = "delete"
-    VIEW   = "view"
-    LIST   = "list"
+    VIEW = "view"
+    LIST = "list"
     SEARCH = "search"
 
 
@@ -576,7 +590,7 @@ class SkillRequest(BaseModel):
     description: str = ""
     tags: List[str] = Field(default_factory=list)
     category: Optional[str] = None  # filter for list
-    query: Optional[str] = None     # for search
+    query: Optional[str] = None  # for search
 
 
 class SkillResponse(BaseModel):
@@ -590,7 +604,7 @@ class SkillResponse(BaseModel):
 
 class CronJobCreate(BaseModel):
     name: str
-    expression: str      # "every day at 09:00" or "0 9 * * *"
+    expression: str  # "every day at 09:00" or "0 9 * * *"
     task: str
     platform: str = "andyria"
 
@@ -609,25 +623,25 @@ class DelegateRequest(BaseModel):
     prompt: str
     tools: List[str] = Field(default_factory=list)
     config: Dict[str, Any] = Field(default_factory=dict)
-    wait: bool = False        # if True, block until complete (up to timeout_s)
+    wait: bool = False  # if True, block until complete (up to timeout_s)
     timeout_s: float = 30.0
 
 
 class DelegateResponse(BaseModel):
     task_id: str
-    status: str                    # "spawned" | "done" | "error"
+    status: str  # "spawned" | "done" | "error"
     result: Optional[str] = None
     error: Optional[str] = None
 
 
 class TodoAction(str, Enum):
-    ADD     = "add"
-    UPDATE  = "update"
-    DONE    = "done"
-    CANCEL  = "cancel"
-    REMOVE  = "remove"
-    LIST    = "list"
-    CLEAR   = "clear"
+    ADD = "add"
+    UPDATE = "update"
+    DONE = "done"
+    CANCEL = "cancel"
+    REMOVE = "remove"
+    LIST = "list"
+    CLEAR = "clear"
 
 
 class TodoRequest(BaseModel):
@@ -660,12 +674,13 @@ class SessionSearchResponse(BaseModel):
 # Promptbook models
 # ---------------------------------------------------------------------------
 
+
 class PromptTemplate(BaseModel):
     """One named prompt template within a Promptbook."""
 
     name: str
-    role: str = "user"          # "system" | "user" | "assistant"
-    template: str               # text with {{variable}} placeholders
+    role: str = "user"  # "system" | "user" | "assistant"
+    template: str  # text with {{variable}} placeholders
     description: str = ""
     variables: List[str] = Field(default_factory=list)
 
@@ -680,7 +695,7 @@ class Promptbook(BaseModel):
     variables: Dict[str, str] = Field(default_factory=dict)  # name -> description
     tags: List[str] = Field(default_factory=list)
     version: str = "1.0"
-    parent_id: Optional[str] = None   # set when mutated from another promptbook
+    parent_id: Optional[str] = None  # set when mutated from another promptbook
     active: bool = True
     created_at: int = 0
     updated_at: int = 0
@@ -706,18 +721,20 @@ class PromptbookUpdateRequest(BaseModel):
 
 class PromptbookRenderRequest(BaseModel):
     """Render one or all templates in a promptbook with provided variable values."""
+
     variables: Dict[str, str] = Field(default_factory=dict)
-    template_name: Optional[str] = None   # None = render all templates
+    template_name: Optional[str] = None  # None = render all templates
 
 
 class PromptbookRenderResponse(BaseModel):
     promptbook_id: str
-    rendered: List[Dict[str, str]]         # [{name, role, content}, ...]
+    rendered: List[Dict[str, str]]  # [{name, role, content}, ...]
     missing_variables: List[str] = Field(default_factory=list)
 
 
 class PromptbookMutateRequest(BaseModel):
     """Fork a promptbook as a named variant (Cyphermorph mutation)."""
+
     name: str
     overrides: Dict[str, str] = Field(default_factory=dict)  # template_name -> new template text
     extra_templates: List[PromptTemplate] = Field(default_factory=list)
@@ -730,12 +747,13 @@ class PromptbookMutateRequest(BaseModel):
 # Workflow models
 # ---------------------------------------------------------------------------
 
+
 class WorkflowStepType(str, Enum):
-    AGENT      = "agent"
-    CHAIN      = "chain"
-    ATM        = "atm"
+    AGENT = "agent"
+    CHAIN = "chain"
+    ATM = "atm"
     PROMPTBOOK = "promptbook"
-    TOOL       = "tool"
+    TOOL = "tool"
 
 
 class WorkflowStep(BaseModel):
@@ -745,8 +763,8 @@ class WorkflowStep(BaseModel):
     name: str
     type: WorkflowStepType
     config: Dict[str, Any] = Field(default_factory=dict)
-    depends_on: List[str] = Field(default_factory=list)   # upstream step_ids
-    output_key: str = ""                                   # name in run context
+    depends_on: List[str] = Field(default_factory=list)  # upstream step_ids
+    output_key: str = ""  # name in run context
 
 
 class WorkflowDefinition(BaseModel):
@@ -757,7 +775,7 @@ class WorkflowDefinition(BaseModel):
     description: str = ""
     steps: List[WorkflowStep] = Field(default_factory=list)
     input_schema: Dict[str, str] = Field(default_factory=dict)  # var -> description
-    output_step: Optional[str] = None   # step_id whose output becomes final_output
+    output_step: Optional[str] = None  # step_id whose output becomes final_output
     tags: List[str] = Field(default_factory=list)
     active: bool = True
     created_at: int = 0
@@ -782,7 +800,7 @@ class WorkflowRunRequest(BaseModel):
 class WorkflowStepResult(BaseModel):
     step_id: str
     name: str
-    status: str                  # "completed" | "failed" | "skipped"
+    status: str  # "completed" | "failed" | "skipped"
     output: str = ""
     error: Optional[str] = None
     elapsed_ms: int = 0
@@ -791,7 +809,7 @@ class WorkflowStepResult(BaseModel):
 class WorkflowRunResult(BaseModel):
     run_id: str
     workflow_id: str
-    status: str                  # "completed" | "failed" | "partial"
+    status: str  # "completed" | "failed" | "partial"
     step_results: List[WorkflowStepResult] = Field(default_factory=list)
     final_output: str = ""
     total_ms: int = 0
@@ -802,8 +820,10 @@ class WorkflowRunResult(BaseModel):
 # Mesh — machine dreams, copy-homework, growth health
 # ---------------------------------------------------------------------------
 
+
 class MachineDream(BaseModel):
     """A single ATM thought shared across the mesh."""
+
     id: str = Field(default_factory=lambda: str(uuid.uuid4())[:12])
     origin_node_id: str
     thought: str
@@ -814,8 +834,9 @@ class MachineDream(BaseModel):
 
 class HomeworkItem(BaseModel):
     """A promptbook or chain definition imported from a peer."""
+
     peer_url: str
-    kind: str                   # "promptbook" | "chain"
+    kind: str  # "promptbook" | "chain"
     id: str
     name: str
     body: Dict[str, Any] = Field(default_factory=dict)
@@ -824,6 +845,7 @@ class HomeworkItem(BaseModel):
 
 class MeshGrowthSnapshot(BaseModel):
     """One timestamped sample of mesh topology."""
+
     timestamp_ns: int = Field(default_factory=lambda: int(__import__("time").time_ns()))
     total_peers: int
     reachable_peers: int
@@ -832,12 +854,13 @@ class MeshGrowthSnapshot(BaseModel):
 
 class MeshGrowthReport(BaseModel):
     """Aggregated mesh growth health report."""
+
     node_id: str
     generated_at_ns: int = Field(default_factory=lambda: int(__import__("time").time_ns()))
     snapshots: List[MeshGrowthSnapshot] = Field(default_factory=list)
     current_peers: int = 0
     reachable_now: int = 0
     reachability_pct: float = 0.0
-    growth_rate_per_hour: float = 0.0   # peers added per hour over observation window
+    growth_rate_per_hour: float = 0.0  # peers added per hour over observation window
     healthy: bool = True
     warnings: List[str] = Field(default_factory=list)

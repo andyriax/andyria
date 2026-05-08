@@ -87,9 +87,7 @@ def render_avatar_svg(seed: str, label: str) -> str:
         x = 18 + (int(digest[i : i + 2], 16) % 92)
         y = 18 + (int(digest[i + 2 : i + 4], 16) % 92)
         r = 8 + (int(digest[i + 4 : i + 6], 16) % 14)
-        circles.append(
-            f'<circle cx="{x}" cy="{y}" r="{r}" fill="{c3}" fill-opacity="0.28" />'
-        )
+        circles.append(f'<circle cx="{x}" cy="{y}" r="{r}" fill="{c3}" fill-opacity="0.28" />')
 
     circles_svg = "\n    ".join(circles)
 

@@ -31,17 +31,17 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Callable, List, Optional
 
-_POLL_INTERVAL = 30          # seconds between scheduler ticks
+_POLL_INTERVAL = 30  # seconds between scheduler ticks
 _NATURAL_PATTERNS: list[tuple[re.Pattern, str]] = [
     # "every N minutes/hours"
     (re.compile(r"every\s+(\d+)\s+minute", re.I), "interval_minutes"),
-    (re.compile(r"every\s+(\d+)\s+hour",   re.I), "interval_hours"),
+    (re.compile(r"every\s+(\d+)\s+hour", re.I), "interval_hours"),
     # "every minute" / "every hour"
-    (re.compile(r"every\s+minute",  re.I), "every_minute"),
-    (re.compile(r"every\s+hour",    re.I), "every_hour"),
+    (re.compile(r"every\s+minute", re.I), "every_minute"),
+    (re.compile(r"every\s+hour", re.I), "every_hour"),
     (re.compile(r"every\s+day\s+at\s+(\d{1,2}):(\d{2})", re.I), "daily_hhmm"),
-    (re.compile(r"every\s+day\s+at\s+(\d{1,2})(am|pm)", re.I),  "daily_ampm"),
-    (re.compile(r"daily\s+at\s+(\d{1,2}):(\d{2})",       re.I), "daily_hhmm"),
+    (re.compile(r"every\s+day\s+at\s+(\d{1,2})(am|pm)", re.I), "daily_ampm"),
+    (re.compile(r"daily\s+at\s+(\d{1,2}):(\d{2})", re.I), "daily_hhmm"),
 ]
 
 
@@ -93,6 +93,7 @@ def _is_due(schedule: dict, last_run: float, now: float) -> bool:
         return (now - last_run) >= schedule["interval_seconds"]
     if schedule.get("daily"):
         import datetime
+
         dt = datetime.datetime.fromtimestamp(now)
         if dt.hour == schedule["hour"] and dt.minute == schedule["minute"]:
             last_dt = datetime.datetime.fromtimestamp(last_run)
@@ -102,9 +103,10 @@ def _is_due(schedule: dict, last_run: float, now: float) -> bool:
         # Basic cron: only support minute/hour fields (1 and 2)
         fields = schedule["cron"].split()
         import datetime
+
         dt = datetime.datetime.fromtimestamp(now)
         minute_ok = fields[0] == "*" or int(fields[0]) == dt.minute
-        hour_ok   = fields[1] == "*" or int(fields[1]) == dt.hour
+        hour_ok = fields[1] == "*" or int(fields[1]) == dt.hour
         if minute_ok and hour_ok:
             last_dt = datetime.datetime.fromtimestamp(last_run)
             return not (last_dt.hour == dt.hour and last_dt.minute == dt.minute)
@@ -165,32 +167,35 @@ class CronScheduler:
         job_id = str(uuid.uuid4())[:8]
         now = time.time()
         _parse_schedule(expression)  # validate expression; raises if invalid
-        c = self._conn.cursor()
+        conn = self._require_conn()
+        c = conn.cursor()
         c.execute(
             "INSERT INTO jobs(id,name,expression,task,platform,last_run,next_run,active,created_at) "
             "VALUES(?,?,?,?,?,?,?,?,?)",
             (job_id, name, expression, task, platform, 0.0, now, 1, now),
         )
-        self._conn.commit()
+        conn.commit()
         return job_id
 
     def cancel(self, job_id: str) -> bool:
         """Deactivate a job. Returns True if found."""
-        c = self._conn.cursor()
+        conn = self._require_conn()
+        c = conn.cursor()
         c.execute("UPDATE jobs SET active=0 WHERE id=?", (job_id,))
-        self._conn.commit()
+        conn.commit()
         return c.rowcount > 0
 
     def delete(self, job_id: str) -> bool:
         """Permanently delete a job."""
-        c = self._conn.cursor()
+        conn = self._require_conn()
+        c = conn.cursor()
         c.execute("DELETE FROM jobs WHERE id=?", (job_id,))
-        self._conn.commit()
+        conn.commit()
         return c.rowcount > 0
 
     def list(self, include_inactive: bool = False) -> List[CronJob]:
         """Return list of cron jobs."""
-        c = self._conn.cursor()
+        c = self._require_conn().cursor()
         if include_inactive:
             c.execute("SELECT * FROM jobs ORDER BY created_at")
         else:
@@ -198,7 +203,7 @@ class CronScheduler:
         return [CronJob(*row) for row in c.fetchall()]
 
     def get(self, job_id: str) -> Optional[CronJob]:
-        c = self._conn.cursor()
+        c = self._require_conn().cursor()
         c.execute("SELECT * FROM jobs WHERE id=?", (job_id,))
         row = c.fetchone()
         return CronJob(*row) if row else None
@@ -244,7 +249,8 @@ class CronScheduler:
 
     def _tick(self) -> None:
         now = time.time()
-        c = self._conn.cursor()
+        conn = self._require_conn()
+        c = conn.cursor()
         c.execute("SELECT * FROM jobs WHERE active=1")
         for row in c.fetchall():
             job = CronJob(*row)
@@ -254,12 +260,17 @@ class CronScheduler:
             # Fire the job
             output = self._run_job(job)
             c.execute("UPDATE jobs SET last_run=? WHERE id=?", (now, job.id))
-            self._conn.commit()
+            conn.commit()
             if self._push and output:
                 try:
                     self._push(job.id, output)
                 except Exception:
                     pass
+
+    def _require_conn(self) -> sqlite3.Connection:
+        if self._conn is None:
+            raise RuntimeError("Cron scheduler database is not initialized")
+        return self._conn
 
     def _run_job(self, job: CronJob) -> str:
         if self._executor:

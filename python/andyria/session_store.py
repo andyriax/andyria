@@ -102,9 +102,7 @@ class SessionStore:
         )
         # Auto-set title from first user message if not set
         if role == "user":
-            row = self._conn.execute(
-                "SELECT title FROM sessions WHERE id=?", (session_id,)
-            ).fetchone()
+            row = self._conn.execute("SELECT title FROM sessions WHERE id=?", (session_id,)).fetchone()
             if row and (row["title"] == f"Session {session_id}" or not row["title"]):
                 auto_title = content[:60].replace("\n", " ")
                 self._conn.execute(
@@ -135,8 +133,7 @@ class SessionStore:
         if not row:
             return None
         turns_rows = self._conn.execute(
-            "SELECT id, session_id, role, content, timestamp FROM turns "
-            "WHERE session_id=? ORDER BY timestamp",
+            "SELECT id, session_id, role, content, timestamp FROM turns WHERE session_id=? ORDER BY timestamp",
             (session_id,),
         ).fetchall()
         summary = SessionSummary(
@@ -214,9 +211,7 @@ class SessionStore:
         for r in rows:
             snippet = r["content"][:120].replace("\n", " ")
             # Look up role
-            turn = self._conn.execute(
-                "SELECT role FROM turns WHERE id=?", (r["turn_id"],)
-            ).fetchone()
+            turn = self._conn.execute("SELECT role FROM turns WHERE id=?", (r["turn_id"],)).fetchone()
             results.append(
                 SearchResult(
                     session_id=r["session_id"],

@@ -21,6 +21,7 @@ from typing import Any, Callable, Dict, List, Optional
 # Domain types
 # ---------------------------------------------------------------------------
 
+
 class ThoughtStep:
     """One cycle of ATM reasoning: initial → critique → revision."""
 
@@ -100,6 +101,7 @@ InferenceFn = Callable[[str, Dict[str, Any]], tuple[str, str, float]]
 # ---------------------------------------------------------------------------
 # ATM core
 # ---------------------------------------------------------------------------
+
 
 class AutomatedThoughtMachine:
     """Iterative thought incubator.
@@ -342,9 +344,7 @@ class AutomatedThoughtMachine:
             "Be concise and direct."
         )
 
-    def _build_next_input(
-        self, original: str, output: str, critique: str, iteration: int
-    ) -> str:
+    def _build_next_input(self, original: str, output: str, critique: str, iteration: int) -> str:
         return (
             f"[ATM Iteration {iteration + 2} — refine based on critique]\n"
             f"Original question: {original}\n"

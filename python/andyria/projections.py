@@ -694,10 +694,7 @@ class PromptFlowStore:
         if not options:
             return None
 
-        by_index: Dict[str, PromptChoiceOption] = {
-            str(idx + 1): option
-            for idx, option in enumerate(options)
-        }
+        by_index: Dict[str, PromptChoiceOption] = {str(idx + 1): option for idx, option in enumerate(options)}
         by_label: Dict[str, PromptChoiceOption] = {}
         for option in options:
             by_label[option.label.lower()] = option
@@ -712,11 +709,11 @@ class PromptFlowStore:
         picked: List[PromptChoiceOption] = []
         for token in parts:
             cleaned = re.sub(r"^([0-9]+)[\).\-\s]+", r"\1", token.lower())
-            option = by_index.get(cleaned) or by_label.get(cleaned)
-            if option is None:
+            selected: Optional[PromptChoiceOption] = by_index.get(cleaned) or by_label.get(cleaned)
+            if selected is None:
                 return None
-            if option not in picked:
-                picked.append(option)
+            if selected not in picked:
+                picked.append(selected)
 
         if not picked:
             return None

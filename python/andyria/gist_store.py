@@ -38,13 +38,14 @@ from .models import Event
 logger = logging.getLogger(__name__)
 
 _GIST_API = "https://api.github.com/gists"
-_MIRROR_REWARD_PER_SYNC = 5   # JETS credits per successful mirror sync
+_MIRROR_REWARD_PER_SYNC = 5  # JETS credits per successful mirror sync
 _MAX_REWARD_ACCUMULATE = 1000  # cap per node so no runaway inflation
 
 
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
+
 
 def _token_from_env() -> Optional[str]:
     return os.environ.get("ANDYRIA_GITHUB_TOKEN") or os.environ.get("GITHUB_TOKEN")
@@ -78,6 +79,7 @@ def _ndjson_to_events(text: str) -> List[Event]:
 # ---------------------------------------------------------------------------
 # Core class
 # ---------------------------------------------------------------------------
+
 
 class GistStore:
     """GitHub Gist-backed distributed ledger mirror with mirror rewards.
@@ -280,7 +282,9 @@ class GistStore:
         entry["last_sync_ns"] = time.time_ns()
         logger.info(
             "GistStore: mirror %s sync reward +%d → balance %d",
-            mirror_node_id, _MIRROR_REWARD_PER_SYNC, new_balance,
+            mirror_node_id,
+            _MIRROR_REWARD_PER_SYNC,
+            new_balance,
         )
         return new_balance
 
@@ -290,10 +294,7 @@ class GistStore:
 
     def list_mirrors(self) -> List[Dict[str, Any]]:
         """Return all registered mirrors with their stats."""
-        return [
-            {"node_id": nid, **info}
-            for nid, info in self._mirrors.items()
-        ]
+        return [{"node_id": nid, **info} for nid, info in self._mirrors.items()]
 
     # ------------------------------------------------------------------
     # Convenience: sync all known mirrors by pulling their gists

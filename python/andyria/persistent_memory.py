@@ -26,17 +26,17 @@ MemFile = Literal["MEMORY", "USER"]
 # Character caps matching hermes-agent defaults
 _CAPS: dict[MemFile, int] = {
     "MEMORY": 2200,
-    "USER":   1375,
+    "USER": 1375,
 }
 
 _HEADERS: dict[MemFile, str] = {
     "MEMORY": "## Memory",
-    "USER":   "## User Profile",
+    "USER": "## User Profile",
 }
 
 _DEFAULTS: dict[MemFile, str] = {
     "MEMORY": "## Memory\n\n*(no facts recorded yet)*\n",
-    "USER":   "## User Profile\n\n*(no profile recorded yet)*\n",
+    "USER": "## User Profile\n\n*(no profile recorded yet)*\n",
 }
 
 _BULLET = "- "
@@ -86,10 +86,7 @@ class PersistentMemory:
         old_text = old_text.strip()
         content = self._read(file)
         lines = content.splitlines(keepends=True)
-        new_lines = [
-            ln for ln in lines
-            if not (ln.strip().startswith(_BULLET) and old_text in ln)
-        ]
+        new_lines = [ln for ln in lines if not (ln.strip().startswith(_BULLET) and old_text in ln)]
         if len(new_lines) == len(lines):
             return False
         self._write(file, "".join(new_lines))
@@ -139,13 +136,13 @@ class PersistentMemory:
         return {
             "MEMORY": {
                 "chars": len(self._read("MEMORY")),
-                "cap"  : _CAPS["MEMORY"],
-                "pct"  : round(len(self._read("MEMORY")) / _CAPS["MEMORY"] * 100, 1),
+                "cap": _CAPS["MEMORY"],
+                "pct": round(len(self._read("MEMORY")) / _CAPS["MEMORY"] * 100, 1),
             },
             "USER": {
                 "chars": len(self._read("USER")),
-                "cap"  : _CAPS["USER"],
-                "pct"  : round(len(self._read("USER")) / _CAPS["USER"] * 100, 1),
+                "cap": _CAPS["USER"],
+                "pct": round(len(self._read("USER")) / _CAPS["USER"] * 100, 1),
             },
         }
 
@@ -171,7 +168,7 @@ class PersistentMemory:
         idx = content.find(header)
         if idx == -1:
             return content
-        rest = content[idx + len(header):].lstrip("\n")
+        rest = content[idx + len(header) :].lstrip("\n")
         return rest
 
     def _rebuild(self, file: MemFile, body: str) -> str:

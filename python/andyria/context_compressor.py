@@ -27,10 +27,10 @@ from __future__ import annotations
 import time
 from typing import Any, Awaitable, Callable, Dict, List, Optional
 
-_CHARS_PER_TOKEN = 4     # rough heuristic
-_DEFAULT_TRIGGER   = 0.50  # compress when 50 % of context used
-_DEFAULT_MAX_TOK   = 8192
-_DEFAULT_KEEP      = 20    # keep this many recent turns untouched
+_CHARS_PER_TOKEN = 4  # rough heuristic
+_DEFAULT_TRIGGER = 0.50  # compress when 50 % of context used
+_DEFAULT_MAX_TOK = 8192
+_DEFAULT_KEEP = 20  # keep this many recent turns untouched
 
 
 def _token_estimate(messages: List[Dict[str, Any]]) -> int:
@@ -60,9 +60,9 @@ def _find_compressible_span(
         * Any tool call + its paired result (keeps pairs together).
     """
     if len(messages) <= keep_recent + 2:
-        return (0, 0)   # nothing to compress
+        return (0, 0)  # nothing to compress
 
-    start = 1           # skip system prompt
+    start = 1  # skip system prompt
     end = max(start, len(messages) - keep_recent)
 
     # Walk backwards from ``end`` to ensure we don't split a tool pair
@@ -162,8 +162,7 @@ class ContextCompressor:
         prompt = (
             "The following is a segment of a conversation that needs to be compressed. "
             "Write a dense factual summary in third-person that preserves all important "
-            "decisions, facts, code snippets, and context. Be concise but complete.\n\n"
-            + combined
+            "decisions, facts, code snippets, and context. Be concise but complete.\n\n" + combined
         )
 
         try:
@@ -220,10 +219,12 @@ class ContextCompressor:
         except Exception as exc:
             summary = f"[summary unavailable: {exc}]"
 
-        messages[start:end] = [{
-            "role": "assistant",
-            "content": f"[CONTEXT SUMMARY — {len(middle)} turns compressed]\n\n{summary}",
-            "_compressed": True,
-            "_compressed_at": time.time(),
-        }]
+        messages[start:end] = [
+            {
+                "role": "assistant",
+                "content": f"[CONTEXT SUMMARY — {len(middle)} turns compressed]\n\n{summary}",
+                "_compressed": True,
+                "_compressed_at": time.time(),
+            }
+        ]
         return messages

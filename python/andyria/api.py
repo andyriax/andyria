@@ -345,6 +345,7 @@ def create_app(coordinator: Coordinator) -> FastAPI:
             return []
         try:
             import httpx
+
             response = httpx.get(f"{url}/api/tags", timeout=4.0)
             response.raise_for_status()
             payload = response.json()
@@ -520,9 +521,9 @@ def create_app(coordinator: Coordinator) -> FastAPI:
         (workspace / "cron.auto-develop").write_text(
             "# Install with: crontab cron.auto-develop\n"
             "# Auto-develop loop for this agent\n"
-            "*/30 * * * * cd /home/coder/project && python -m andyria ask \"agent "
+            '*/30 * * * * cd /home/coder/project && python -m andyria ask "agent '
             + agent.agent_id
-            + " auto-develop checkpoint\" >> /tmp/"
+            + ' auto-develop checkpoint" >> /tmp/'
             + safe_agent_id
             + "-autodev.log 2>&1\n",
             encoding="utf-8",
@@ -665,13 +666,15 @@ def create_app(coordinator: Coordinator) -> FastAPI:
             return []
         result = []
         for status in mesh.get_peer_statuses().values():
-            result.append({
-                "url": status.url,
-                "node_id": status.node_id,
-                "last_seen_ns": status.last_seen_ns,
-                "events_synced": status.events_synced,
-                "reachable": status.reachable,
-            })
+            result.append(
+                {
+                    "url": status.url,
+                    "node_id": status.node_id,
+                    "last_seen_ns": status.last_seen_ns,
+                    "events_synced": status.events_synced,
+                    "reachable": status.reachable,
+                }
+            )
         return result
 
     @app.post("/v1/peers", response_model=List[Dict[str, Any]])
@@ -687,13 +690,15 @@ def create_app(coordinator: Coordinator) -> FastAPI:
         mesh.add_peer(url)
         result = []
         for status in mesh.get_peer_statuses().values():
-            result.append({
-                "url": status.url,
-                "node_id": status.node_id,
-                "last_seen_ns": status.last_seen_ns,
-                "events_synced": status.events_synced,
-                "reachable": status.reachable,
-            })
+            result.append(
+                {
+                    "url": status.url,
+                    "node_id": status.node_id,
+                    "last_seen_ns": status.last_seen_ns,
+                    "events_synced": status.events_synced,
+                    "reachable": status.reachable,
+                }
+            )
         return result
 
     # ------------------------------------------------------------------
@@ -756,12 +761,12 @@ def create_app(coordinator: Coordinator) -> FastAPI:
 
         node_id = str(payload.get("node_id") or "unknown")
         record = {
-            "ts":        _time.time(),
-            "node_id":   node_id,
-            "agent_id":  payload.get("agent_id"),
+            "ts": _time.time(),
+            "node_id": node_id,
+            "agent_id": payload.get("agent_id"),
             "uptime_ms": payload.get("uptime_ms"),
             "free_heap": payload.get("free_heap"),
-            "rssi":      payload.get("rssi"),
+            "rssi": payload.get("rssi"),
         }
         if _coordinator is not None:
             telem_path = _coordinator._data_dir / "mcu_telemetry.ndjson"
@@ -899,12 +904,14 @@ def create_app(coordinator: Coordinator) -> FastAPI:
             return _coordinator.atm_think(single_req)
 
         from .atm import AutomatedThoughtMachine
+
         atm = AutomatedThoughtMachine(
             inference_fn=_coordinator._atm_infer,
             emit_event_fn=_coordinator._emit_control_event_str,
             max_iterations=1,
         )
         from .models import ATMThoughtStepOut
+
         log = atm.reflect(
             original_prompt=request.prompt,
             draft_output=draft,
@@ -1015,11 +1022,11 @@ def create_app(coordinator: Coordinator) -> FastAPI:
         # ------------------------------------------------------------------
 
         _data_dir_path = Path(getattr(_coordinator, "_data_dir", Path.home() / ".andyria"))
-        _soul          = SoulFile(_data_dir_path)
-        _memory        = PersistentMemory(_data_dir_path)
-        _skill_reg     = SkillRegistry(_data_dir_path)
+        _soul = SoulFile(_data_dir_path)
+        _memory = PersistentMemory(_data_dir_path)
+        _skill_reg = SkillRegistry(_data_dir_path)
         _session_store = SessionStore(_data_dir_path)
-        _cron          = CronScheduler(_data_dir_path)
+        _cron = CronScheduler(_data_dir_path)
 
         # Wire cron executor so self-wake jobs emit events into the coordinator
         def _cron_executor(task: str) -> str:
@@ -1043,11 +1050,11 @@ def create_app(coordinator: Coordinator) -> FastAPI:
             _cron.schedule_self_wake("every 30 minutes", name="self-wake")
 
         _cron.start()
-        _todo          = TodoStore(_data_dir_path)
-        _delegation    = DelegationManager(
-            coordinator_factory=lambda prompt, tools, cfg: asyncio.run(
-                _coordinator.process(AndyriaRequest(input=prompt))
-            ).output
+        _todo = TodoStore(_data_dir_path)
+        _delegation = DelegationManager(
+            coordinator_factory=lambda prompt, tools, cfg: (
+                asyncio.run(_coordinator.process(AndyriaRequest(input=prompt))).output
+            )
         )
 
         # --- Memory ---
@@ -1057,11 +1064,15 @@ def create_app(coordinator: Coordinator) -> FastAPI:
             """CRUD operations on MEMORY.md and USER.md."""
             file = req.file if req.file in ("MEMORY", "USER") else "MEMORY"
             from .models import MemoryOp
+
             op = req.op
             if op == MemoryOp.READ:
                 return MemoryOpResponse(
-                    file=file, op="read", success=True,
-                    content=_memory.read(file), stats=_memory.stats(),
+                    file=file,
+                    op="read",
+                    success=True,
+                    content=_memory.read(file),
+                    stats=_memory.stats(),
                 )
             if op == MemoryOp.ADD:
                 _memory.add(file, req.text or "")
@@ -1083,8 +1094,11 @@ def create_app(coordinator: Coordinator) -> FastAPI:
             if file not in ("MEMORY", "USER"):
                 raise HTTPException(status_code=400, detail="file must be MEMORY or USER")
             return MemoryOpResponse(
-                file=file, op="read", success=True,
-                content=_memory.read(file), stats=_memory.stats(),
+                file=file,
+                op="read",
+                success=True,
+                content=_memory.read(file),
+                stats=_memory.stats(),
             )
 
         # --- SOUL.md ---
@@ -1128,6 +1142,7 @@ def create_app(coordinator: Coordinator) -> FastAPI:
         @app.post("/v1/skills", response_model=SkillResponse)
         async def skills_op(req: SkillRequest) -> SkillResponse:
             from .models import SkillAction
+
             if req.action == SkillAction.LIST:
                 return SkillResponse(action="list", success=True, skills=_skill_reg.skills_list(req.category))
             if req.action == SkillAction.VIEW:
@@ -1137,18 +1152,21 @@ def create_app(coordinator: Coordinator) -> FastAPI:
                 return SkillResponse(action="view", success=True, name=req.name, content=content)
             if req.action == SkillAction.SEARCH:
                 hits = _skill_reg.search(req.query or "")
-                return SkillResponse(action="search", success=True, skills=[
-                    {"name": s.name, "description": s.description, "tags": s.tags} for s in hits
-                ])
+                return SkillResponse(
+                    action="search",
+                    success=True,
+                    skills=[{"name": s.name, "description": s.description, "tags": s.tags} for s in hits],
+                )
             if req.action in (SkillAction.CREATE, SkillAction.UPDATE):
-                msg = _skill_reg.skill_manage(req.action.value, req.name or "", req.content or "",
-                                              req.description, req.tags)
-                return SkillResponse(action=req.action.value, success="error" not in msg.lower(),
-                                     name=req.name, message=msg)
+                msg = _skill_reg.skill_manage(
+                    req.action.value, req.name or "", req.content or "", req.description, req.tags
+                )
+                return SkillResponse(
+                    action=req.action.value, success="error" not in msg.lower(), name=req.name, message=msg
+                )
             if req.action == SkillAction.DELETE:
                 msg = _skill_reg.skill_manage("delete", req.name or "")
-                return SkillResponse(action="delete", success="error" not in msg.lower(),
-                                     name=req.name, message=msg)
+                return SkillResponse(action="delete", success="error" not in msg.lower(), name=req.name, message=msg)
             raise HTTPException(status_code=400, detail=f"Unknown action: {req.action}")
 
         # --- Cron ---
@@ -1156,8 +1174,15 @@ def create_app(coordinator: Coordinator) -> FastAPI:
         @app.get("/v1/cron", response_model=List[CronJobInfo])
         async def cron_list() -> List[CronJobInfo]:
             return [
-                CronJobInfo(id=j.id, name=j.name, expression=j.expression,
-                            task=j.task, platform=j.platform, active=j.active, last_run=j.last_run)
+                CronJobInfo(
+                    id=j.id,
+                    name=j.name,
+                    expression=j.expression,
+                    task=j.task,
+                    platform=j.platform,
+                    active=j.active,
+                    last_run=j.last_run,
+                )
                 for j in _cron.list()
             ]
 
@@ -1178,6 +1203,7 @@ def create_app(coordinator: Coordinator) -> FastAPI:
         @app.post("/v1/todo", response_model=TodoResponse)
         async def todo_op(req: TodoRequest) -> TodoResponse:
             from .models import TodoAction
+
             if req.action == TodoAction.LIST:
                 return TodoResponse(action="list", success=True, items=_todo.list(req.status_filter))
             if req.action == TodoAction.ADD:
@@ -1297,9 +1323,7 @@ def create_app(coordinator: Coordinator) -> FastAPI:
             return wf
 
         @app.post("/v1/workflows/{workflow_id}/run", response_model=WorkflowRunResult)
-        async def run_workflow(
-            workflow_id: str, request: WorkflowRunRequest
-        ) -> WorkflowRunResult:
+        async def run_workflow(workflow_id: str, request: WorkflowRunRequest) -> WorkflowRunResult:
             if _coordinator is None:
                 raise HTTPException(status_code=503, detail="Coordinator not initialized")
             try:
@@ -1329,22 +1353,16 @@ def create_app(coordinator: Coordinator) -> FastAPI:
                 raise HTTPException(status_code=503, detail="Coordinator not initialized")
             pb = _coordinator.get_promptbook(promptbook_id)
             if pb is None:
-                raise HTTPException(
-                    status_code=404, detail=f"Promptbook '{promptbook_id}' not found"
-                )
+                raise HTTPException(status_code=404, detail=f"Promptbook '{promptbook_id}' not found")
             return pb
 
         @app.patch("/v1/promptbooks/{promptbook_id}", response_model=Promptbook)
-        async def update_promptbook(
-            promptbook_id: str, request: PromptbookUpdateRequest
-        ) -> Promptbook:
+        async def update_promptbook(promptbook_id: str, request: PromptbookUpdateRequest) -> Promptbook:
             if _coordinator is None:
                 raise HTTPException(status_code=503, detail="Coordinator not initialized")
             pb = _coordinator.update_promptbook(promptbook_id, request)
             if pb is None:
-                raise HTTPException(
-                    status_code=404, detail=f"Promptbook '{promptbook_id}' not found"
-                )
+                raise HTTPException(status_code=404, detail=f"Promptbook '{promptbook_id}' not found")
             return pb
 
         @app.delete("/v1/promptbooks/{promptbook_id}", response_model=Promptbook)
@@ -1353,41 +1371,31 @@ def create_app(coordinator: Coordinator) -> FastAPI:
                 raise HTTPException(status_code=503, detail="Coordinator not initialized")
             pb = _coordinator.delete_promptbook(promptbook_id)
             if pb is None:
-                raise HTTPException(
-                    status_code=404, detail=f"Promptbook '{promptbook_id}' not found"
-                )
+                raise HTTPException(status_code=404, detail=f"Promptbook '{promptbook_id}' not found")
             return pb
 
         @app.post(
             "/v1/promptbooks/{promptbook_id}/render",
             response_model=PromptbookRenderResponse,
         )
-        async def render_promptbook(
-            promptbook_id: str, request: PromptbookRenderRequest
-        ) -> PromptbookRenderResponse:
+        async def render_promptbook(promptbook_id: str, request: PromptbookRenderRequest) -> PromptbookRenderResponse:
             if _coordinator is None:
                 raise HTTPException(status_code=503, detail="Coordinator not initialized")
             result = _coordinator.render_promptbook(promptbook_id, request)
             if result is None:
-                raise HTTPException(
-                    status_code=404, detail=f"Promptbook '{promptbook_id}' not found"
-                )
+                raise HTTPException(status_code=404, detail=f"Promptbook '{promptbook_id}' not found")
             return result
 
         @app.post(
             "/v1/promptbooks/{promptbook_id}/mutate",
             response_model=Promptbook,
         )
-        async def mutate_promptbook(
-            promptbook_id: str, request: PromptbookMutateRequest
-        ) -> Promptbook:
+        async def mutate_promptbook(promptbook_id: str, request: PromptbookMutateRequest) -> Promptbook:
             if _coordinator is None:
                 raise HTTPException(status_code=503, detail="Coordinator not initialized")
             mutation = _coordinator.mutate_promptbook(promptbook_id, request)
             if mutation is None:
-                raise HTTPException(
-                    status_code=404, detail=f"Promptbook '{promptbook_id}' not found"
-                )
+                raise HTTPException(status_code=404, detail=f"Promptbook '{promptbook_id}' not found")
             return mutation
 
     # ------------------------------------------------------------------

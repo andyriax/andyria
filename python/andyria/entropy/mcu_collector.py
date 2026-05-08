@@ -16,6 +16,7 @@ Design notes
   truncates it to zero (safe because the beacon factory XOR-mixes
   this source with others — a temporary gap is acceptable).
 """
+
 from __future__ import annotations
 
 from pathlib import Path

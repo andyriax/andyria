@@ -14,7 +14,7 @@ permissions:
   id-token: write
 
 concurrency:
-  group: pages
+  group: pages-public-devops
   cancel-in-progress: true
 
 jobs:
@@ -33,7 +33,7 @@ jobs:
           touch _site/.nojekyll
           if [ -n "${PAGES_CNAME:-}" ]; then echo "${PAGES_CNAME}" > _site/CNAME; fi
         env:
-          PAGES_CNAME: ${{ secrets.PAGES_CNAME || '' }}
+          PAGES_CNAME: ${{ secrets.PAGES_CNAME }}
 
       - uses: actions/configure-pages@v5
 
