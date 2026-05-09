@@ -244,9 +244,46 @@ class PromptFlowStore:
                     ],
                 ),
                 PromptFlowStep(
+                    key="camera",
+                    type="choice",
+                    prompt="What camera or presentation style fits best?",
+                    options=[
+                        PromptChoiceOption(value="Side view 2D", label="Side view 2D"),
+                        PromptChoiceOption(value="Top-down 2D", label="Top-down 2D"),
+                        PromptChoiceOption(value="Isometric", label="Isometric"),
+                        PromptChoiceOption(value="First-person 3D", label="First-person 3D"),
+                        PromptChoiceOption(value="Third-person 3D", label="Third-person 3D"),
+                        PromptChoiceOption(value="UI / text-driven", label="UI / text-driven"),
+                    ],
+                ),
+                PromptFlowStep(
+                    key="audience",
+                    type="choice",
+                    prompt="Who is the primary target audience?",
+                    options=[
+                        PromptChoiceOption(value="Kids / family", label="Kids / family"),
+                        PromptChoiceOption(value="Casual players", label="Casual players"),
+                        PromptChoiceOption(value="Core players", label="Core players"),
+                        PromptChoiceOption(value="Hardcore niche", label="Hardcore niche"),
+                        PromptChoiceOption(value="All ages", label="All ages"),
+                    ],
+                ),
+                PromptFlowStep(
                     key="coreLoop",
                     type="text",
                     prompt="Describe the core gameplay loop in one or two lines.",
+                ),
+                PromptFlowStep(
+                    key="progression",
+                    type="choice",
+                    prompt="How should progression be structured?",
+                    options=[
+                        PromptChoiceOption(value="Level-based", label="Level-based"),
+                        PromptChoiceOption(value="Run-based", label="Run-based / roguelite"),
+                        PromptChoiceOption(value="Narrative chapters", label="Narrative chapters"),
+                        PromptChoiceOption(value="Endless score chase", label="Endless score chase"),
+                        PromptChoiceOption(value="Meta progression", label="Meta progression"),
+                    ],
                 ),
                 PromptFlowStep(
                     key="scope",
@@ -269,6 +306,18 @@ class PromptFlowStore:
                         PromptChoiceOption(value="Hand-drawn", label="Hand-drawn"),
                         PromptChoiceOption(value="Minimalist", label="Minimalist"),
                         PromptChoiceOption(value="Stylized 3D", label="Stylized 3D"),
+                    ],
+                ),
+                PromptFlowStep(
+                    key="monetization",
+                    type="choice",
+                    prompt="What release or monetization model are you targeting?",
+                    options=[
+                        PromptChoiceOption(value="Premium purchase", label="Premium purchase"),
+                        PromptChoiceOption(value="Free prototype / jam build", label="Free prototype / jam build"),
+                        PromptChoiceOption(value="Free-to-play cosmetics", label="Free-to-play cosmetics"),
+                        PromptChoiceOption(value="Ad-supported mobile", label="Ad-supported mobile"),
+                        PromptChoiceOption(value="Not decided yet", label="Not decided yet"),
                     ],
                 ),
             ]
@@ -553,8 +602,10 @@ class PromptFlowStore:
         if flow.kind == "game_builder":
             return (
                 f"Type: {a.get('type', '')}; Platform: {a.get('platform', '')}; "
-                f"Style: {a.get('style', '')}; Core loop: {a.get('coreLoop', '')}; "
-                f"Scope: {a.get('scope', '')}; Art: {a.get('art', '')}"
+                f"Style: {a.get('style', '')}; Camera: {a.get('camera', '')}; "
+                f"Audience: {a.get('audience', '')}; Core loop: {a.get('coreLoop', '')}; "
+                f"Progression: {a.get('progression', '')}; Scope: {a.get('scope', '')}; "
+                f"Art: {a.get('art', '')}; Monetization: {a.get('monetization', '')}"
             )
         return "; ".join(f"{k}: {v}" for k, v in a.items())
 
@@ -570,20 +621,27 @@ class PromptFlowStore:
                     f"- Type: {a.get('type', '')}",
                     f"- Platform: {a.get('platform', '')}",
                     f"- Play style: {a.get('style', '')}",
+                    f"- Camera/presentation: {a.get('camera', '')}",
+                    f"- Target audience: {a.get('audience', '')}",
                     f"- Core loop: {a.get('coreLoop', '')}",
+                    f"- Progression model: {a.get('progression', '')}",
                     f"- Scope/timeline: {a.get('scope', '')}",
                     f"- Art direction: {a.get('art', '')}",
+                    f"- Release/monetization: {a.get('monetization', '')}",
                     "",
                     "Output requirements:",
                     "1) One-sentence game pitch",
                     "2) Core mechanics and controls",
-                    "3) MVP feature list",
-                    "4) Suggested engine/framework and why",
-                    "5) Data model and system architecture",
-                    "6) File/folder scaffold",
-                    "7) 7-day execution plan",
-                    "8) First coding tasks in priority order",
-                    "9) Risks and scope-cut options",
+                    "3) Player fantasy, target audience fit, and retention hook",
+                    "4) MVP feature list",
+                    "5) Suggested engine/framework and why",
+                    "6) Level, progression, and economy structure",
+                    "7) Data model and system architecture",
+                    "8) File/folder scaffold",
+                    "9) 7-day execution plan",
+                    "10) First coding tasks in priority order",
+                    "11) Playtest instrumentation and success metrics",
+                    "12) Risks and scope-cut options",
                 ]
             )
         if flow.kind == "project_planner":

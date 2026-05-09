@@ -166,7 +166,7 @@ def create_app(coordinator: Coordinator) -> FastAPI:
         {
             "kind": "game_builder",
             "name": "Game Builder Wizard",
-            "description": "Design a game from type to art style and get a full implementation plan.",
+            "description": "Design a game from genre, camera, audience, progression, and monetization to get a full implementation plan.",
             "triggers": ["create a game", "make a game", "build a game", "new game", "game wizard"],
         },
         {

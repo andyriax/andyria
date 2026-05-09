@@ -24,8 +24,12 @@ from abc import ABC, abstractmethod
 from pathlib import Path
 from typing import List, Optional
 
-import psutil
-
+try:
+    import psutil as _psutil  # optional — not available on all platforms (e.g. Android/Termux)
+    _PSUTIL = _psutil
+except ImportError:
+    _psutil = None  # type: ignore[assignment]
+    _PSUTIL = None
 
 class EntropySource(ABC):
     """Abstract base for a physical entropy source."""
@@ -118,8 +122,10 @@ class ThermalSource(EntropySource):
     def available(self) -> bool:
         if sys.platform == "linux":
             return Path("/sys/class/thermal").exists()
+        if _PSUTIL is None:
+            return False
         try:
-            return bool(psutil.sensors_temperatures())
+            return bool(_PSUTIL.sensors_temperatures())
         except AttributeError:
             return False
 
@@ -127,15 +133,16 @@ class ThermalSource(EntropySource):
         readings = io.BytesIO()
 
         # psutil cross-platform path
-        try:
-            temps = psutil.sensors_temperatures()
-            if temps:
-                for sensor_list in temps.values():
-                    for entry in sensor_list:
-                        val = int(entry.current * 1000) & 0xFFFFFFFF
-                        readings.write(struct.pack(">I", val))
-        except (AttributeError, OSError):
-            pass
+        if _PSUTIL is not None:
+            try:
+                temps = _PSUTIL.sensors_temperatures()
+                if temps:
+                    for sensor_list in temps.values():
+                        for entry in sensor_list:
+                            val = int(entry.current * 1000) & 0xFFFFFFFF
+                            readings.write(struct.pack(">I", val))
+            except (AttributeError, OSError):
+                pass
 
         # Direct /sys/class/thermal fallback on Linux
         if readings.tell() == 0 and sys.platform == "linux":
@@ -167,19 +174,22 @@ class SystemStatsSource(EntropySource):
 
     def collect(self, num_bytes: int = 64) -> bytes:
         buf = io.BytesIO()
-        try:
-            ct = psutil.cpu_times()
-            for val in (ct.user, ct.system, ct.idle):
-                buf.write(struct.pack(">d", val))
-            vm = psutil.virtual_memory()
-            buf.write(struct.pack(">QQ", vm.used, vm.available))
-            net = psutil.net_io_counters()
-            if net:
-                buf.write(struct.pack(">QQ", net.bytes_sent, net.bytes_recv))
-            proc = psutil.Process()
-            buf.write(struct.pack(">II", os.getpid(), proc.num_threads()))
-            buf.write(struct.pack(">Q", time.perf_counter_ns()))
-        except (OSError, AttributeError):
+        if _PSUTIL is not None:
+            try:
+                ct = _PSUTIL.cpu_times()
+                for val in (ct.user, ct.system, ct.idle):
+                    buf.write(struct.pack(">d", val))
+                vm = _PSUTIL.virtual_memory()
+                buf.write(struct.pack(">QQ", vm.used, vm.available))
+                net = _PSUTIL.net_io_counters()
+                if net:
+                    buf.write(struct.pack(">QQ", net.bytes_sent, net.bytes_recv))
+                proc = _PSUTIL.Process()
+                buf.write(struct.pack(">II", os.getpid(), proc.num_threads()))
+                buf.write(struct.pack(">Q", time.perf_counter_ns()))
+            except (OSError, AttributeError):
+                buf.write(os.urandom(num_bytes))
+        else:
             buf.write(os.urandom(num_bytes))
 
         data = buf.getvalue()

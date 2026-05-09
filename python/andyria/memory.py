@@ -209,7 +209,7 @@ class ContentAddressedMemory:
         session_id: str,
         user_input: str,
         assistant_output: str,
-        model_used: str = "stub",
+        model_used: str = "unavailable",
         confidence: float = 0.0,
     ) -> SessionContext:
         """Append a user+assistant turn pair and persist the session."""

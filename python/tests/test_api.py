@@ -328,6 +328,75 @@ class TestTabs:
         assert res.status_code == 400
 
 
+class TestPromptFlows:
+    @pytest.mark.asyncio
+    async def test_list_prompt_flow_kinds_includes_richer_game_builder(self, client: AsyncClient):
+        res = await client.get("/v1/prompt-flows/kinds")
+        assert res.status_code == 200
+
+        kinds = res.json()
+        game_builder = next(item for item in kinds if item["kind"] == "game_builder")
+        assert "camera" in game_builder["description"].lower()
+        assert "audience" in game_builder["description"].lower()
+        assert "monetization" in game_builder["description"].lower()
+
+    @pytest.mark.asyncio
+    async def test_game_builder_prompt_flow_over_http(self, client: AsyncClient):
+        start = await client.post("/v1/prompt-flows/start", json={"kind": "game_builder"})
+        assert start.status_code == 200
+
+        body = start.json()
+        assert body["kind"] == "game_builder"
+        assert body["total_steps"] == 10
+        assert body["prompt"] == "What type of game do you want to create?"
+
+        flow_id = body["flow_id"]
+        answers = [
+            "2",
+            "3",
+            "1",
+            "3",
+            "2",
+            "Fight through short dungeon runs, extract loot, and upgrade between runs.",
+            "5",
+            "2",
+            "1",
+            "2",
+        ]
+
+        for answer in answers:
+            response = await client.post(
+                f"/v1/prompt-flows/{flow_id}/respond",
+                json={"input": answer},
+            )
+            assert response.status_code == 200
+
+        final = response.json()
+        assert final["completed"] is True
+        assert final["answers"]["camera"] == "Isometric"
+        assert final["answers"]["audience"] == "Casual players"
+        assert final["answers"]["progression"] == "Meta progression"
+        assert final["answers"]["monetization"] == "Free prototype / jam build"
+        assert "Camera: Isometric" in (final.get("summary") or "")
+        assert "- Release/monetization: Free prototype / jam build" in (final.get("backend_prompt") or "")
+
+    @pytest.mark.asyncio
+    async def test_prompt_flow_invalid_choice_returns_step_message(self, client: AsyncClient):
+        start = await client.post("/v1/prompt-flows/start", json={"kind": "game_builder"})
+        flow_id = start.json()["flow_id"]
+
+        invalid = await client.post(
+            f"/v1/prompt-flows/{flow_id}/respond",
+            json={"input": "not a valid option"},
+        )
+        assert invalid.status_code == 200
+
+        body = invalid.json()
+        assert body["completed"] is False
+        assert body["step"] == 1
+        assert body["message"] == "Please choose one of the available options."
+
+
 class TestEventFilters:
     @pytest.mark.asyncio
     async def test_filter_events_by_type(self, client: AsyncClient):

@@ -192,7 +192,7 @@ class SessionTurn(BaseModel):
 
     role: str  # "user" or "assistant"
     content: str
-    model_used: str = "stub"
+    model_used: str = "unavailable"
     confidence: float = 0.0
     timestamp_ns: int = 0
 
@@ -231,7 +231,7 @@ class AgentPersona(BaseModel):
 class AgentDefinition(BaseModel):
     agent_id: str
     name: str
-    model: str = "stub"
+    model: str = "symbolic_ast"
     system_prompt: str = ""
     tools: List[str] = Field(default_factory=list)
     memory_scope: AgentMemoryScope = AgentMemoryScope.ISOLATED
@@ -245,7 +245,7 @@ class AgentDefinition(BaseModel):
 
 class AgentCreateRequest(BaseModel):
     name: str
-    model: str = "stub"
+    model: Optional[str] = None
     system_prompt: str = ""
     tools: List[str] = Field(default_factory=list)
     memory_scope: AgentMemoryScope = AgentMemoryScope.ISOLATED
@@ -373,7 +373,7 @@ class AndyriaResponse(BaseModel):
     confidence: float = 0.0
     entropy_beacon_id: str
     event_ids: List[str]
-    model_used: str = "stub"
+    model_used: str = "unavailable"
     plan_summary: Optional[List[str]] = None
     processing_ms: Optional[int] = None
     timestamp_ns: Optional[int] = None

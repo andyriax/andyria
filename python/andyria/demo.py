@@ -30,7 +30,7 @@ DEMO_AGENTS: List[Dict] = [
             "You break problems down numerically, cite entropy sources, and "
             "produce structured reports. Mode: auto-self-actualize."
         ),
-        "model": "stub",
+        "model": "demo",
         "tag": "analyst",
     },
     {
@@ -40,7 +40,7 @@ DEMO_AGENTS: List[Dict] = [
             "You craft vivid narratives, synthesise context from memory, "
             "and refine prose through ATM reflection cycles. Mode: dreamscapes."
         ),
-        "model": "stub",
+        "model": "demo",
         "tag": "writer",
     },
     {
@@ -50,7 +50,7 @@ DEMO_AGENTS: List[Dict] = [
             "You write clean Python/Rust code, explain architecture decisions, "
             "and iterate on solutions via the ATM thought machine. Mode: conical-laws."
         ),
-        "model": "stub",
+        "model": "demo",
         "tag": "coder",
     },
 ]

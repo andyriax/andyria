@@ -33,7 +33,7 @@ class AgentRegistry:
         default = AgentDefinition(
             agent_id="default",
             name=self._default_agent_name,
-            model="stub",
+            model="symbolic_ast",
             system_prompt="You are Andyria, a helpful, concise assistant.",
             tools=[],
             state={},
