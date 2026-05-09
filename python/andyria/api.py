@@ -363,16 +363,122 @@ def create_app(coordinator: Coordinator) -> FastAPI:
         Path.home() / ".andyria" / "presets" / "agents.json",
     ]
 
-    @app.get("/v1/agents/presets", response_model=List[Dict[str, Any]])
-    async def list_agent_presets() -> List[Dict[str, Any]]:
-        """Return available agent preset templates."""
+    def _load_agent_presets() -> List[Dict[str, Any]]:
         for p in _PRESET_PATHS:
             if p.exists():
                 try:
-                    return json.loads(p.read_text())
+                    payload = json.loads(p.read_text())
+                    if isinstance(payload, list):
+                        return [item for item in payload if isinstance(item, dict)]
                 except Exception:
                     pass
         return []
+
+    def _bootstrap_agents_from_presets(force: bool = False) -> Dict[str, Any]:
+        if _coordinator is None:
+            return {
+                "created": 0,
+                "skipped": 0,
+                "reason": "Coordinator not initialized",
+                "agent_ids": [],
+            }
+
+        presets = _load_agent_presets()
+        if not presets:
+            return {
+                "created": 0,
+                "skipped": 0,
+                "reason": "No preset file found",
+                "agent_ids": [],
+            }
+
+        existing_agents = _coordinator.list_agents(include_inactive=True)
+        active_non_default = [a for a in existing_agents if a.active and a.agent_id != "default"]
+        if not force and active_non_default:
+            return {
+                "created": 0,
+                "skipped": len(presets),
+                "reason": "Existing non-default agents detected",
+                "agent_ids": [],
+            }
+
+        existing_preset_ids = {
+            str(a.state.get("preset_id", "")).strip()
+            for a in existing_agents
+            if isinstance(a.state, dict) and a.state.get("preset_id")
+        }
+        existing_names = {a.name.strip().lower() for a in existing_agents if a.name.strip()}
+
+        created_ids: List[str] = []
+        skipped = 0
+        for preset in presets:
+            preset_id = str(preset.get("id", "")).strip()
+            name = str(preset.get("name", "")).strip() or (preset_id or "Preset Agent")
+            if preset_id and preset_id in existing_preset_ids:
+                skipped += 1
+                continue
+            if name.lower() in existing_names:
+                skipped += 1
+                continue
+
+            model = str(preset.get("model", "")).strip()
+            # Let coordinator choose the active runtime model when preset uses auto.
+            model_field: Optional[str] = None if model in ("", "auto") else model
+            system_prompt = str(preset.get("system_prompt", ""))
+            tools = preset.get("tools", [])
+            if not isinstance(tools, list):
+                tools = []
+
+            state_payload = {
+                "preset": True,
+                "preset_id": preset_id,
+                "preset_tags": preset.get("tags", []),
+                "preset_icon": preset.get("icon", ""),
+            }
+
+            try:
+                created = _coordinator.create_agent(
+                    AgentCreateRequest(
+                        name=name,
+                        model=model_field,
+                        system_prompt=system_prompt,
+                        tools=[str(tool) for tool in tools],
+                        state=state_payload,
+                    )
+                )
+                created_ids.append(created.agent_id)
+                existing_names.add(name.lower())
+                if preset_id:
+                    existing_preset_ids.add(preset_id)
+            except Exception:
+                skipped += 1
+
+        return {
+            "created": len(created_ids),
+            "skipped": skipped,
+            "reason": "ok",
+            "agent_ids": created_ids,
+        }
+
+    @app.get("/v1/agents/presets", response_model=List[Dict[str, Any]])
+    async def list_agent_presets() -> List[Dict[str, Any]]:
+        """Return available agent preset templates."""
+        return _load_agent_presets()
+
+    @app.post("/v1/agents/bootstrap", response_model=Dict[str, Any])
+    async def bootstrap_agents(force: bool = False) -> Dict[str, Any]:
+        """Create missing agents from preset templates.
+
+        Use force=true to seed presets even when non-default agents already exist.
+        """
+        if _coordinator is None:
+            raise HTTPException(status_code=503, detail="Coordinator not initialized")
+        return _bootstrap_agents_from_presets(force=force)
+
+    # Auto-bootstrap preset agents on fresh nodes unless explicitly disabled.
+    auto_bootstrap = os.environ.get("ANDYRIA_AUTO_BOOTSTRAP_AGENTS", "1").strip().lower()
+    if auto_bootstrap not in ("0", "false", "no", "off"):
+        _bootstrap_agents_from_presets(force=False)
 
     @app.get("/v1/agents", response_model=List[AgentDefinition])
     async def list_agents(include_inactive: bool = False) -> List[AgentDefinition]:
