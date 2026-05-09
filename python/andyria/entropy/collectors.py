@@ -25,7 +25,7 @@ from pathlib import Path
 from typing import List, Optional
 
 try:
-    import psutil as _psutil  # optional — not available on all platforms (e.g. Android/Termux)
+    import psutil as _psutil  # type: ignore[import-untyped]  # optional — not available on all platforms (e.g. Android/Termux)
 
     _PSUTIL = _psutil
 except ImportError:
