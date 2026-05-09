@@ -26,10 +26,12 @@ from typing import List, Optional
 
 try:
     import psutil as _psutil  # optional — not available on all platforms (e.g. Android/Termux)
+
     _PSUTIL = _psutil
 except ImportError:
     _psutil = None  # type: ignore[assignment]
     _PSUTIL = None
+
 
 class EntropySource(ABC):
     """Abstract base for a physical entropy source."""
