@@ -7,12 +7,12 @@ Thank you for your interest in contributing to the Andyria Foundation.
 1. **Fork** the repo and clone your fork
 2. Create a branch: `git checkout -b feat/your-feature`
 3. Make your changes, add tests
-4. Run the test suite: `cd python && pytest tests/`
+4. Run the test suite: `cd python && pytest -q`
 5. Open a Pull Request against `main`
 
 ## Code Style
 
-- **Python**: Black formatter (`black python/`), flake8 linting
+- **Python**: Ruff formatter/lint (`ruff format`, `ruff check`) and mypy type checking
 - **Rust**: `cargo fmt` and `cargo clippy`
 - **JavaScript**: 2-space indent, semicolons optional
 

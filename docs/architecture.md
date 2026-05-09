@@ -43,7 +43,7 @@ concepts.
 │   ├── SymbolicSolver  (AST math, no eval())                             │
 │   ├── LlamaLocal      (llama-cpp-python, GGUF)                          │
 │   ├── OllamaHttp      (HTTP proxy to local Ollama)                      │
-│   └── StubModel       (offline fallback)                                │
+│   └── Unavailable     (explicit provider outage; no canned fallback)    │
 │       │                                                                  │
 │       ▼                                                                  │
 │  Verifier (quality + policy) ──── signed Event → EventStore (DAG)      │
@@ -125,7 +125,7 @@ tt-live-agent/
 │   ├── orchestrator.js  # Multi-agent dispatch
 │   ├── dag.js           # DAGStateMachine — mirrors Python DAG concepts
 │   ├── persona.js       # Persona loading + response formatting
-│   ├── llm.js           # LLM bridge (local / stub)
+│   ├── llm.js           # LLM bridge (local providers; explicit outage)
 │   ├── router.js        # Skill routing
 │   ├── skillLoader.js   # Hot-reload skill modules
 │   ├── db.js            # NDJSON event log + in-memory key-value store

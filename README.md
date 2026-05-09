@@ -36,6 +36,10 @@ docker compose up -d
 curl -fsSL https://andyriax.github.io/andyria/install.sh | bash -s -- --easy
 ```
 
+On Termux / Android, the installer selects the Termux-safe dependency set
+automatically and uses prebuilt `pkg` packages for `psutil` and
+`cryptography`.
+
 ---
 
 ## Core Capabilities
@@ -55,7 +59,7 @@ curl -fsSL https://andyriax.github.io/andyria/install.sh | bash -s -- --easy
 | 🌐 **Mesh Networking** | Gossip-based peer sync, no central coordinator, runs on any topology |
 | 🔐 **Cryptographic DAG** | Ed25519-signed, BLAKE3-hashed append-only event ledger (Rust native) |
 | ⚡ **Entropy Beacons** | Physical entropy anchors every event chain to real-world hardware state |
-| 🎛️ **Multi-Model Router** | Local GGUF → Ollama → stub fallback. Cheapest path always first |
+| 🎛️ **Multi-Model Router** | Local GGUF → Ollama → explicit provider failure. Cheapest path always first |
 | 💾 **Persistent Memory** | MEMORY.md / USER.md / SOUL.md flat-file knowledge persistence |
 | 📺 **TT Live Agent** | TikTok Live monetization runtime (Node.js) — personas, skills, revenue, DAG |
 | 🔋 **Edge-First Runtime** | Runs on 2 GB RAM, first-class Raspberry Pi + Termux support |
@@ -66,13 +70,13 @@ curl -fsSL https://andyriax.github.io/andyria/install.sh | bash -s -- --easy
 
 ```
 HTTP/WebSocket
-      │
-  Coordinator
-    ├── ReasoningEngine     (decompose → analyze → synthesize)
-    ├── AutomatedThoughtMachine  (generate → critique → revise)
-    ├── AutoLearner         (pattern distillation → MEMORY.md)
-    ├── ModelRouter         (GGUF | Ollama | stub)
-    ├── Planner + Verifier
+                  │
+      Coordinator
+            ├── ReasoningEngine     (decompose → analyze → synthesize)
+            ├── AutomatedThoughtMachine  (generate → critique → revise)
+            ├── AutoLearner         (pattern distillation → MEMORY.md)
+            ├── ModelRouter         (GGUF | Ollama)
+            ├── Planner + Verifier
     │
     ├── Agent Platform
     │   ├── AgentRegistry   (CRUD, clone, retire)

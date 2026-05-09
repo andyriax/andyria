@@ -10,7 +10,7 @@
 - [x] Content-addressed memory store
 - [x] Rule-based planner (SYMBOLIC / LANGUAGE / TOOL decomposition)
 - [x] AST-safe symbolic math solver (no eval)
-- [x] ModelRouter: AST → llama.cpp → Ollama → stub
+- [x] ModelRouter: AST → llama.cpp → Ollama → explicit unavailable error
 - [x] Policy + quality verifier
 - [x] FastAPI HTTP API (v1)
 - [x] WebSocket real-time event stream (`/v1/stream`)

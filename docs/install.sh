@@ -183,7 +183,9 @@ cd "${INSTALL_DIR}"
 install_system_deps() {
   if [[ "${IS_TERMUX}" == "1" ]]; then
     log "Installing Termux packages"
-    pkg install -y python rust git curl openssl 2>/dev/null || true
+    # Include build tools and pre-built Python extensions to avoid pip compile failures
+    pkg install -y python rust git curl openssl clang make libffi \
+      python-cryptography python-psutil 2>/dev/null || true
   elif [[ "${OS}" == "Linux" ]]; then
     if has apt-get; then
       log "Installing apt packages"
@@ -341,10 +343,15 @@ install_python() {
   fi
 
   log "Installing Andyria Python package"
-  if has ollama || [[ "${IS_RPI}" == "0" && "${IS_TERMUX}" == "0" ]]; then
-    pip install -e "python/[llm]" -q
+  if [[ "${IS_TERMUX}" == "1" ]]; then
+    # Install Termux-safe deps first (no uvloop/httptools, cryptography/psutil from pkg)
+    pip install -r "python/requirements-termux.txt" -q
+    # Editable install without pulling pyproject.toml deps (already satisfied above)
+    pip install -e "python/" --no-deps -q
+  elif has ollama || [[ "${IS_RPI}" == "0" ]]; then
+    pip install -e "python/[native,llm]" -q
   else
-    pip install -e "python/" -q
+    pip install -e "python/[native]" -q
   fi
 
   # Write config
@@ -421,7 +428,7 @@ p=next((x for x in ps if x.get('id')=='${preset_id}'),None)
 if p:
   print(json.dumps({
     'name': p.get('name', '${preset_id}'),
-    'model': p.get('model', 'stub'),
+    'model': p.get('model', 'symbolic_ast'),
     'system_prompt': p.get('system_prompt', ''),
     'tools': p.get('tools', []),
     'memory_scope': p.get('memory_scope', 'isolated')
@@ -437,7 +444,7 @@ p=next((x for x in ps if x.get('id')=='${preset_id}'),None)
 if p:
   print(json.dumps({
     'name': p.get('name', '${preset_id}'),
-    'model': p.get('model', 'stub'),
+    'model': p.get('model', 'symbolic_ast'),
     'system_prompt': p.get('system_prompt', ''),
     'tools': p.get('tools', []),
     'memory_scope': p.get('memory_scope', 'isolated')

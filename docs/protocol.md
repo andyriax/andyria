@@ -111,8 +111,9 @@ List all active agents (or all if `include_inactive=true`).
 
 #### POST /v1/agents → 201
 
-Create an agent. Body: `AgentCreateRequest` (`name`, `model`, `system_prompt`,
-`persona`, `skills`, …).
+Create an agent. Body: `AgentCreateRequest` (`name`, optional `model`,
+`system_prompt`, `persona`, `tools`, `memory_scope`, …). If `model` is omitted,
+the runtime falls back to `symbolic_ast`.
 
 #### GET /v1/agents/{agent_id}
 
