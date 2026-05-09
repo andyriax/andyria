@@ -158,7 +158,7 @@ class AutomatedThoughtMachine:
         current_input = prompt
         final_output = ""
         final_confidence = 0.0
-        final_model = "stub"
+        final_model = "unavailable"
 
         for i in range(self._max_iter):
             step_start = time.monotonic()

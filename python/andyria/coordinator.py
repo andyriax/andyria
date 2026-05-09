@@ -335,7 +335,7 @@ class ModelRouter:
             return "llama_cpp_local"
         if self._ollama_url:
             return self._ollama_model or "phi3"
-        return "stub"
+        return "symbolic_ast"
 
     def _stub_response(self, prompt: str) -> tuple[str, str, float]:
         # Give a meaningful offline answer instead of a raw error string.
@@ -354,7 +354,7 @@ class ModelRouter:
                 "No language model backend is available. "
                 "Configure Ollama or a local GGUF model to enable full inference."
             )
-        return answer, "stub", 0.3
+        return answer, "unavailable", 0.1
 
 
 # ---------------------------------------------------------------------------
@@ -821,7 +821,7 @@ class Coordinator:
 
     def create_agent(self, request: AgentCreateRequest) -> AgentDefinition:
         req = request
-        if not request.model or request.model == "stub":
+        if not request.model or request.model in ("stub", "unavailable", "demo"):
             req = request.model_copy(update={"model": self._router.active_agent_model()})
 
         created = self._registry.create(req)
@@ -854,7 +854,7 @@ class Coordinator:
 
     def clone_agent(self, agent_id: str, request: AgentCloneRequest) -> Optional[AgentDefinition]:
         req = request
-        if not request.model or request.model == "stub":
+        if not request.model or request.model in ("stub", "unavailable", "demo"):
             req = request.model_copy(update={"model": self._router.active_agent_model()})
 
         cloned = self._registry.clone(agent_id, req)
@@ -1503,7 +1503,7 @@ class Coordinator:
             return True, "ok"
         if self._router.has_configured_backend():
             return False, model_detail
-        return True, f"{model_detail} — symbolic/stub mode only"
+        return True, f"{model_detail} — symbolic-only mode"
 
     def status(self) -> NodeStatus:
         identity = self._identity_mgr.identity

@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import asyncio
-import tempfile
 from pathlib import Path
 
 import pytest
@@ -21,7 +20,6 @@ def _make_coordinator(tmp_path: Path):
 
 class TestCoordinator:
     def test_process_returns_response(self, tmp_path):
-        from andyria.coordinator import Coordinator
         from andyria.models import AndyriaRequest
 
         coord = _make_coordinator(tmp_path)
@@ -34,7 +32,6 @@ class TestCoordinator:
         assert response.tasks_completed >= 1
 
     def test_entropy_beacon_stored(self, tmp_path):
-        from andyria.coordinator import Coordinator
         from andyria.models import AndyriaRequest
 
         coord = _make_coordinator(tmp_path)
@@ -46,7 +43,6 @@ class TestCoordinator:
         assert beacon.id == response.entropy_beacon_id
 
     def test_math_symbolic_solve(self, tmp_path):
-        from andyria.coordinator import Coordinator
         from andyria.models import AndyriaRequest
 
         coord = _make_coordinator(tmp_path)
@@ -56,7 +52,6 @@ class TestCoordinator:
         assert "42" in response.output
 
     def test_event_log_grows(self, tmp_path):
-        from andyria.coordinator import Coordinator
         from andyria.models import AndyriaRequest
 
         coord = _make_coordinator(tmp_path)
@@ -67,7 +62,6 @@ class TestCoordinator:
         assert len(events) >= 1
 
     def test_status_fields(self, tmp_path):
-        from andyria.coordinator import Coordinator
         from andyria.models import AndyriaRequest
 
         coord = _make_coordinator(tmp_path)
@@ -80,7 +74,6 @@ class TestCoordinator:
         assert status.uptime_s >= 0
 
     def test_session_context_persisted(self, tmp_path):
-        from andyria.coordinator import Coordinator
         from andyria.models import AndyriaRequest
 
         coord = _make_coordinator(tmp_path)
@@ -98,7 +91,6 @@ class TestCoordinator:
         assert len(session.turns) == 4  # 2 user + 2 assistant
 
     def test_session_clear(self, tmp_path):
-        from andyria.coordinator import Coordinator
         from andyria.models import AndyriaRequest
 
         coord = _make_coordinator(tmp_path)
@@ -108,7 +100,6 @@ class TestCoordinator:
         assert coord.get_session(sid) is None
 
     def test_stateless_request_no_session(self, tmp_path):
-        from andyria.coordinator import Coordinator
         from andyria.models import AndyriaRequest
 
         coord = _make_coordinator(tmp_path)
@@ -117,7 +108,6 @@ class TestCoordinator:
         assert resp.turn_number == 1
 
     def test_processing_ms_present(self, tmp_path):
-        from andyria.coordinator import Coordinator
         from andyria.models import AndyriaRequest
 
         coord = _make_coordinator(tmp_path)
@@ -149,7 +139,6 @@ class TestCoordinator:
         assert "not found" in (status.readiness_detail or "")
 
     def test_each_response_has_unique_beacon(self, tmp_path):
-        from andyria.coordinator import Coordinator
         from andyria.models import AndyriaRequest
 
         coord = _make_coordinator(tmp_path)

@@ -146,8 +146,8 @@ async function _llmAmbient(message, ctx) {
     ctx.speak(reply);
     ctx.dag?.state === 'SPEAKING' && ctx.dag?.transition('IDLE');
   } catch (e) {
-    // Should never reach here — llm.thread() has static fallback built in
-    console.error('[router:llm] Unexpected error:', e.message);
+    appendEvent('router:llm', 'LLM_UNAVAILABLE', { user, error: e.message });
+    console.error('[router:llm] LLM unavailable:', e.message);
   }
 }
 

@@ -328,7 +328,7 @@ async def _register_agent(node_id: str, firmware: str, caps: List[str], api_base
     """POST /v1/agents to register the MCU as an Andyria agent."""
     payload = {
         "name": f"mcu-{node_id[:8]}",
-        "model": "stub",
+        "model": "device:mcu",
         "system_prompt": (
             f"You are an Andyria MCU edge node ({firmware}). "
             f"Capabilities: {', '.join(caps)}. "

@@ -349,9 +349,9 @@ install_python() {
     # Editable install without pulling pyproject.toml deps (already satisfied above)
     pip install -e "python/" --no-deps -q
   elif has ollama || [[ "${IS_RPI}" == "0" ]]; then
-    pip install -e "python/[llm]" -q
+    pip install -e "python/[native,llm]" -q
   else
-    pip install -e "python/" -q
+    pip install -e "python/[native]" -q
   fi
 
   # Write config

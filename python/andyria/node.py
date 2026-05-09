@@ -100,7 +100,7 @@ class NodeIdentityManager:
         if Path("/dev/hwrng").exists():
             caps.append("hwrng")
         try:
-            import llama_cpp  # noqa: F401
+            import llama_cpp  # type: ignore[import-not-found]  # noqa: F401
 
             caps.append("llm_local")
         except ImportError:

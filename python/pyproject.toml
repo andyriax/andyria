@@ -10,18 +10,25 @@ readme = {text = "Edge-first hybrid intelligence platform with physical-entropy-
 requires-python = ">=3.11"
 dependencies = [
     "fastapi>=0.110.0",
-    "uvicorn[standard]>=0.27.0",
+    "uvicorn>=0.27.0",
     "pydantic>=2.0.0",
     "httpx>=0.27.0",
     "typer>=0.12.0",
     "rich>=13.0.0",
-    "cryptography>=42.0.0",
     "aiofiles>=23.0.0",
     "pyyaml>=6.0",
-    "psutil>=5.9.0",
+    # psutil and cryptography are C-extension packages;
+    # on Android/Termux install them via `pkg install python-psutil python-cryptography`
+    # and then use the [native] extra or requirements-termux.txt.
 ]
 
 [project.optional-dependencies]
+native = [
+    "uvicorn[standard]>=0.27.0",
+    "cryptography>=42.0.0",
+    "psutil>=5.9.0",
+    "pyserial>=3.5",
+]
 llm = [
     "llama-cpp-python>=0.2.50",
 ]

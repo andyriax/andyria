@@ -2,12 +2,7 @@
 
 from __future__ import annotations
 
-import hashlib
 import os
-from pathlib import Path
-from unittest.mock import patch
-
-import pytest
 
 
 def _make_private_key():
@@ -105,7 +100,6 @@ class TestEntropyBeaconFactory:
 
     def test_beacon_signature_verifies(self):
         from andyria.entropy.beacon import EntropyBeaconFactory
-        from cryptography.hazmat.primitives.serialization import Encoding, PublicFormat
 
         key = _make_private_key()
         factory = EntropyBeaconFactory("test-node", key, sources=["os_urandom"])

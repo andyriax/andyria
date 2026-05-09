@@ -209,29 +209,6 @@ async function _huggingface(messages, cfg, maxTokens) {
 }
 
 // ---------------------------------------------------------------------------
-// Static persona-aware fallback (no network required)
-// ---------------------------------------------------------------------------
-
-const _STATIC_RESPONSES = [
-  'Thanks for chatting! Keep the energy up! 🔥',
-  'Appreciate you being here! Drop a like if you\'re enjoying this!',
-  'That\'s what I\'m talking about! Let\'s go!',
-  'Love the support — you all are amazing!',
-  'Stay tuned, more coming up!',
-];
-let _staticIdx = 0;
-
-function _staticFallback(userMessage) {
-  const persona = getPersona();
-  let text = _STATIC_RESPONSES[_staticIdx % _STATIC_RESPONSES.length];
-  _staticIdx++;
-  if (persona?.style?.uppercase) text = text.toUpperCase();
-  if (persona?.style?.prefix)    text = `${persona.style.prefix} ${text}`;
-  if (persona?.style?.suffix)    text = `${text} ${persona.style.suffix}`;
-  return text;
-}
-
-// ---------------------------------------------------------------------------
 // Provider waterfall
 // ---------------------------------------------------------------------------
 
@@ -282,10 +259,8 @@ async function thread(messages, opts = {}) {
     }
   }
 
-  _lastProvider = 'static';
-  appendEvent('llm:call', 'LLM_STATIC_FALLBACK', { user: opts.user });
-  const lastUser = [...messages].reverse().find(m => m.role === 'user');
-  return _staticFallback(lastUser?.content || '');
+  appendEvent('llm:error', 'LLM_ALL_PROVIDERS_FAILED', { user: opts.user });
+  throw new Error('All LLM providers unavailable — no API keys configured or all providers failed');
 }
 
 /**

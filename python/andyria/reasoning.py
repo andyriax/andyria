@@ -237,9 +237,9 @@ class ReasoningEngine:
         try:
             answer, model, confidence = self._infer(analyze_prompt, ctx)
             if self._is_stub(answer):
-                answer, model, confidence = question, "stub", 0.1
+                answer, model, confidence = question, "unavailable", 0.1
         except Exception:
-            answer, model, confidence = "", "stub", 0.1
+            answer, model, confidence = "", "unavailable", 0.1
         elapsed = int((time.monotonic() - t0) * 1000)
         return _Step(
             number=number,

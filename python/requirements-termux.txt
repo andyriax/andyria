@@ -1,6 +1,11 @@
 # Termux-safe requirements for Andyria
-# cryptography and psutil are installed via `pkg install` (pre-built binaries)
-# uvicorn runs without [standard] extras to avoid uvloop / httptools C-build failures
+#
+# Before running pip install, run:
+#   pkg install python-psutil python-cryptography
+#
+# These C-extension packages fail to build from source on Android.
+# psutil and cryptography are installed via `pkg install` (pre-built binaries).
+# uvicorn runs without [standard] extras to avoid uvloop / httptools C-build failures.
 
 fastapi>=0.110.0
 uvicorn>=0.27.0
@@ -10,3 +15,4 @@ typer>=0.12.0
 rich>=13.0.0
 aiofiles>=23.0.0
 pyyaml>=6.0
+pyserial>=3.5
