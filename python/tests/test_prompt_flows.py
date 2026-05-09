@@ -1,17 +1,20 @@
 from __future__ import annotations
 
-from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
-
 from andyria.memory import ContentAddressedMemory
 from andyria.models import PromptFlowInputRequest, PromptFlowStartRequest
 from andyria.projections import PromptFlowStore
+
+
+class _FakePrivateKey:
+    def sign(self, data: bytes) -> bytes:
+        return b"fake-signature"
 
 
 def _make_store(tmp_path):
     memory = ContentAddressedMemory(
         data_dir=tmp_path,
         node_id="test-node",
-        private_key=Ed25519PrivateKey.generate(),
+        private_key=_FakePrivateKey(),
     )
     return PromptFlowStore(memory)
 
