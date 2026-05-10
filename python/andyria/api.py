@@ -137,6 +137,17 @@ def create_app(coordinator: Coordinator) -> FastAPI:
         "ANDYRIA_CODE_SERVER_FOLDER_ROOT",
         "/home/coder/project/python/.agent-dev",
     ).rstrip("/")
+    _data_dir_path = Path(getattr(_coordinator, "_data_dir", Path.home() / ".andyria"))
+    _session_store = SessionStore(_data_dir_path)
+
+    def _delegate_prompt(prompt: str, tools: List[str], cfg: Dict[str, Any]) -> str:
+        if _coordinator is None:
+            raise RuntimeError("Coordinator not initialized")
+        return asyncio.run(_coordinator.process(AndyriaRequest(input=prompt))).output
+
+    _delegation = DelegationManager(
+        coordinator_factory=_delegate_prompt
+    )
 
     @app.get("/", include_in_schema=False, response_model=None)
     async def root():
@@ -1125,6 +1136,110 @@ def create_app(coordinator: Coordinator) -> FastAPI:
             session_ids=s.session_ids,
             message=s.message,
         )
+
+    # ----------------------------------------------------------------
+    # Session search
+    # ----------------------------------------------------------------
+
+    @app.post("/v1/sessions/search", response_model=SessionSearchResponse)
+    async def session_search(req: SessionSearchRequest) -> SessionSearchResponse:
+        hits = _session_store.search(req.query, req.limit)
+        return SessionSearchResponse(
+            total=len(hits),
+            results=[
+                {
+                    "session_id": hit.session_id,
+                    "session_title": hit.session_title,
+                    "turn_id": hit.turn_id,
+                    "role": hit.role,
+                    "snippet": hit.snippet,
+                }
+                for hit in hits
+            ],
+        )
+
+    @app.get("/v1/sessions", response_model=List[dict])
+    async def session_list(limit: int = 20) -> List[dict]:
+        return [
+            {
+                "session_id": session.session_id,
+                "title": session.title,
+                "turn_count": session.turn_count,
+                "updated_at": session.updated_at,
+            }
+            for session in _session_store.list_sessions(limit)
+        ]
+
+    # ----------------------------------------------------------------
+    # Delegation
+    # ----------------------------------------------------------------
+
+    @app.post("/v1/delegate", response_model=DelegateResponse)
+    async def delegate(req: DelegateRequest) -> DelegateResponse:
+        task_id = _delegation.spawn(req.prompt, req.tools, req.config)
+        if req.wait:
+            task = _delegation.collect(task_id, timeout=req.timeout_s)
+            if task is None:
+                raise HTTPException(status_code=500, detail="Delegation failed")
+            if task.error:
+                return DelegateResponse(task_id=task_id, status="error", error=task.error)
+            return DelegateResponse(task_id=task_id, status="done", result=task.result)
+        return DelegateResponse(task_id=task_id, status="spawned")
+
+    @app.get("/v1/delegate/{task_id}", response_model=DelegateResponse)
+    async def delegate_status(task_id: str) -> DelegateResponse:
+        info = _delegation.status(task_id)
+        if info is None:
+            raise HTTPException(status_code=404, detail=f"Task '{task_id}' not found")
+        return DelegateResponse(
+            task_id=task_id,
+            status="done" if info["finished"] else "running",
+            result=info.get("result_preview"),
+            error=info.get("error"),
+        )
+
+    # ----------------------------------------------------------------
+    # Workflows
+    # ----------------------------------------------------------------
+
+    @app.get("/v1/workflows", response_model=List[WorkflowDefinition])
+    async def list_workflows(tag: Optional[str] = None) -> List[WorkflowDefinition]:
+        if _coordinator is None:
+            raise HTTPException(status_code=503, detail="Coordinator not initialized")
+        return _coordinator.list_workflows(tag=tag)
+
+    @app.post("/v1/workflows", response_model=WorkflowDefinition)
+    async def create_workflow(request: WorkflowCreateRequest) -> WorkflowDefinition:
+        if _coordinator is None:
+            raise HTTPException(status_code=503, detail="Coordinator not initialized")
+        return _coordinator.create_workflow(request)
+
+    @app.get("/v1/workflows/{workflow_id}", response_model=WorkflowDefinition)
+    async def get_workflow(workflow_id: str) -> WorkflowDefinition:
+        if _coordinator is None:
+            raise HTTPException(status_code=503, detail="Coordinator not initialized")
+        workflow = _coordinator.get_workflow(workflow_id)
+        if workflow is None:
+            raise HTTPException(status_code=404, detail=f"Workflow '{workflow_id}' not found")
+        return workflow
+
+    @app.delete("/v1/workflows/{workflow_id}", response_model=WorkflowDefinition)
+    async def delete_workflow(workflow_id: str) -> WorkflowDefinition:
+        if _coordinator is None:
+            raise HTTPException(status_code=503, detail="Coordinator not initialized")
+        workflow = _coordinator.delete_workflow(workflow_id)
+        if workflow is None:
+            raise HTTPException(status_code=404, detail=f"Workflow '{workflow_id}' not found")
+        return workflow
+
+    @app.post("/v1/workflows/{workflow_id}/run", response_model=WorkflowRunResult)
+    async def run_workflow(workflow_id: str, request: WorkflowRunRequest) -> WorkflowRunResult:
+        if _coordinator is None:
+            raise HTTPException(status_code=503, detail="Coordinator not initialized")
+        try:
+            return await _coordinator.run_workflow(workflow_id, request)
+        except ValueError as exc:
+            raise HTTPException(status_code=404, detail=str(exc)) from exc
 
         # ------------------------------------------------------------------
         # Hermes-agent feature endpoints

@@ -468,6 +468,7 @@
     <div class="nav-label">Agents</div>
     <button class="nav-btn" data-view="agents"><span class="icon">◉</span>Agents</button>
     <button class="nav-btn" data-view="chains"><span class="icon">⛓</span>Chains</button>
+    <button class="nav-btn" data-view="workflows"><span class="icon">⋯</span>Workflows</button>
 
     <div class="nav-label">Data</div>
     <button class="nav-btn" data-view="events"><span class="icon">◎</span>Events</button>
@@ -525,10 +526,16 @@
         <div class="card-title">Node Configuration</div>
         <div class="form-grid">
           <div class="field"><label>Ollama URL</label><input id="cfg-url" type="url" placeholder="http://host.docker.internal:11434" /></div>
-          <div class="field"><label>Ollama Model</label><input id="cfg-model" type="text" placeholder="phi3" /></div>
+          <div class="field">
+            <label>Ollama Model</label>
+            <select id="cfg-model">
+              <option value="">Auto / none</option>
+            </select>
+          </div>
         </div>
         <div class="btn-row" style="margin-top:14px">
           <button class="btn" id="cfg-test-btn">Test connection</button>
+          <button class="btn" id="cfg-models-btn">Refresh local models</button>
           <button class="btn primary" id="cfg-save-btn">Save &amp; apply</button>
         </div>
         <div class="status-msg info" id="cfg-status" style="margin-top:8px"></div>
@@ -543,6 +550,13 @@
     <section class="view" id="view-models">
       <div class="card">
         <div class="card-title">Available Models <button class="btn" id="models-refresh">↻</button></div>
+        <div class="btn-row" style="margin-bottom:12px">
+          <select id="models-dropdown" style="max-width:340px">
+            <option value="">Loading…</option>
+          </select>
+          <button class="btn" id="models-apply-to-config">Use in config</button>
+          <button class="btn" id="models-apply-to-agent">Use in new agent</button>
+        </div>
         <div id="models-list" style="display:flex;gap:8px;flex-wrap:wrap;margin-top:4px">
           <span style="color:var(--muted)">Loading…</span>
         </div>
@@ -555,6 +569,7 @@
         <div class="card-title">
           Agents
           <div class="btn-row">
+            <button class="btn" id="agents-bootstrap-btn">Restore Presets</button>
             <button class="btn" id="agents-presets-btn">Load Preset</button>
             <button class="btn primary" id="agents-new-btn">+ New Agent</button>
           </div>
@@ -574,6 +589,22 @@
           <table id="chains-table">
             <thead><tr><th>ID</th><th>Name</th><th>Steps</th><th>Actions</th></tr></thead>
             <tbody id="chains-body"><tr><td colspan="4" style="color:var(--muted)">Loading…</td></tr></tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <!-- ── Workflows ── -->
+    <section class="view" id="view-workflows">
+      <div class="card">
+        <div class="card-title">
+          Workflows
+          <button class="btn primary" id="workflows-new-btn">+ New Workflow</button>
+        </div>
+        <div class="tbl-wrap">
+          <table id="workflows-table">
+            <thead><tr><th>ID</th><th>Name</th><th>Steps</th><th>Actions</th></tr></thead>
+            <tbody id="workflows-body"><tr><td colspan="4" style="color:var(--muted)">Loading…</td></tr></tbody>
           </table>
         </div>
       </div>
@@ -724,7 +755,12 @@
       <div class="field"><label>Name *</label><input id="am-name" type="text" placeholder="My Agent" /></div>
       <div class="field"><label>Persona</label><input id="am-persona" type="text" placeholder="assistant" /></div>
     </div>
-    <div class="field"><label>Description</label><input id="am-desc" type="text" placeholder="Short description" /></div>
+    <div class="field">
+      <label>Model</label>
+      <select id="am-model">
+        <option value="">Auto / active local model</option>
+      </select>
+    </div>
     <div class="field"><label>System Prompt</label><textarea id="am-system" placeholder="You are…"></textarea></div>
     <div class="modal-footer">
       <button class="btn" id="agent-modal-cancel">Cancel</button>
@@ -930,14 +966,58 @@
     <div class="modal-title">New Chain</div>
     <div class="field"><label>Chain Name *</label><input id="chain-name" type="text" placeholder="my-chain" /></div>
     <div class="field">
-      <label>Agent IDs (one per line)</label>
-      <textarea id="chain-agents" placeholder="agent-uuid-1&#10;agent-uuid-2"></textarea>
+      <label>Ordered Agents</label>
+      <div class="btn-row" style="margin-bottom:8px">
+        <select id="chain-agent-select"></select>
+        <button class="btn" id="chain-agent-add-btn">Add Agent</button>
+      </div>
+      <div id="chain-agent-list" style="display:flex;flex-direction:column;gap:8px"></div>
     </div>
     <div class="modal-footer">
       <button class="btn" id="chain-modal-cancel">Cancel</button>
       <button class="btn primary" id="chain-modal-save">Create</button>
     </div>
     <div class="status-msg info" id="chain-modal-status"></div>
+  </div>
+</div>
+
+<!-- ── Task Agent Modal ── -->
+<div class="modal-overlay" id="task-modal">
+  <div class="modal">
+    <div class="modal-title">Task Sub-Agent</div>
+    <input type="hidden" id="task-agent-id" />
+    <div class="field"><label>Agent</label><input id="task-agent-name" type="text" readonly /></div>
+    <div class="field"><label>Task Prompt</label><textarea id="task-prompt" placeholder="Give this agent a job…"></textarea></div>
+    <div class="field"><label>Session ID (optional)</label><input id="task-session-id" type="text" placeholder="shared-session-or-leave-empty" /></div>
+    <div class="modal-footer">
+      <button class="btn" id="task-modal-cancel">Cancel</button>
+      <button class="btn primary" id="task-modal-run">Run Task</button>
+    </div>
+    <div class="status-msg info" id="task-modal-status"></div>
+    <pre id="task-modal-output" style="font-size:0.82rem;color:var(--muted);white-space:pre-wrap;line-height:1.6;min-height:56px"></pre>
+  </div>
+</div>
+
+<!-- ── Workflow Modal ── -->
+<div class="modal-overlay" id="workflow-modal">
+  <div class="modal" style="width:min(920px,96vw)">
+    <div class="modal-title">New Workflow</div>
+    <div class="form-grid">
+      <div class="field"><label>Workflow Name *</label><input id="workflow-name" type="text" placeholder="content-pipeline" /></div>
+      <div class="field"><label>Output Step</label><select id="workflow-output-step"></select></div>
+    </div>
+    <div class="field"><label>Description</label><textarea id="workflow-description" placeholder="Describe what this workflow does…"></textarea></div>
+    <div class="btn-row">
+      <button class="btn" id="workflow-add-agent-step">+ Agent Step</button>
+      <button class="btn" id="workflow-add-chain-step">+ Chain Step</button>
+      <button class="btn" id="workflow-add-atm-step">+ ATM Step</button>
+    </div>
+    <div id="workflow-step-list" style="display:flex;flex-direction:column;gap:10px"></div>
+    <div class="modal-footer">
+      <button class="btn" id="workflow-modal-cancel">Cancel</button>
+      <button class="btn primary" id="workflow-modal-save">Create</button>
+    </div>
+    <div class="status-msg info" id="workflow-modal-status"></div>
   </div>
 </div>
 
@@ -958,6 +1038,49 @@ async function api(path, opts = {}) {
   return r.json();
 }
 
+let availableModels = [];
+let agentList = [];
+let presetList = [];
+let chainList = [];
+let chainDraftAgentIds = [];
+let workflowDraftSteps = [];
+
+function renderSelectOptions(selectId, options, selected = "", emptyLabel = "Select…") {
+  const el = document.getElementById(selectId);
+  if (!el) return;
+  const normalized = Array.from(new Set((options || []).map(v => String(v || "").trim()).filter(Boolean)));
+  const current = selected || el.value || "";
+  if (current && !normalized.includes(current)) normalized.unshift(current);
+  el.innerHTML = [`<option value="">${esc(emptyLabel)}</option>`]
+    .concat(normalized.map(value => `<option value="${esc(value)}">${esc(value)}</option>`))
+    .join("");
+  el.value = current;
+}
+
+function syncModelSelectors(selectedConfigModel = null, selectedAgentModel = null) {
+  const modelOptions = availableModels.length ? availableModels : [];
+  renderSelectOptions("cfg-model", modelOptions, selectedConfigModel ?? document.getElementById("cfg-model")?.value ?? "", "Auto / none");
+  renderSelectOptions("models-dropdown", modelOptions, document.getElementById("models-dropdown")?.value ?? "", modelOptions.length ? "Choose local model…" : "No local models found");
+  renderSelectOptions("am-model", modelOptions, selectedAgentModel ?? document.getElementById("am-model")?.value ?? "", "Auto / active local model");
+}
+
+function syncAgentSelectors() {
+  const options = agentList.map(agent => ({ id: agent.agent_id, label: `${agent.name} (${agent.agent_id})` }));
+  const chainSelect = document.getElementById("chain-agent-select");
+  if (chainSelect) {
+    chainSelect.innerHTML = [`<option value="">Choose agent…</option>`]
+      .concat(options.map(opt => `<option value="${esc(opt.id)}">${esc(opt.label)}</option>`))
+      .join("");
+  }
+}
+
+function describeAgent(agent) {
+  const preset = agent?.state?.preset_id ? `Preset ${agent.state.preset_id}` : "Custom";
+  const model = agent?.model || "auto";
+  const persona = agent?.persona?.codename || agent?.persona?.archetype || "default";
+  return `${preset} • model ${model} • persona ${persona}`;
+}
+
 // ── Navigation ───────────────────────────────────────────────────────────
 const navBtns = document.querySelectorAll(".nav-btn[data-view]");
 const views   = document.querySelectorAll(".view");
@@ -970,7 +1093,7 @@ function showView(id) {
   navBtns.forEach(b => { if (b.dataset.view === id) b.classList.add("active"); });
   // Lazy-load data for the view
   const loaders = { dashboard: loadDashboard, config: loadConfig, models: loadModels,
-    agents: loadAgents, chains: loadChains, events: loadEvents, memory: loadMemory,
+    agents: loadAgents, chains: loadChains, workflows: loadWorkflows, events: loadEvents, memory: loadMemory,
     atm: ()=>{}, orc: loadOrc, peers: loadPeers, demo: loadDemo, sessions: ()=>{} };
   if (loaders[id]) loaders[id]();
 }
@@ -1008,8 +1131,8 @@ async function loadDashboard() {
     const statusEl = document.getElementById("ds-status");
     statusEl.textContent = s.ready === false ? "degraded" : (s.readiness_detail && s.readiness_detail !== "ok" ? "stub" : "ready");
     statusEl.className = `stat-val ${s.ready === false ? "bad" : (s.readiness_detail && s.readiness_detail !== "ok" ? "warn" : "ok")}`;
-    document.getElementById("ds-model").textContent  = s.ollama_model ?? s.model_loaded ? "loaded" : "none";
-    document.getElementById("ds-mode").textContent   = s.model_loaded ? "LLM" : "stub";
+    document.getElementById("ds-model").textContent  = s.ollama_model ?? (s.model_loaded ? "loaded" : "none");
+    document.getElementById("ds-mode").textContent   = s.model_loaded ? "LLM" : "local-only";
     document.getElementById("ds-reqs").textContent   = s.requests_processed ?? "—";
     document.getElementById("ds-uptime").textContent = s.uptime_s != null ? Math.round(s.uptime_s) + "s" : "—";
     document.getElementById("ds-beacons").textContent = s.entropy_beacons_generated ?? "—";
@@ -1039,7 +1162,7 @@ async function loadDashboard() {
     const agents = await api("/v1/agents");
     const lead = agents.find(a => a.agent_id === "default") || agents[0] || null;
     const persona = lead?.persona?.codename || lead?.persona?.archetype || "adaptive";
-    const model = statusData?.ollama_model || (statusData?.model_loaded ? "llm-online" : "stub");
+    const model = statusData?.ollama_model || (statusData?.model_loaded ? "llm-online" : "unavailable");
     const readiness = statusData?.ready === false ? "degraded" : (statusData?.readiness_detail && statusData.readiness_detail !== "ok" ? "stub" : "ready");
     const lastEvent = latestEvents.length ? latestEvents[latestEvents.length - 1]?.event_type : "quiet";
 
@@ -1070,10 +1193,17 @@ async function loadConfig() {
   try {
     const cfg = await api("/v1/config");
     document.getElementById("cfg-url").value   = cfg.ollama_url   ?? "";
-    document.getElementById("cfg-model").value = cfg.ollama_model ?? "";
+    syncModelSelectors(cfg.ollama_model ?? "", null);
     document.getElementById("cfg-raw").textContent = fmt(cfg);
   } catch(e) { document.getElementById("cfg-raw").textContent = "Failed: " + e.message; }
 }
+
+document.getElementById("cfg-models-btn").addEventListener("click", async () => {
+  const st = document.getElementById("cfg-status");
+  setStatus(st, "Refreshing local models…", "info");
+  await loadModels();
+  setStatus(st, availableModels.length ? `Loaded ${availableModels.length} local models.` : "No local models found.", availableModels.length ? "ok" : "info");
+});
 
 document.getElementById("cfg-save-btn").addEventListener("click", async () => {
   const btn = document.getElementById("cfg-save-btn");
@@ -1121,44 +1251,59 @@ async function loadModels() {
   const el = document.getElementById("models-list");
   try {
     const models = await api("/v1/models");
-    if (!models.length) { el.innerHTML = `<span style="color:var(--muted)">No models found.</span>`; return; }
-    el.innerHTML = models.map(m => `<span class="tag">${esc(m)}</span>`).join("");
+    availableModels = Array.isArray(models) ? models : [];
+    syncModelSelectors();
+    if (!availableModels.length) { el.innerHTML = `<span style="color:var(--muted)">No local models found.</span>`; return; }
+    el.innerHTML = availableModels.map(m => `<span class="tag">${esc(m)}</span>`).join("");
   } catch(e) { el.innerHTML = `<span style="color:var(--danger)">${esc(e.message)}</span>`; }
 }
 document.getElementById("models-refresh").addEventListener("click", loadModels);
+document.getElementById("models-apply-to-config").addEventListener("click", () => {
+  const model = document.getElementById("models-dropdown").value;
+  if (model) document.getElementById("cfg-model").value = model;
+  showView("config");
+});
+document.getElementById("models-apply-to-agent").addEventListener("click", () => {
+  const model = document.getElementById("models-dropdown").value;
+  openNewAgentModal();
+  if (model) document.getElementById("am-model").value = model;
+  showView("agents");
+});
 
 // ── Agents ────────────────────────────────────────────────────────────────
-let agentList = [];
-
 async function loadAgents() {
   const grid = document.getElementById("agent-grid");
   try {
     agentList = await api("/v1/agents");
+    syncAgentSelectors();
     if (!agentList.length) { grid.innerHTML = `<div style="color:var(--muted)">No agents yet. Create one or load a preset.</div>`; return; }
     grid.innerHTML = agentList.map(a => `
       <div class="agent-card">
         <div class="agent-card-head">
-          <img class="agent-avatar" src="/v1/agents/${esc(a.id)}/avatar.svg" onerror="this.style.display='none'" alt="" />
+          <img class="agent-avatar" src="/v1/agents/${esc(a.agent_id)}/avatar.svg" onerror="this.style.display='none'" alt="" />
           <div>
             <div class="agent-name">${esc(a.name)}</div>
-            <div class="agent-id">${esc(a.id)}</div>
+            <div class="agent-id">${esc(a.agent_id)}</div>
           </div>
         </div>
-        <div class="agent-desc">${esc(a.description ?? a.system_prompt?.slice(0,80) ?? "")}</div>
-        <div style="font-size:0.75rem;color:var(--muted)">Persona: ${esc(a.persona?.codename ?? "default")}</div>
+        <div class="agent-desc">${esc(a.system_prompt?.slice(0,140) ?? "")}</div>
+        <div style="font-size:0.75rem;color:var(--muted)">${esc(describeAgent(a))}</div>
         <div class="agent-actions">
-          <button class="btn" onclick="editAgent('${esc(a.id)}')">Edit</button>
-          <button class="btn" onclick="cloneAgent('${esc(a.id)}')">Clone</button>
-          <button class="btn danger" onclick="deleteAgent('${esc(a.id)}')">Delete</button>
+          <button class="btn" onclick="openTaskModal('${esc(a.agent_id)}')">Task</button>
+          <button class="btn" onclick="editAgent('${esc(a.agent_id)}')">Edit</button>
+          <button class="btn" onclick="cloneAgent('${esc(a.agent_id)}')">Clone</button>
+          <button class="btn danger" onclick="deleteAgent('${esc(a.agent_id)}')">Delete</button>
         </div>
       </div>`).join("");
   } catch(e) { grid.innerHTML = `<div style="color:var(--danger)">Failed: ${esc(e.message)}</div>`; }
 }
 
 function openNewAgentModal() {
+  if (!availableModels.length) loadModels();
   document.getElementById("agent-modal-title").textContent = "New Agent";
   document.getElementById("agent-modal-id").value = "";
-  ["am-name","am-persona","am-desc","am-system"].forEach(id => { document.getElementById(id).value = ""; });
+  ["am-name","am-persona","am-system"].forEach(id => { document.getElementById(id).value = ""; });
+  syncModelSelectors(null, "");
   setStatus(document.getElementById("agent-modal-status"), "", "info");
   document.getElementById("agent-modal").classList.add("open");
 }
@@ -1170,7 +1315,7 @@ async function editAgent(id) {
     document.getElementById("agent-modal-id").value = id;
     document.getElementById("am-name").value    = a.name ?? "";
     document.getElementById("am-persona").value = a.persona?.codename ?? "";
-    document.getElementById("am-desc").value    = a.description ?? "";
+    syncModelSelectors(null, a.model ?? "");
     document.getElementById("am-system").value  = a.system_prompt ?? "";
     setStatus(document.getElementById("agent-modal-status"), "", "info");
     document.getElementById("agent-modal").classList.add("open");
@@ -1208,7 +1353,7 @@ document.getElementById("agent-modal-save").addEventListener("click", async () =
   const payload = {
     name:         document.getElementById("am-name").value.trim(),
     persona:      document.getElementById("am-persona").value.trim() || undefined,
-    description:  document.getElementById("am-desc").value.trim() || undefined,
+    model:        document.getElementById("am-model").value.trim() || undefined,
     system_prompt: document.getElementById("am-system").value.trim() || undefined,
   };
   if (!payload.name) { setStatus(st, "Name is required.", "err"); return; }
@@ -1227,28 +1372,48 @@ document.getElementById("agent-modal-save").addEventListener("click", async () =
 });
 
 // Presets
+document.getElementById("agents-bootstrap-btn").addEventListener("click", async () => {
+  try {
+    const result = await api("/v1/agents/bootstrap?force=true", { method: "POST" });
+    await loadAgents();
+    alert(`Preset restore complete. Created ${result.created ?? 0}, skipped ${result.skipped ?? 0}.`);
+  } catch(e) { alert("Failed to restore presets: " + e.message); }
+});
+
 document.getElementById("agents-presets-btn").addEventListener("click", async () => {
   const list = document.getElementById("preset-list");
   list.innerHTML = `<span style="color:var(--muted)">Loading…</span>`;
   document.getElementById("preset-modal").classList.add("open");
   try {
-    const presets = await api("/v1/agents/presets");
-    if (!presets.length) { list.innerHTML = `<span style="color:var(--muted)">No presets available.</span>`; return; }
-    list.innerHTML = presets.map(p => `
+    presetList = await api("/v1/agents/presets");
+    if (!presetList.length) { list.innerHTML = `<span style="color:var(--muted)">No presets available.</span>`; return; }
+    list.innerHTML = presetList.map((p, index) => `
       <div style="display:flex;align-items:center;justify-content:space-between;padding:10px 12px;background:var(--surface-2);border:1px solid var(--border);border-radius:8px">
         <div>
           <div style="font-weight:600">${esc(p.name ?? p.id)}</div>
           <div style="color:var(--muted);font-size:0.8rem">${esc(p.description ?? "")}</div>
         </div>
-        <button class="btn primary" onclick="loadPreset('${esc(JSON.stringify(p)).replace(/'/g,"&#39;")}')">Load</button>
+        <button class="btn primary" onclick="loadPresetByIndex(${index})">Load</button>
       </div>`).join("");
   } catch(e) { list.innerHTML = `<span style="color:var(--danger)">Failed: ${esc(e.message)}</span>`; }
 });
 
-async function loadPreset(jsonStr) {
-  const p = JSON.parse(jsonStr);
+async function loadPresetByIndex(index) {
+  const p = presetList[index];
   try {
-    await api("/v1/agents", { method: "POST", headers: {"Content-Type":"application/json"}, body: JSON.stringify(p) });
+    const payload = {
+      name: p.name || p.id || "Preset Agent",
+      model: p.model && p.model !== "auto" ? p.model : undefined,
+      system_prompt: p.system_prompt || "",
+      tools: Array.isArray(p.tools) ? p.tools : [],
+      state: {
+        preset: true,
+        preset_id: p.id || "",
+        preset_icon: p.icon || "",
+        preset_tags: Array.isArray(p.tags) ? p.tags : [],
+      },
+    };
+    await api("/v1/agents", { method: "POST", headers: {"Content-Type":"application/json"}, body: JSON.stringify(payload) });
     document.getElementById("preset-modal").classList.remove("open");
     loadAgents();
   } catch(e) { alert("Failed to load preset: " + e.message); }
@@ -1259,20 +1424,57 @@ document.getElementById("preset-modal-cancel").addEventListener("click", () => {
 });
 
 // ── Chains ────────────────────────────────────────────────────────────────
+function renderChainDraft() {
+  const list = document.getElementById("chain-agent-list");
+  if (!chainDraftAgentIds.length) {
+    list.innerHTML = `<div style="color:var(--muted);font-size:0.82rem">Add agents in the order they should run.</div>`;
+    return;
+  }
+  list.innerHTML = chainDraftAgentIds.map((agentId, index) => {
+    const agent = agentList.find(item => item.agent_id === agentId);
+    const name = agent?.name || agentId;
+    return `
+      <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;padding:10px 12px;background:var(--surface-2);border:1px solid var(--border);border-radius:8px">
+        <div>
+          <div style="font-weight:600">${esc(name)}</div>
+          <div class="agent-id">${esc(agentId)}</div>
+        </div>
+        <div class="btn-row">
+          <button class="btn" onclick="moveChainAgent(${index}, -1)" ${index === 0 ? "disabled" : ""}>↑</button>
+          <button class="btn" onclick="moveChainAgent(${index}, 1)" ${index === chainDraftAgentIds.length - 1 ? "disabled" : ""}>↓</button>
+          <button class="btn danger" onclick="removeChainAgent(${index})">Remove</button>
+        </div>
+      </div>`;
+  }).join("");
+}
+
+function moveChainAgent(index, delta) {
+  const target = index + delta;
+  if (target < 0 || target >= chainDraftAgentIds.length) return;
+  const [item] = chainDraftAgentIds.splice(index, 1);
+  chainDraftAgentIds.splice(target, 0, item);
+  renderChainDraft();
+}
+
+function removeChainAgent(index) {
+  chainDraftAgentIds.splice(index, 1);
+  renderChainDraft();
+}
+
 async function loadChains() {
   const tbody = document.getElementById("chains-body");
   try {
-    const chains = await api("/v1/chains");
-    if (!chains.length) { tbody.innerHTML = `<tr><td colspan="4" style="color:var(--muted)">No chains yet.</td></tr>`; return; }
-    tbody.innerHTML = chains.map(c => `
+    chainList = await api("/v1/chains");
+    if (!chainList.length) { tbody.innerHTML = `<tr><td colspan="4" style="color:var(--muted)">No chains yet.</td></tr>`; return; }
+    tbody.innerHTML = chainList.map(c => `
       <tr>
-        <td class="cell-mono">${esc(c.id)}</td>
+        <td class="cell-mono">${esc(c.chain_id)}</td>
         <td>${esc(c.name ?? "—")}</td>
         <td>${Array.isArray(c.agent_ids) ? c.agent_ids.length : "—"}</td>
         <td>
           <div class="btn-row">
-            <button class="btn" onclick="runChain('${esc(c.id)}')">▷ Run</button>
-            <button class="btn danger" onclick="deleteChain('${esc(c.id)}')">Delete</button>
+            <button class="btn" onclick="runChain('${esc(c.chain_id)}')">▷ Run</button>
+            <button class="btn danger" onclick="deleteChain('${esc(c.chain_id)}')">Delete</button>
           </div>
         </td>
       </tr>`).join("");
@@ -1284,7 +1486,7 @@ async function runChain(id) {
   if (input === null) return;
   try {
     const r = await api(`/v1/chains/${id}/run`, { method: "POST", headers: {"Content-Type":"application/json"}, body: JSON.stringify({ input }) });
-    alert("Result:\n\n" + (r.output ?? fmt(r)));
+    alert("Chain result:\n\n" + (r.output ?? fmt(r)));
   } catch(e) { alert("Run failed: " + e.message); }
 }
 
@@ -1298,9 +1500,18 @@ async function deleteChain(id) {
 
 document.getElementById("chains-new-btn").addEventListener("click", () => {
   document.getElementById("chain-name").value   = "";
-  document.getElementById("chain-agents").value = "";
+  chainDraftAgentIds = [];
+  syncAgentSelectors();
+  renderChainDraft();
   setStatus(document.getElementById("chain-modal-status"), "", "info");
   document.getElementById("chain-modal").classList.add("open");
+});
+
+document.getElementById("chain-agent-add-btn").addEventListener("click", () => {
+  const agentId = document.getElementById("chain-agent-select").value;
+  if (!agentId) return;
+  chainDraftAgentIds.push(agentId);
+  renderChainDraft();
 });
 
 document.getElementById("chain-modal-cancel").addEventListener("click", () => document.getElementById("chain-modal").classList.remove("open"));
@@ -1310,16 +1521,289 @@ document.getElementById("chain-modal-save").addEventListener("click", async () =
   const st  = document.getElementById("chain-modal-status");
   const btn = document.getElementById("chain-modal-save");
   const name = document.getElementById("chain-name").value.trim();
-  const agentIds = document.getElementById("chain-agents").value.trim().split("\n").map(s => s.trim()).filter(Boolean);
+  const agentIds = [...chainDraftAgentIds];
   if (!name) { setStatus(st, "Name is required.", "err"); return; }
+  if (!agentIds.length) { setStatus(st, "Add at least one agent.", "err"); return; }
   btn.disabled = true;
   setStatus(st, "Creating…", "info");
   try {
     await api("/v1/chains", { method: "POST", headers: {"Content-Type":"application/json"}, body: JSON.stringify({ name, agent_ids: agentIds }) });
     document.getElementById("chain-modal").classList.remove("open");
     loadChains();
+    loadWorkflows();
   } catch(e) { setStatus(st, "Failed: " + e.message, "err"); }
   finally { btn.disabled = false; }
+});
+
+// ── Tasking ───────────────────────────────────────────────────────────────
+function openTaskModal(agentId) {
+  const agent = agentList.find(item => item.agent_id === agentId);
+  document.getElementById("task-agent-id").value = agentId;
+  document.getElementById("task-agent-name").value = agent ? `${agent.name} (${agent.agent_id})` : agentId;
+  document.getElementById("task-prompt").value = "";
+  document.getElementById("task-session-id").value = "";
+  document.getElementById("task-modal-output").textContent = "";
+  setStatus(document.getElementById("task-modal-status"), "", "info");
+  document.getElementById("task-modal").classList.add("open");
+}
+
+document.getElementById("task-modal-cancel").addEventListener("click", () => {
+  document.getElementById("task-modal").classList.remove("open");
+});
+document.getElementById("task-modal").addEventListener("click", (e) => {
+  if (e.target === document.getElementById("task-modal")) document.getElementById("task-modal").classList.remove("open");
+});
+document.getElementById("task-modal-run").addEventListener("click", async () => {
+  const agentId = document.getElementById("task-agent-id").value;
+  const prompt = document.getElementById("task-prompt").value.trim();
+  const sessionId = document.getElementById("task-session-id").value.trim();
+  const st = document.getElementById("task-modal-status");
+  const out = document.getElementById("task-modal-output");
+  const btn = document.getElementById("task-modal-run");
+  if (!prompt) { setStatus(st, "Enter a task prompt.", "err"); return; }
+  btn.disabled = true;
+  setStatus(st, "Running task…", "info");
+  out.textContent = "";
+  try {
+    const result = await api("/v1/infer", {
+      method: "POST",
+      headers: {"Content-Type": "application/json"},
+      body: JSON.stringify({ input: prompt, agent_id: agentId, session_id: sessionId || undefined }),
+    });
+    out.textContent = result.output ?? fmt(result);
+    setStatus(st, `Completed via ${result.model_used || "unknown"}.`, "ok");
+  } catch(e) {
+    out.textContent = `Error: ${e.message}`;
+    setStatus(st, "Task failed: " + e.message, "err");
+  } finally {
+    btn.disabled = false;
+  }
+});
+
+// ── Workflows ─────────────────────────────────────────────────────────────
+function renderWorkflowOutputOptions() {
+  const outputSelect = document.getElementById("workflow-output-step");
+  outputSelect.innerHTML = workflowDraftSteps.map((step, index) => `<option value="${esc(step.step_id)}">${esc(step.name || `Step ${index + 1}`)}</option>`).join("");
+}
+
+function createWorkflowStep(type) {
+  const index = workflowDraftSteps.length + 1;
+  const stepId = `step_${index}`;
+  const base = { step_id: stepId, name: `${type.toUpperCase()} ${index}`, type, prompt: "{{input}}", ref: "", maxIterations: 3 };
+  if (type === "agent") base.ref = agentList.find(agent => agent.agent_id !== "default")?.agent_id || agentList[0]?.agent_id || "";
+  if (type === "chain") base.ref = "";
+  return base;
+}
+
+function workflowRefOptions(type, selected) {
+  if (type === "agent") {
+    return agentList.map(agent => `<option value="${esc(agent.agent_id)}" ${selected === agent.agent_id ? "selected" : ""}>${esc(agent.name)} (${esc(agent.agent_id)})</option>`).join("");
+  }
+  if (type === "chain") {
+    return chainList.map(chain => `<option value="${esc(chain.chain_id)}" ${selected === chain.chain_id ? "selected" : ""}>${esc(chain.name)} (${esc(chain.chain_id)})</option>`).join("");
+  }
+  return `<option value="">Built-in ATM</option>`;
+}
+
+function renderWorkflowDraft() {
+  const list = document.getElementById("workflow-step-list");
+  if (!workflowDraftSteps.length) {
+    list.innerHTML = `<div style="color:var(--muted);font-size:0.82rem">Add steps to define the workflow order.</div>`;
+    renderWorkflowOutputOptions();
+    return;
+  }
+  list.innerHTML = workflowDraftSteps.map((step, index) => `
+    <div style="border:1px solid var(--border);border-radius:10px;padding:12px;background:var(--surface-2);display:flex;flex-direction:column;gap:10px">
+      <div style="display:flex;align-items:center;justify-content:space-between;gap:10px">
+        <strong>${esc(step.name)}</strong>
+        <div class="btn-row">
+          <button class="btn" onclick="moveWorkflowStep(${index}, -1)" ${index === 0 ? "disabled" : ""}>↑</button>
+          <button class="btn" onclick="moveWorkflowStep(${index}, 1)" ${index === workflowDraftSteps.length - 1 ? "disabled" : ""}>↓</button>
+          <button class="btn danger" onclick="removeWorkflowStep(${index})">Remove</button>
+        </div>
+      </div>
+      <div class="form-grid">
+        <div class="field">
+          <label>Step Name</label>
+          <input type="text" value="${esc(step.name)}" oninput="updateWorkflowStep(${index}, 'name', this.value)" />
+        </div>
+        <div class="field">
+          <label>Type</label>
+          <select onchange="changeWorkflowStepType(${index}, this.value)">
+            <option value="agent" ${step.type === "agent" ? "selected" : ""}>Agent</option>
+            <option value="chain" ${step.type === "chain" ? "selected" : ""}>Chain</option>
+            <option value="atm" ${step.type === "atm" ? "selected" : ""}>ATM</option>
+          </select>
+        </div>
+      </div>
+      <div class="form-grid">
+        <div class="field">
+          <label>${step.type === "agent" ? "Agent" : step.type === "chain" ? "Chain" : "Executor"}</label>
+          <select onchange="updateWorkflowStep(${index}, 'ref', this.value)">
+            ${workflowRefOptions(step.type, step.ref)}
+          </select>
+        </div>
+        <div class="field">
+          <label>${step.type === "atm" ? "Max Iterations" : "Output Key"}</label>
+          ${step.type === "atm"
+            ? `<input type="text" value="${esc(String(step.maxIterations || 3))}" oninput="updateWorkflowStep(${index}, 'maxIterations', this.value)" />`
+            : `<input type="text" value="${esc(step.step_id)}" readonly />`}
+        </div>
+      </div>
+      <div class="field">
+        <label>${step.type === "atm" ? "Prompt Template" : "Input Template"}</label>
+        <textarea oninput="updateWorkflowStep(${index}, 'prompt', this.value)">${esc(step.prompt || "{{input}}")}</textarea>
+      </div>
+    </div>`).join("");
+  renderWorkflowOutputOptions();
+}
+
+function updateWorkflowStep(index, field, value) {
+  workflowDraftSteps[index][field] = field === "maxIterations" ? Number(value || 3) : value;
+  if (field === "name") renderWorkflowOutputOptions();
+}
+
+function changeWorkflowStepType(index, type) {
+  workflowDraftSteps[index].type = type;
+  workflowDraftSteps[index].ref = type === "agent"
+    ? (agentList.find(agent => agent.agent_id !== "default")?.agent_id || agentList[0]?.agent_id || "")
+    : "";
+  renderWorkflowDraft();
+}
+
+function moveWorkflowStep(index, delta) {
+  const target = index + delta;
+  if (target < 0 || target >= workflowDraftSteps.length) return;
+  const [item] = workflowDraftSteps.splice(index, 1);
+  workflowDraftSteps.splice(target, 0, item);
+  renderWorkflowDraft();
+}
+
+function removeWorkflowStep(index) {
+  workflowDraftSteps.splice(index, 1);
+  renderWorkflowDraft();
+}
+
+async function loadWorkflows() {
+  const tbody = document.getElementById("workflows-body");
+  try {
+    const workflows = await api("/v1/workflows");
+    if (!workflows.length) {
+      tbody.innerHTML = `<tr><td colspan="4" style="color:var(--muted)">No workflows yet.</td></tr>`;
+      return;
+    }
+    tbody.innerHTML = workflows.map(workflow => `
+      <tr>
+        <td class="cell-mono">${esc(workflow.workflow_id)}</td>
+        <td>${esc(workflow.name)}</td>
+        <td>${Array.isArray(workflow.steps) ? workflow.steps.length : 0}</td>
+        <td>
+          <div class="btn-row">
+            <button class="btn" onclick="runWorkflow('${esc(workflow.workflow_id)}')">▷ Run</button>
+            <button class="btn danger" onclick="deleteWorkflow('${esc(workflow.workflow_id)}')">Delete</button>
+          </div>
+        </td>
+      </tr>`).join("");
+  } catch(e) {
+    tbody.innerHTML = `<tr><td colspan="4" style="color:var(--danger)">${esc(e.message)}</td></tr>`;
+  }
+}
+
+async function runWorkflow(id) {
+  const input = prompt("Input for workflow:");
+  if (input === null) return;
+  try {
+    const result = await api(`/v1/workflows/${id}/run`, {
+      method: "POST",
+      headers: {"Content-Type": "application/json"},
+      body: JSON.stringify({ input }),
+    });
+    alert(`Workflow result:\n\n${result.final_output || fmt(result)}`);
+  } catch(e) {
+    alert("Workflow failed: " + e.message);
+  }
+}
+
+async function deleteWorkflow(id) {
+  if (!confirm("Delete this workflow?")) return;
+  try {
+    await api(`/v1/workflows/${id}`, { method: "DELETE" });
+    loadWorkflows();
+  } catch(e) {
+    alert("Delete failed: " + e.message);
+  }
+}
+
+function openWorkflowModal() {
+  if (!chainList.length) loadChains();
+  document.getElementById("workflow-name").value = "";
+  document.getElementById("workflow-description").value = "";
+  workflowDraftSteps = [createWorkflowStep("agent")];
+  renderWorkflowDraft();
+  setStatus(document.getElementById("workflow-modal-status"), "", "info");
+  document.getElementById("workflow-modal").classList.add("open");
+}
+
+document.getElementById("workflows-new-btn").addEventListener("click", openWorkflowModal);
+document.getElementById("workflow-modal-cancel").addEventListener("click", () => {
+  document.getElementById("workflow-modal").classList.remove("open");
+});
+document.getElementById("workflow-modal").addEventListener("click", (e) => {
+  if (e.target === document.getElementById("workflow-modal")) document.getElementById("workflow-modal").classList.remove("open");
+});
+document.getElementById("workflow-add-agent-step").addEventListener("click", () => {
+  workflowDraftSteps.push(createWorkflowStep("agent"));
+  renderWorkflowDraft();
+});
+document.getElementById("workflow-add-chain-step").addEventListener("click", () => {
+  workflowDraftSteps.push(createWorkflowStep("chain"));
+  renderWorkflowDraft();
+});
+document.getElementById("workflow-add-atm-step").addEventListener("click", () => {
+  workflowDraftSteps.push(createWorkflowStep("atm"));
+  renderWorkflowDraft();
+});
+document.getElementById("workflow-modal-save").addEventListener("click", async () => {
+  const name = document.getElementById("workflow-name").value.trim();
+  const description = document.getElementById("workflow-description").value.trim();
+  const outputStep = document.getElementById("workflow-output-step").value || workflowDraftSteps[workflowDraftSteps.length - 1]?.step_id;
+  const st = document.getElementById("workflow-modal-status");
+  const btn = document.getElementById("workflow-modal-save");
+  if (!name) { setStatus(st, "Workflow name is required.", "err"); return; }
+  if (!workflowDraftSteps.length) { setStatus(st, "Add at least one workflow step.", "err"); return; }
+
+  const steps = workflowDraftSteps.map((step, index) => {
+    const dependsOn = index === 0 ? [] : [workflowDraftSteps[index - 1].step_id];
+    const config = step.type === "agent"
+      ? { agent_id: step.ref || undefined, input_template: step.prompt || "{{input}}" }
+      : step.type === "chain"
+        ? { chain_id: step.ref || undefined, input_template: step.prompt || "{{input}}" }
+        : { prompt_template: step.prompt || "{{input}}", max_iterations: Number(step.maxIterations || 3) };
+    return {
+      step_id: step.step_id,
+      name: step.name,
+      type: step.type,
+      config,
+      depends_on: dependsOn,
+      output_key: step.step_id,
+    };
+  });
+
+  btn.disabled = true;
+  setStatus(st, "Creating workflow…", "info");
+  try {
+    await api("/v1/workflows", {
+      method: "POST",
+      headers: {"Content-Type": "application/json"},
+      body: JSON.stringify({ name, description, steps, output_step: outputStep }),
+    });
+    document.getElementById("workflow-modal").classList.remove("open");
+    loadWorkflows();
+  } catch(e) {
+    setStatus(st, "Failed: " + e.message, "err");
+  } finally {
+    btn.disabled = false;
+  }
 });
 
 // ── Events ────────────────────────────────────────────────────────────────
@@ -1507,7 +1991,7 @@ async function loadDemo() {
   const raw     = document.getElementById("demo-raw");
   try {
     const d = await api("/v1/demo");
-    const running = d.running === true;
+    const running = d.active === true;
     stateEl.textContent = running ? "● Running" : "○ Stopped";
     stateEl.className   = `demo-state ${running ? "running" : "stopped"}`;
     raw.textContent     = fmt(d);
@@ -1552,8 +2036,9 @@ const HELP_CTX = {
   dashboard: { title: "Dashboard", text: "Live overview of node health, uptime, requests processed, entropy beacons generated, and recent events. Auto-refreshes every 30 s. Click ↻ for an instant refresh." },
   config:    { title: "Configuration", text: "Set your Ollama backend URL and model. Use Test Connection before saving to verify reachability. Changes apply live — no server restart required." },
   models:    { title: "Models", text: "Lists all models reported by /v1/models. Model availability depends on what Ollama has pulled on the host. Use 'ollama pull <model>' on the host to add models." },
-  agents:    { title: "Agents", text: "Manage autonomous agent personas. Each agent has a name, optional persona label, description, and a system prompt that shapes its reasoning. Agents can be assembled into Chains for multi-step workflows." },
+  agents:    { title: "Agents", text: "Manage sub-agents, task them directly, and restore presets. Each agent has a name, persona, model, and system prompt that shapes its behavior." },
   chains:    { title: "Chains", text: "An ordered list of agent IDs that run sequentially — output of each step is fed as input to the next. Use Run to execute a chain with a custom input prompt." },
+  workflows: { title: "Workflows", text: "Compose ordered pipelines of agent, chain, and ATM steps. Arrange steps, choose the final output step, and run the workflow against an input prompt." },
   events:    { title: "Events", text: "Immutable event log sourced from /v1/events. Each event has a unique ID, type, timestamp, and originating node ID. Events are the audit trail of all system activity." },
   sessions:  { title: "Sessions", text: "Inspect a session by UUID to see its full message history and context. Delete a session to clear its state and start fresh on the next interaction." },
   memory:    { title: "Memory", text: "Read and write named memory files stored on the node. Useful for persisting agent context, configuration snippets, or project notes across restarts." },
@@ -1594,12 +2079,15 @@ const HELP_INDEX = [
   { title: "Config — Test Connection", body: "Fires a ping inference and reports which backend responded. Tests connectivity before saving.", view: "config" },
   { title: "Config — Save & Apply", body: "Sends PATCH /v1/config. Changes apply live without server restart.", view: "config" },
   { title: "Models — Available Models", body: "Lists all models from /v1/models. Add models with 'ollama pull <model>' on the host.", view: "models" },
-  { title: "Agents — Create Agent", body: "New agent with name, persona, description, system prompt. ID auto-generated as UUID.", view: "agents" },
+  { title: "Agents — Create Agent", body: "New agent with name, persona, local model selection, and system prompt. ID auto-generated as UUID.", view: "agents" },
   { title: "Agents — Clone", body: "Duplicates an agent with a new UUID. Useful for A/B testing system prompts.", view: "agents" },
   { title: "Agents — Load Preset", body: "Imports predefined agent configurations from deploy/presets/agents.json.", view: "agents" },
+  { title: "Agents — Task", body: "Run a prompt through a specific sub-agent via POST /v1/infer with agent_id.", view: "agents" },
   { title: "Agents — Delete", body: "Archives (soft-deletes) an agent. Uses DELETE /v1/agents/{id}.", view: "agents" },
   { title: "Chains — Create Chain", body: "Ordered list of agent UUIDs. Output of each step is input to the next.", view: "chains" },
   { title: "Chains — Run", body: "Execute a chain with a custom input via POST /v1/chains/{id}/run.", view: "chains" },
+  { title: "Workflows — Create", body: "Build ordered workflows from agent, chain, and ATM steps and save them via POST /v1/workflows.", view: "workflows" },
+  { title: "Workflows — Run", body: "Execute a workflow with custom input via POST /v1/workflows/{id}/run.", view: "workflows" },
   { title: "Events — Event Log", body: "Immutable audit trail of all system activity. Each event has ID, type, timestamp, node ID.", view: "events" },
   { title: "Sessions — Inspect", body: "Load a session by UUID to see full message history and context.", view: "sessions" },
   { title: "Sessions — Delete", body: "Clear a session state via DELETE /v1/session/{id}.", view: "sessions" },
@@ -1643,7 +2131,7 @@ helpSearchInput.addEventListener("input", () => {
 
 // ── Keyboard Shortcuts ─────────────────────────────────────────────────────
 let gSeq = false;
-const G_MAP = { d: "dashboard", a: "agents", t: "atm", c: "config", e: "events", m: "memory", p: "peers" };
+const G_MAP = { d: "dashboard", a: "agents", t: "atm", c: "config", e: "events", m: "memory", p: "peers", w: "workflows" };
 
 document.addEventListener("keydown", (e) => {
   const tag = (document.activeElement?.tagName || "").toLowerCase();
