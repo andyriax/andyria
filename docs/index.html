@@ -107,6 +107,23 @@
       transition: background .2s, box-shadow .2s !important;
     }
     .nav-cta:hover { background: var(--accent2) !important; box-shadow: 0 0 16px rgba(124,106,245,0.5); }
+    .viz-quick-btn {
+      padding: 8px 14px;
+      border-radius: 8px;
+      border: 1px solid var(--border);
+      color: var(--text);
+      text-decoration: none;
+      font-size: 0.85rem;
+      font-weight: 600;
+      background: rgba(45, 212, 191, 0.14);
+      transition: border-color .2s, color .2s, background .2s;
+      white-space: nowrap;
+    }
+    .viz-quick-btn:hover {
+      border-color: var(--teal);
+      color: #fff;
+      background: rgba(45, 212, 191, 0.24);
+    }
 
     /* ── HERO ── */
     .hero {
@@ -481,6 +498,7 @@
     <div class="orb"></div>
     Andyria
   </a>
+  <a href="./blockchain-visualizer.html" class="viz-quick-btn">Open Visualizer</a>
   <ul class="nav-links">
     <li><a href="#features">Features</a></li>
     <li><a href="#architecture">Architecture</a></li>
