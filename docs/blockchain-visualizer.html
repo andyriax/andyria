@@ -1,0 +1,1116 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Andyria Blockchain Visualizer</title>
+  <meta name="description" content="Full Andyria blockchain event DAG visualizer with represented agents and history explorer." />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet" />
+  <script type="text/javascript" src="https://unpkg.com/vis-network@9.1.9/dist/vis-network.min.js"></script>
+  <style>
+    :root {
+      --bg: #081019;
+      --panel: #122132;
+      --panel-2: #0d1a29;
+      --ink: #f1f6fb;
+      --muted: #9cb1c6;
+      --line: #2f4f68;
+      --accent: #2db6ff;
+      --accent-2: #25e4a0;
+      --warn: #ffd166;
+      --danger: #ff5d73;
+      --shadow: 0 14px 36px rgba(0, 0, 0, 0.35);
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      font-family: "Space Grotesk", "Segoe UI", sans-serif;
+      background:
+        radial-gradient(circle at 20% -15%, rgba(37, 228, 160, 0.14), transparent 45%),
+        radial-gradient(circle at 80% -5%, rgba(45, 182, 255, 0.2), transparent 40%),
+        repeating-linear-gradient(45deg, rgba(255, 255, 255, 0.02) 0, rgba(255, 255, 255, 0.02) 2px, transparent 2px, transparent 11px),
+        var(--bg);
+      color: var(--ink);
+      min-height: 100vh;
+    }
+
+    .topbar {
+      position: sticky;
+      top: 0;
+      z-index: 20;
+      padding: 16px 20px;
+      border-bottom: 1px solid var(--line);
+      backdrop-filter: blur(8px);
+      background: rgba(8, 16, 25, 0.9);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+    }
+
+    .title-wrap h1 {
+      margin: 0;
+      font-size: clamp(1.05rem, 2vw, 1.35rem);
+      letter-spacing: 0.02em;
+    }
+
+    .title-wrap p {
+      margin: 4px 0 0;
+      color: var(--muted);
+      font-size: 0.9rem;
+    }
+
+    .top-actions {
+      display: flex;
+      gap: 10px;
+      align-items: center;
+      flex-wrap: wrap;
+      justify-content: flex-end;
+    }
+
+    .btn {
+      border: 1px solid var(--line);
+      background: linear-gradient(180deg, #163149, #102538);
+      color: var(--ink);
+      padding: 8px 12px;
+      border-radius: 10px;
+      font-weight: 600;
+      font-family: inherit;
+      cursor: pointer;
+      transition: transform .15s ease, border-color .2s ease;
+    }
+
+    .btn:hover { transform: translateY(-1px); border-color: var(--accent); }
+
+    .btn.primary {
+      background: linear-gradient(180deg, #28a8f0, #1374ac);
+      border-color: #5ac4ff;
+    }
+
+    #uploadInput { display: none; }
+
+    .app {
+      display: grid;
+      grid-template-columns: 350px 1fr;
+      gap: 14px;
+      padding: 14px;
+    }
+
+    .panel {
+      background: linear-gradient(180deg, rgba(18, 33, 50, 0.95), rgba(13, 26, 41, 0.96));
+      border: 1px solid var(--line);
+      border-radius: 16px;
+      box-shadow: var(--shadow);
+    }
+
+    .left {
+      padding: 14px;
+      display: grid;
+      gap: 12px;
+      align-content: start;
+      max-height: calc(100vh - 92px);
+      overflow: auto;
+    }
+
+    .group h2 {
+      margin: 0 0 8px;
+      font-size: 0.95rem;
+      letter-spacing: 0.02em;
+      color: #d8ecff;
+    }
+
+    .group p {
+      margin: 0;
+      color: var(--muted);
+      font-size: 0.85rem;
+      line-height: 1.4;
+    }
+
+    .stats {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 8px;
+    }
+
+    .card {
+      background: rgba(11, 24, 38, 0.9);
+      border: 1px solid rgba(61, 102, 131, 0.8);
+      border-radius: 12px;
+      padding: 8px;
+    }
+
+    .card .label {
+      font-size: 0.74rem;
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: 0.07em;
+    }
+
+    .card .value {
+      font-family: "IBM Plex Mono", monospace;
+      font-size: 1.18rem;
+      margin-top: 2px;
+      color: #ecf7ff;
+    }
+
+    .field {
+      display: grid;
+      gap: 6px;
+      margin-bottom: 8px;
+    }
+
+    .field label {
+      font-size: 0.78rem;
+      color: var(--muted);
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+    }
+
+    .field input,
+    .field select {
+      width: 100%;
+      border-radius: 10px;
+      border: 1px solid var(--line);
+      background: #0d1d2f;
+      color: var(--ink);
+      font: inherit;
+      padding: 8px 10px;
+    }
+
+    .field .hint {
+      color: var(--muted);
+      font-size: 0.75rem;
+    }
+
+    .checklist {
+      display: grid;
+      gap: 6px;
+      max-height: 130px;
+      overflow: auto;
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      padding: 8px;
+      background: rgba(8, 18, 29, 0.7);
+    }
+
+    .check {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 0.86rem;
+      color: #d4e9fd;
+    }
+
+    .check input { accent-color: var(--accent); }
+
+    .agents-list {
+      max-height: 190px;
+      overflow: auto;
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      background: rgba(8, 18, 29, 0.65);
+      padding: 8px;
+      display: grid;
+      gap: 7px;
+    }
+
+    .agent-pill {
+      border: 1px solid rgba(74, 119, 151, 0.7);
+      background: rgba(15, 32, 49, 0.9);
+      border-radius: 10px;
+      padding: 8px;
+      font-size: 0.82rem;
+    }
+
+    .agent-pill strong { color: #e8f5ff; }
+
+    .agent-pill .meta {
+      color: var(--muted);
+      font-size: 0.74rem;
+      margin-top: 3px;
+    }
+
+    .main {
+      display: grid;
+      grid-template-rows: minmax(350px, 52vh) 1fr;
+      gap: 12px;
+    }
+
+    .graph-wrap {
+      position: relative;
+      overflow: hidden;
+    }
+
+    #network {
+      position: absolute;
+      inset: 0;
+      background: linear-gradient(180deg, rgba(5, 12, 20, 0.8), rgba(8, 16, 25, 0.92));
+    }
+
+    .legend {
+      position: absolute;
+      right: 10px;
+      top: 10px;
+      z-index: 5;
+      background: rgba(9, 18, 27, 0.88);
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      padding: 8px 10px;
+      font-size: 0.75rem;
+      color: #d4e8fc;
+      display: grid;
+      gap: 5px;
+    }
+
+    .dot {
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      display: inline-block;
+      margin-right: 6px;
+      vertical-align: middle;
+    }
+
+    .history {
+      padding: 10px;
+      display: grid;
+      grid-template-rows: auto 1fr;
+      gap: 8px;
+      min-height: 260px;
+    }
+
+    .history-head {
+      display: flex;
+      justify-content: space-between;
+      gap: 10px;
+      align-items: center;
+      flex-wrap: wrap;
+    }
+
+    .history-head h2 {
+      margin: 0;
+      font-size: 1rem;
+      letter-spacing: 0.02em;
+    }
+
+    .history-head p {
+      margin: 0;
+      color: var(--muted);
+      font-size: 0.84rem;
+    }
+
+    .table-wrap {
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      overflow: auto;
+      background: rgba(8, 18, 29, 0.72);
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      min-width: 980px;
+      font-size: 0.82rem;
+    }
+
+    th, td {
+      border-bottom: 1px solid rgba(47, 79, 104, 0.7);
+      padding: 7px 9px;
+      text-align: left;
+      vertical-align: top;
+      font-family: "IBM Plex Mono", monospace;
+    }
+
+    th {
+      position: sticky;
+      top: 0;
+      z-index: 1;
+      background: rgba(16, 35, 52, 0.97);
+      color: #d6ecff;
+      font-weight: 500;
+      letter-spacing: 0.03em;
+    }
+
+    td .tag {
+      border-radius: 999px;
+      border: 1px solid rgba(87, 134, 168, 0.95);
+      padding: 1px 7px;
+      display: inline-block;
+      font-size: 0.72rem;
+      color: #b5dcff;
+      margin-right: 4px;
+      margin-bottom: 4px;
+      font-family: "Space Grotesk", sans-serif;
+    }
+
+    .mono-truncate {
+      max-width: 330px;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .status {
+      margin-top: 4px;
+      font-size: 0.84rem;
+      color: var(--muted);
+      min-height: 20px;
+    }
+
+    .ok { color: var(--accent-2); }
+    .warn { color: var(--warn); }
+    .bad { color: var(--danger); }
+
+    @media (max-width: 1100px) {
+      .app { grid-template-columns: 1fr; }
+      .left { max-height: none; }
+      .main { grid-template-rows: minmax(310px, 47vh) 1fr; }
+    }
+  </style>
+</head>
+<body>
+  <header class="topbar">
+    <div class="title-wrap">
+      <h1>Andyria Full Blockchain Visualizer</h1>
+      <p>Complete event DAG, represented agents, and historical ledger explorer</p>
+    </div>
+    <div class="top-actions">
+      <button class="btn" id="refreshBtn" type="button">Reload Data</button>
+      <button class="btn" id="uploadBtn" type="button">Import NDJSON</button>
+      <input id="uploadInput" type="file" accept=".ndjson,.jsonl,.txt" />
+      <button class="btn primary" id="fitBtn" type="button">Fit Graph</button>
+      <a class="btn" href="./index.html">Back to Docs</a>
+    </div>
+  </header>
+
+  <main class="app">
+    <aside class="panel left">
+      <section class="group">
+        <h2>Ledger Coverage</h2>
+        <div class="stats">
+          <div class="card"><div class="label">Events</div><div class="value" id="statEvents">0</div></div>
+          <div class="card"><div class="label">Agents</div><div class="value" id="statAgents">0</div></div>
+          <div class="card"><div class="label">Parent Links</div><div class="value" id="statParents">0</div></div>
+          <div class="card"><div class="label">Sources</div><div class="value" id="statSources">0</div></div>
+        </div>
+      </section>
+
+      <section class="group">
+        <h2>Filters</h2>
+        <div class="field">
+          <label for="searchInput">Search</label>
+          <input id="searchInput" type="search" placeholder="event type, stream, id, payload" />
+        </div>
+        <div class="field">
+          <label for="agentFilter">Agent</label>
+          <select id="agentFilter">
+            <option value="">All agents</option>
+          </select>
+        </div>
+        <div class="field">
+          <label for="typeFilter">Event Type</label>
+          <select id="typeFilter">
+            <option value="">All event types</option>
+          </select>
+        </div>
+        <div class="field">
+          <label for="limitInput">Graph Event Limit</label>
+          <input id="limitInput" type="number" min="100" max="10000" step="100" value="1200" />
+          <div class="hint">History table always keeps full loaded set.</div>
+        </div>
+        <div class="field">
+          <label>Data Sources</label>
+          <div class="checklist" id="sourceChecklist"></div>
+        </div>
+      </section>
+
+      <section class="group">
+        <h2>Represented Agents</h2>
+        <p id="agentCoverageText">0 known / 0 seen in history</p>
+        <div class="agents-list" id="agentsList"></div>
+      </section>
+
+      <section class="group">
+        <h2>Status</h2>
+        <div class="status" id="statusLine">Waiting for load...</div>
+      </section>
+    </aside>
+
+    <section class="main">
+      <div class="panel graph-wrap">
+        <div id="network" aria-label="Blockchain graph"></div>
+        <div class="legend">
+          <div><span class="dot" style="background:#25e4a0"></span>agent node</div>
+          <div><span class="dot" style="background:#2db6ff"></span>event node</div>
+          <div><span class="dot" style="background:#ffd166"></span>error/failure event</div>
+          <div><span class="dot" style="background:#a8c0d6"></span>synthetic stream chain link</div>
+        </div>
+      </div>
+
+      <div class="panel history">
+        <div class="history-head">
+          <div>
+            <h2>Ledger History</h2>
+            <p>Chronological full history from all enabled sources</p>
+          </div>
+          <div id="historyCount" class="status">0 rows</div>
+        </div>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>#</th>
+                <th>Timestamp</th>
+                <th>Agent</th>
+                <th>Stream</th>
+                <th>Type</th>
+                <th>ID</th>
+                <th>Parents</th>
+                <th>Payload</th>
+                <th>Source</th>
+              </tr>
+            </thead>
+            <tbody id="historyBody"></tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <script>
+    const SOURCE_CANDIDATES = [
+      { id: "api-events", label: "Python API /v1/events", kind: "api", path: "/v1/events?limit=10000" },
+      { id: "tt-root", label: "tt-live-agent/data/events.ndjson", kind: "ndjson", path: "/tt-live-agent/data/events.ndjson" },
+      { id: "tt-relative", label: "../tt-live-agent/data/events.ndjson", kind: "ndjson", path: "../tt-live-agent/data/events.ndjson" },
+      { id: "data-root", label: "data/events.ndjson", kind: "ndjson", path: "/data/events.ndjson" },
+      { id: "data-relative", label: "../data/events.ndjson", kind: "ndjson", path: "../data/events.ndjson" }
+    ];
+
+    const TT_AGENT_FILES = [
+      "chat-commander.json",
+      "greeter.json",
+      "hype-bot.json",
+      "jina-wizard.json",
+      "sales-sniper.json"
+    ];
+
+    const state = {
+      sourceEnabled: new Map(),
+      sourceResults: new Map(),
+      importedRecords: [],
+      allEvents: [],
+      filteredEvents: [],
+      network: null,
+      nodes: null,
+      edges: null,
+      representedAgents: new Map(),
+      eventTypes: []
+    };
+
+    const el = {
+      statEvents: document.getElementById("statEvents"),
+      statAgents: document.getElementById("statAgents"),
+      statParents: document.getElementById("statParents"),
+      statSources: document.getElementById("statSources"),
+      sourceChecklist: document.getElementById("sourceChecklist"),
+      statusLine: document.getElementById("statusLine"),
+      agentFilter: document.getElementById("agentFilter"),
+      typeFilter: document.getElementById("typeFilter"),
+      searchInput: document.getElementById("searchInput"),
+      limitInput: document.getElementById("limitInput"),
+      agentsList: document.getElementById("agentsList"),
+      agentCoverageText: document.getElementById("agentCoverageText"),
+      historyBody: document.getElementById("historyBody"),
+      historyCount: document.getElementById("historyCount"),
+      refreshBtn: document.getElementById("refreshBtn"),
+      uploadBtn: document.getElementById("uploadBtn"),
+      uploadInput: document.getElementById("uploadInput"),
+      fitBtn: document.getElementById("fitBtn")
+    };
+
+    function short(text, length = 16) {
+      if (!text) return "-";
+      const str = String(text);
+      return str.length <= length ? str : `${str.slice(0, length)}...`;
+    }
+
+    function setStatus(msg, klass = "") {
+      el.statusLine.textContent = msg;
+      el.statusLine.className = `status ${klass}`.trim();
+    }
+
+    function stableKey(raw) {
+      if (raw.id) return String(raw.id);
+      const primary = [raw.ts || raw.timestamp_ns || "", raw.stream_id || raw.node_id || "", raw.event_type || "", JSON.stringify(raw.payload || {})].join("|");
+      let hash = 0;
+      for (let i = 0; i < primary.length; i += 1) {
+        hash = ((hash << 5) - hash + primary.charCodeAt(i)) | 0;
+      }
+      return `synthetic-${Math.abs(hash)}`;
+    }
+
+    function toTimestampMillis(raw) {
+      if (typeof raw.ts === "number") return raw.ts;
+      if (typeof raw.timestamp_ns === "number") return Math.floor(raw.timestamp_ns / 1000000);
+      if (typeof raw.timestamp_ms === "number") return raw.timestamp_ms;
+      if (typeof raw.iso_ts === "string") {
+        const parsed = Date.parse(raw.iso_ts);
+        return Number.isNaN(parsed) ? Date.now() : parsed;
+      }
+      if (typeof raw.timestamp === "string") {
+        const parsed = Date.parse(raw.timestamp);
+        return Number.isNaN(parsed) ? Date.now() : parsed;
+      }
+      return Date.now();
+    }
+
+    function parseAgentFromStream(stream) {
+      if (!stream) return "";
+      if (stream.startsWith("agent:")) return stream.split(":")[1] || "";
+      if (stream.startsWith("dag:")) return stream.split(":")[1] || "";
+      if (stream.startsWith("revenue:")) return stream.split(":")[1] || "";
+      return "";
+    }
+
+    function normalizeEvent(raw, sourceId) {
+      const parents = Array.isArray(raw.parent_ids) ? raw.parent_ids.map(String) : [];
+      const stream = raw.stream_id || raw.channel || raw.node_id || "";
+      const type = raw.event_type || raw.event || "UNKNOWN";
+      const payload = raw.payload && typeof raw.payload === "object" ? raw.payload : (raw.payload ?? {});
+      const timestampMs = toTimestampMillis(raw);
+      const agent = raw.agent_id || parseAgentFromStream(stream) || (payload && typeof payload === "object" ? (payload.agent_id || "") : "");
+      const uid = stableKey(raw);
+
+      return {
+        uid,
+        id: raw.id ? String(raw.id) : "",
+        sourceId,
+        stream: String(stream || ""),
+        eventType: String(type || "UNKNOWN"),
+        payload,
+        parentIds: parents,
+        timestampMs,
+        isoTs: new Date(timestampMs).toISOString(),
+        agentId: String(agent || ""),
+        nodeId: raw.node_id ? String(raw.node_id) : "",
+        raw
+      };
+    }
+
+    function parseNdjson(text, sourceId) {
+      const rows = text.split(/\r?\n/).map(line => line.trim()).filter(Boolean);
+      const events = [];
+      for (const row of rows) {
+        try {
+          const raw = JSON.parse(row);
+          events.push(normalizeEvent(raw, sourceId));
+        } catch (_) {
+          // Ignore malformed rows to keep visualizer resilient.
+        }
+      }
+      return events;
+    }
+
+    async function fetchJson(path) {
+      const res = await fetch(path, { cache: "no-store" });
+      if (!res.ok) throw new Error(`HTTP ${res.status} for ${path}`);
+      return res.json();
+    }
+
+    async function fetchText(path) {
+      const res = await fetch(path, { cache: "no-store" });
+      if (!res.ok) throw new Error(`HTTP ${res.status} for ${path}`);
+      return res.text();
+    }
+
+    async function loadRepresentedAgents() {
+      const represented = new Map();
+
+      try {
+        const manifest = await fetchJson("./assets/agents.manifest.json");
+        for (const agent of manifest) {
+          represented.set(String(agent.id), {
+            id: String(agent.id),
+            name: agent.name || agent.id,
+            source: agent.source || "manifest",
+            persona: agent.persona || "",
+            description: agent.description || ""
+          });
+        }
+      } catch (_) {
+        // Manifest is optional in dev copies.
+      }
+
+      try {
+        const presets = await fetchJson("../deploy/presets/agents.json");
+        for (const preset of presets) {
+          if (!preset || !preset.id) continue;
+          represented.set(String(preset.id), {
+            id: String(preset.id),
+            name: preset.name || preset.id,
+            source: "deploy/presets",
+            persona: preset.archetype || "",
+            description: preset.description || ""
+          });
+        }
+      } catch (_) {
+        // Path might not exist in docs-only hosting.
+      }
+
+      for (const file of TT_AGENT_FILES) {
+        try {
+          const agent = await fetchJson(`../tt-live-agent/agents/${file}`);
+          if (!agent || !agent.id) continue;
+          represented.set(String(agent.id), {
+            id: String(agent.id),
+            name: agent.id,
+            source: "tt-live-agent/agents",
+            persona: agent.persona || "",
+            description: agent.description || ""
+          });
+        } catch (_) {
+          // Optional source.
+        }
+      }
+
+      state.representedAgents = represented;
+      renderRepresentedAgents();
+    }
+
+    async function loadSource(source) {
+      try {
+        if (source.kind === "api") {
+          const data = await fetchJson(source.path);
+          const rows = Array.isArray(data) ? data : (Array.isArray(data.events) ? data.events : []);
+          return rows.map(raw => normalizeEvent(raw, source.id));
+        }
+
+        if (source.kind === "ndjson") {
+          const text = await fetchText(source.path);
+          return parseNdjson(text, source.id);
+        }
+      } catch (_) {
+        return [];
+      }
+      return [];
+    }
+
+    function dedupeEvents(events) {
+      const map = new Map();
+      for (const event of events) {
+        if (!map.has(event.uid)) {
+          map.set(event.uid, event);
+        }
+      }
+      return Array.from(map.values()).sort((a, b) => a.timestampMs - b.timestampMs);
+    }
+
+    function buildSyntheticLinks(events) {
+      const byStream = new Map();
+      const links = [];
+
+      for (const event of events) {
+        const key = event.stream || "_nostream";
+        if (!byStream.has(key)) byStream.set(key, []);
+        byStream.get(key).push(event);
+      }
+
+      for (const streamEvents of byStream.values()) {
+        streamEvents.sort((a, b) => a.timestampMs - b.timestampMs);
+        for (let i = 1; i < streamEvents.length; i += 1) {
+          const prev = streamEvents[i - 1];
+          const curr = streamEvents[i];
+          if (!curr.parentIds.includes(prev.id) && prev.uid !== curr.uid) {
+            links.push({ from: prev.uid, to: curr.uid, synthetic: true });
+          }
+        }
+      }
+
+      return links;
+    }
+
+    function classifyColor(eventType) {
+      const upper = eventType.toUpperCase();
+      if (upper.includes("ERROR") || upper.includes("FAILED") || upper.includes("ILLEGAL")) return "#ffd166";
+      if (upper.includes("SPAWN") || upper.includes("START")) return "#25e4a0";
+      if (upper.includes("REVENUE") || upper.includes("GIFT")) return "#ff8f70";
+      if (upper.includes("VOICE") || upper.includes("CHAT")) return "#79b7ff";
+      return "#2db6ff";
+    }
+
+    function buildGraph(eventsForGraph) {
+      const nodes = [];
+      const edges = [];
+      const parentEdgeSeen = new Set();
+
+      const agentIdsSeen = new Set();
+      for (const event of state.allEvents) {
+        if (event.agentId) agentIdsSeen.add(event.agentId);
+      }
+
+      for (const [agentId, info] of state.representedAgents.entries()) {
+        nodes.push({
+          id: `agent:${agentId}`,
+          label: `${info.name || agentId}\n(${agentId})`,
+          shape: "box",
+          color: {
+            background: agentIdsSeen.has(agentId) ? "#1f8f6b" : "#294661",
+            border: agentIdsSeen.has(agentId) ? "#7cf2cb" : "#557896",
+            highlight: { background: "#2caa80", border: "#9af5d7" }
+          },
+          font: { color: "#e8f7ff", face: "Space Grotesk" },
+          margin: 8,
+          size: 26,
+          physics: false
+        });
+      }
+
+      for (const event of eventsForGraph) {
+        const eventNodeId = `evt:${event.uid}`;
+        const color = classifyColor(event.eventType);
+        nodes.push({
+          id: eventNodeId,
+          label: `${short(event.eventType, 20)}\n${short(event.id || event.uid, 12)}`,
+          title: `${event.isoTs}\n${event.stream}\n${event.eventType}`,
+          shape: "dot",
+          size: 9,
+          color: {
+            background: color,
+            border: "#d9f0ff",
+            highlight: { background: "#ffffff", border: color }
+          },
+          font: { color: "#d6ecff", face: "IBM Plex Mono", size: 10 }
+        });
+
+        if (event.agentId && state.representedAgents.has(event.agentId)) {
+          edges.push({
+            id: `edge-agent-${event.agentId}-${event.uid}`,
+            from: `agent:${event.agentId}`,
+            to: eventNodeId,
+            arrows: "to",
+            dashes: true,
+            width: 1,
+            color: { color: "#4b7ca4", opacity: 0.65 },
+            smooth: { type: "curvedCW", roundness: 0.24 }
+          });
+        }
+      }
+
+      const uidByCanonicalId = new Map();
+      for (const event of eventsForGraph) {
+        if (event.id) uidByCanonicalId.set(event.id, event.uid);
+      }
+
+      for (const event of eventsForGraph) {
+        for (const parentId of event.parentIds) {
+          const parentUid = uidByCanonicalId.get(parentId);
+          if (!parentUid) continue;
+          const edgeId = `edge-parent-${parentUid}-${event.uid}`;
+          if (parentEdgeSeen.has(edgeId)) continue;
+          parentEdgeSeen.add(edgeId);
+          edges.push({
+            id: edgeId,
+            from: `evt:${parentUid}`,
+            to: `evt:${event.uid}`,
+            arrows: "to",
+            width: 1.5,
+            color: { color: "#9ed0ff", opacity: 0.95 }
+          });
+        }
+      }
+
+      const syntheticLinks = buildSyntheticLinks(eventsForGraph);
+      for (const link of syntheticLinks) {
+        edges.push({
+          id: `edge-stream-${link.from}-${link.to}`,
+          from: `evt:${link.from}`,
+          to: `evt:${link.to}`,
+          width: 1,
+          dashes: [4, 4],
+          color: { color: "#a8c0d6", opacity: 0.7 },
+          arrows: "to"
+        });
+      }
+
+      return { nodes, edges, syntheticLinksCount: syntheticLinks.length };
+    }
+
+    function redrawGraph() {
+      const graphLimit = Math.max(100, Math.min(10000, Number(el.limitInput.value) || 1200));
+      const eventsForGraph = state.filteredEvents.slice(-graphLimit);
+      const built = buildGraph(eventsForGraph);
+
+      state.nodes = new vis.DataSet(built.nodes);
+      state.edges = new vis.DataSet(built.edges);
+
+      const container = document.getElementById("network");
+      const data = { nodes: state.nodes, edges: state.edges };
+      const options = {
+        autoResize: true,
+        physics: {
+          stabilization: { iterations: 300 },
+          barnesHut: {
+            gravitationalConstant: -25000,
+            centralGravity: 0.2,
+            springLength: 105,
+            springConstant: 0.025,
+            damping: 0.2
+          }
+        },
+        interaction: {
+          hover: true,
+          navigationButtons: true,
+          keyboard: true,
+          tooltipDelay: 150
+        },
+        nodes: {
+          borderWidth: 1,
+          shapeProperties: { interpolation: false }
+        },
+        edges: {
+          smooth: { type: "dynamic" }
+        }
+      };
+
+      if (!state.network) {
+        state.network = new vis.Network(container, data, options);
+      } else {
+        state.network.setData(data);
+        state.network.setOptions(options);
+      }
+
+      setTimeout(() => {
+        if (state.network) state.network.fit({ animation: { duration: 550, easingFunction: "easeOutQuart" } });
+      }, 100);
+
+      const parentCount = state.filteredEvents.reduce((sum, e) => sum + e.parentIds.length, 0);
+      el.statParents.textContent = String(parentCount + built.syntheticLinksCount);
+    }
+
+    function renderHistory() {
+      const rows = state.filteredEvents;
+      el.historyBody.innerHTML = "";
+
+      const fragment = document.createDocumentFragment();
+      rows.forEach((event, index) => {
+        const tr = document.createElement("tr");
+        tr.innerHTML = `
+          <td>${index + 1}</td>
+          <td>${event.isoTs}</td>
+          <td>${event.agentId || "-"}</td>
+          <td class="mono-truncate" title="${event.stream}">${event.stream || "-"}</td>
+          <td>${event.eventType}</td>
+          <td class="mono-truncate" title="${event.id || event.uid}">${short(event.id || event.uid, 24)}</td>
+          <td>${event.parentIds.length ? event.parentIds.map(p => `<span class="tag">${short(p, 8)}</span>`).join("") : "-"}</td>
+          <td class="mono-truncate" title='${JSON.stringify(event.payload).replace(/'/g, "&#39;")}'>${short(JSON.stringify(event.payload), 62)}</td>
+          <td>${event.sourceId}</td>
+        `;
+        fragment.appendChild(tr);
+      });
+
+      el.historyBody.appendChild(fragment);
+      el.historyCount.textContent = `${rows.length} rows`;
+    }
+
+    function renderRepresentedAgents() {
+      const seen = new Set(state.allEvents.map(e => e.agentId).filter(Boolean));
+      const represented = Array.from(state.representedAgents.values()).sort((a, b) => a.id.localeCompare(b.id));
+
+      el.agentCoverageText.textContent = `${represented.length} known / ${seen.size} seen in history`;
+      el.agentsList.innerHTML = "";
+
+      if (!represented.length) {
+        el.agentsList.innerHTML = "<p class=\"hint\">No manifest agents found.</p>";
+        return;
+      }
+
+      for (const agent of represented) {
+        const div = document.createElement("div");
+        div.className = "agent-pill";
+        const seenTag = seen.has(agent.id) ? "seen in history" : "not in loaded events";
+        div.innerHTML = `
+          <strong>${agent.name}</strong>
+          <div class="meta">id=${agent.id} | source=${agent.source} | ${seenTag}</div>
+          <div class="meta">persona=${agent.persona || "-"}</div>
+        `;
+        el.agentsList.appendChild(div);
+      }
+    }
+
+    function populateFilters() {
+      const currentAgent = el.agentFilter.value;
+      const currentType = el.typeFilter.value;
+
+      const agentIds = new Set();
+      for (const event of state.allEvents) {
+        if (event.agentId) agentIds.add(event.agentId);
+      }
+      for (const key of state.representedAgents.keys()) {
+        agentIds.add(key);
+      }
+
+      const sortedAgents = Array.from(agentIds).sort();
+      el.agentFilter.innerHTML = '<option value="">All agents</option>';
+      sortedAgents.forEach(id => {
+        const option = document.createElement("option");
+        option.value = id;
+        option.textContent = id;
+        el.agentFilter.appendChild(option);
+      });
+      if (sortedAgents.includes(currentAgent)) el.agentFilter.value = currentAgent;
+
+      const eventTypes = Array.from(new Set(state.allEvents.map(e => e.eventType))).sort();
+      state.eventTypes = eventTypes;
+      el.typeFilter.innerHTML = '<option value="">All event types</option>';
+      eventTypes.forEach(type => {
+        const option = document.createElement("option");
+        option.value = type;
+        option.textContent = type;
+        el.typeFilter.appendChild(option);
+      });
+      if (eventTypes.includes(currentType)) el.typeFilter.value = currentType;
+    }
+
+    function applyFilters() {
+      const search = el.searchInput.value.trim().toLowerCase();
+      const agentFilter = el.agentFilter.value;
+      const typeFilter = el.typeFilter.value;
+      const enabledSources = new Set(Array.from(state.sourceEnabled.entries()).filter(([, enabled]) => enabled).map(([id]) => id));
+
+      state.filteredEvents = state.allEvents.filter(event => {
+        if (enabledSources.size && !enabledSources.has(event.sourceId) && event.sourceId !== "imported") return false;
+        if (agentFilter && event.agentId !== agentFilter) return false;
+        if (typeFilter && event.eventType !== typeFilter) return false;
+
+        if (search) {
+          const haystack = [
+            event.eventType,
+            event.stream,
+            event.id,
+            event.uid,
+            event.agentId,
+            event.isoTs,
+            JSON.stringify(event.payload)
+          ].join(" ").toLowerCase();
+          if (!haystack.includes(search)) return false;
+        }
+
+        return true;
+      });
+
+      redrawGraph();
+      renderHistory();
+      renderRepresentedAgents();
+
+      el.statEvents.textContent = String(state.filteredEvents.length);
+      el.statAgents.textContent = String(new Set(state.filteredEvents.map(e => e.agentId).filter(Boolean)).size);
+      el.statSources.textContent = String(new Set(state.filteredEvents.map(e => e.sourceId)).size);
+    }
+
+    function renderSourceChecklist() {
+      el.sourceChecklist.innerHTML = "";
+      for (const source of SOURCE_CANDIDATES) {
+        const row = document.createElement("label");
+        row.className = "check";
+        const input = document.createElement("input");
+        input.type = "checkbox";
+        input.checked = state.sourceEnabled.get(source.id) !== false;
+        input.addEventListener("change", () => {
+          state.sourceEnabled.set(source.id, input.checked);
+          applyFilters();
+        });
+
+        const count = (state.sourceResults.get(source.id) || []).length;
+        row.appendChild(input);
+        row.appendChild(document.createTextNode(`${source.label} (${count})`));
+        el.sourceChecklist.appendChild(row);
+      }
+
+      if (state.importedRecords.length) {
+        const row = document.createElement("label");
+        row.className = "check";
+        const input = document.createElement("input");
+        input.type = "checkbox";
+        input.checked = true;
+        input.disabled = true;
+        row.appendChild(input);
+        row.appendChild(document.createTextNode(`imported NDJSON (${state.importedRecords.length})`));
+        el.sourceChecklist.appendChild(row);
+      }
+    }
+
+    async function loadAllData() {
+      setStatus("Loading represented agents and ledger sources...", "warn");
+
+      await loadRepresentedAgents();
+      const loadPromises = SOURCE_CANDIDATES.map(source => loadSource(source));
+      const loaded = await Promise.all(loadPromises);
+
+      SOURCE_CANDIDATES.forEach((source, idx) => {
+        state.sourceResults.set(source.id, loaded[idx]);
+        if (!state.sourceEnabled.has(source.id)) state.sourceEnabled.set(source.id, true);
+      });
+
+      const merged = [];
+      for (const source of SOURCE_CANDIDATES) {
+        const records = state.sourceEnabled.get(source.id) === false ? [] : (state.sourceResults.get(source.id) || []);
+        merged.push(...records);
+      }
+      merged.push(...state.importedRecords);
+
+      state.allEvents = dedupeEvents(merged);
+
+      populateFilters();
+      renderSourceChecklist();
+      applyFilters();
+
+      const sourceHits = SOURCE_CANDIDATES.filter(source => (state.sourceResults.get(source.id) || []).length > 0).length;
+      if (state.allEvents.length > 0) {
+        setStatus(`Loaded ${state.allEvents.length} events from ${sourceHits} sources.`, "ok");
+      } else {
+        setStatus("No events found. Try Import NDJSON or run a node with /v1/events.", "bad");
+      }
+    }
+
+    async function importNdjsonFile(file) {
+      const text = await file.text();
+      const imported = parseNdjson(text, "imported");
+      state.importedRecords = dedupeEvents([...state.importedRecords, ...imported]);
+      setStatus(`Imported ${imported.length} records from ${file.name}.`, imported.length ? "ok" : "warn");
+      await loadAllData();
+    }
+
+    function installEventHandlers() {
+      el.refreshBtn.addEventListener("click", () => loadAllData());
+      el.uploadBtn.addEventListener("click", () => el.uploadInput.click());
+      el.uploadInput.addEventListener("change", async evt => {
+        const file = evt.target.files && evt.target.files[0];
+        if (!file) return;
+        await importNdjsonFile(file);
+        el.uploadInput.value = "";
+      });
+
+      const filterInputs = [el.searchInput, el.agentFilter, el.typeFilter, el.limitInput];
+      filterInputs.forEach(input => {
+        input.addEventListener("input", () => applyFilters());
+        input.addEventListener("change", () => applyFilters());
+      });
+
+      el.fitBtn.addEventListener("click", () => {
+        if (state.network) {
+          state.network.fit({ animation: { duration: 500, easingFunction: "easeOutQuart" } });
+        }
+      });
+    }
+
+    (async function boot() {
+      installEventHandlers();
+      await loadAllData();
+    })();
+  </script>
+</body>
+</html>

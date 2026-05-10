@@ -1,0 +1,105 @@
+[
+  {
+    "id": "general",
+    "name": "General Assistant",
+    "source": "deploy/presets",
+    "persona": "Systems Cartographer",
+    "description": "A helpful, concise all-purpose assistant."
+  },
+  {
+    "id": "coder",
+    "name": "Coding Assistant",
+    "source": "deploy/presets",
+    "persona": "Cognitive Blacksmith",
+    "description": "Writes, reviews, and debugs code with best practices."
+  },
+  {
+    "id": "analyst",
+    "name": "Data Analyst",
+    "source": "deploy/presets",
+    "persona": "Entropy Analyst",
+    "description": "Structured analysis and reasoning from data."
+  },
+  {
+    "id": "researcher",
+    "name": "Research Agent",
+    "source": "deploy/presets",
+    "persona": "Signal Interpreter",
+    "description": "Synthesizes information and recommendations."
+  },
+  {
+    "id": "support",
+    "name": "Support Agent",
+    "source": "deploy/presets",
+    "persona": "Runtime Choreographer",
+    "description": "Troubleshooting and escalation-focused support."
+  },
+  {
+    "id": "writer",
+    "name": "Content Writer",
+    "source": "deploy/presets",
+    "persona": "Protocol Alchemist",
+    "description": "Creates copy, long-form content, and creative writing."
+  },
+  {
+    "id": "teacher",
+    "name": "Teaching Assistant",
+    "source": "deploy/presets",
+    "persona": "Cognitive Blacksmith",
+    "description": "Explains complex topics and generates exercises."
+  },
+  {
+    "id": "guardian",
+    "name": "Security and Audit Agent",
+    "source": "deploy/presets",
+    "persona": "Ledger Forensic",
+    "description": "Reviews systems for security and compliance risks."
+  },
+  {
+    "id": "mesh-sentinel",
+    "name": "Mesh Sentinel",
+    "source": "deploy/presets",
+    "persona": "Mesh Sentinel",
+    "description": "Monitors mesh health and replication safety."
+  },
+  {
+    "id": "chat-commander",
+    "name": "Chat Commander",
+    "source": "tt-live-agent/agents",
+    "persona": "creator",
+    "description": "Routes /commands from chat.",
+    "triggers": ["chat"]
+  },
+  {
+    "id": "greeter",
+    "name": "Greeter",
+    "source": "tt-live-agent/agents",
+    "persona": "default",
+    "description": "Auto-greets viewers as they join.",
+    "triggers": ["member"]
+  },
+  {
+    "id": "hype-bot",
+    "name": "Hype Bot",
+    "source": "tt-live-agent/agents",
+    "persona": "hypegirl",
+    "description": "Posts hype on likes and shares.",
+    "triggers": ["like", "share"]
+  },
+  {
+    "id": "jina-wizard",
+    "name": "Jina Wizard",
+    "source": "tt-live-agent/agents",
+    "persona": "jina",
+    "description": "Host/system architect assistant.",
+    "triggers": ["host", "system"]
+  },
+  {
+    "id": "sales-sniper",
+    "name": "Sales Sniper",
+    "source": "tt-live-agent/agents",
+    "persona": "sniper",
+    "description": "Revenue agent that reacts to gifts.",
+    "triggers": ["gift"]
+  }
+]
