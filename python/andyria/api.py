@@ -136,6 +136,9 @@ def create_app(coordinator: Coordinator) -> FastAPI:
 
     static_dir = Path(__file__).resolve().parent / "static"
     index_file = static_dir / "index.html"
+    repo_root = Path(__file__).resolve().parents[2]
+    docs_visualizer_file = repo_root / "docs" / "blockchain-visualizer.html"
+    static_visualizer_file = static_dir / "blockchain-visualizer.html"
     default_dev_root = Path(getattr(_coordinator, "_data_dir", Path("."))) / "agent-dev"
     dev_workspace_root = Path(os.environ.get("ANDYRIA_AGENT_DEV_ROOT", str(default_dev_root)))
     _demo_manager = DemoManager(_coordinator)
@@ -169,6 +172,14 @@ def create_app(coordinator: Coordinator) -> FastAPI:
         if manage_file.exists():
             return FileResponse(manage_file)
         return RedirectResponse(url="/docs")
+
+    @app.get("/blockchain-visualizer", include_in_schema=False, response_model=None)
+    async def blockchain_visualizer():
+        if docs_visualizer_file.exists():
+            return FileResponse(docs_visualizer_file)
+        if static_visualizer_file.exists():
+            return FileResponse(static_visualizer_file)
+        raise HTTPException(status_code=404, detail="Blockchain visualizer page not found")
 
     @app.post("/v1/infer", response_model=AndyriaResponse)
     async def infer(request: AndyriaRequest) -> AndyriaResponse:

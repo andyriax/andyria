@@ -214,6 +214,25 @@
       transition: border-color 0.15s;
     }
     .pill:hover { border-color: var(--accent); color: var(--accent); }
+    .viz-hero-link {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      margin-top: 14px;
+      padding: 10px 16px;
+      border-radius: 10px;
+      border: 1px solid rgba(32, 201, 151, 0.8);
+      color: #eafff8;
+      text-decoration: none;
+      font-weight: 700;
+      background: linear-gradient(135deg, rgba(32, 201, 151, 0.28), rgba(13, 143, 107, 0.3));
+      box-shadow: 0 0 20px rgba(32, 201, 151, 0.28);
+    }
+    .viz-hero-link:hover {
+      border-color: var(--accent);
+      color: #ffffff;
+      box-shadow: 0 0 24px rgba(32, 201, 151, 0.4);
+    }
 
     /* ── Input bar ── */
     .input-bar {
@@ -432,6 +451,27 @@
       align-items: center;
       text-decoration: none;
     }
+    .topbar-viz-link {
+      display: inline-flex;
+      align-items: center;
+      text-decoration: none;
+      border: 1px solid rgba(32, 201, 151, 0.7);
+      color: #eafff8;
+      background: linear-gradient(135deg, rgba(32, 201, 151, 0.28), rgba(13, 143, 107, 0.3));
+      box-shadow: 0 0 0 1px rgba(32, 201, 151, 0.16), 0 0 18px rgba(32, 201, 151, 0.25);
+      animation: vizPulse 2s ease-in-out infinite;
+      font-weight: 700;
+      letter-spacing: 0.02em;
+    }
+    .topbar-viz-link:hover {
+      color: #ffffff;
+      border-color: var(--accent);
+      box-shadow: 0 0 0 1px rgba(32, 201, 151, 0.25), 0 0 24px rgba(32, 201, 151, 0.38);
+    }
+    @keyframes vizPulse {
+      0%, 100% { box-shadow: 0 0 0 1px rgba(32, 201, 151, 0.16), 0 0 18px rgba(32, 201, 151, 0.25); }
+      50% { box-shadow: 0 0 0 1px rgba(32, 201, 151, 0.26), 0 0 28px rgba(32, 201, 151, 0.45); }
+    }
     .topbar-cp-btn:hover, .topbar-manage-link:hover { color: var(--text); border-color: var(--accent-dim); }
 
     @media (max-width: 640px) {
@@ -446,6 +486,7 @@
     <header class="topbar">
       <h1>Andyria</h1>
       <span id="ready-badge" class="ready-badge">connecting…</span>
+      <a class="topbar-cp-btn topbar-viz-link" href="https://andyriax.github.io/andyria/blockchain-visualizer.html" target="_blank" rel="noopener" title="Open full blockchain visualizer">⛓ Visualizer</a>
       <a class="topbar-cp-btn topbar-manage-link" href="/manage" title="Open management console">⚙ Manage</a>
       <button class="topbar-cp-btn" id="btn-open-cp" title="Control panel">⚙ Panel</button>
     </header>
@@ -476,6 +517,7 @@
         <div class="empty-state" id="empty-state">
           <h2>Andyria ready</h2>
           <p>Edge-first intelligence platform. Type a prompt below or pick a suggestion to get started.</p>
+          <a class="viz-hero-link" href="https://andyriax.github.io/andyria/blockchain-visualizer.html" target="_blank" rel="noopener" title="Open full blockchain visualizer">⛓ Open Blockchain Visualizer</a>
           <div class="suggestion-pills">
             <div class="pill" data-text="Explain entropy in 2 sentences.">Explain entropy</div>
             <div class="pill" data-text="Calculate (42 * 7) / 3">Math: (42 × 7) ÷ 3</div>
