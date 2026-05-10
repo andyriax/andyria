@@ -2,7 +2,12 @@
 
 from __future__ import annotations
 
+import json
+import threading
+from http.server import BaseHTTPRequestHandler, HTTPServer
+from queue import Queue
 from pathlib import Path
+from typing import Any
 
 import pytest
 import pytest_asyncio
@@ -88,6 +93,11 @@ class TestStatus:
         assert "entropy_sampler_failures" in body
         assert "entropy_last_sample_ns" in body
         assert "entropy_unhealthy" in body
+
+    @pytest.mark.asyncio
+    async def test_status_includes_connector_count(self, client: AsyncClient):
+        body = (await client.get("/v1/status")).json()
+        assert "connector_count" in body
 
 
 class TestInfer:
@@ -325,6 +335,57 @@ class TestTabs:
             json={"agent_id": "missing-agent"},
         )
         assert res.status_code == 400
+
+
+class TestConnectors:
+    @pytest.mark.asyncio
+    async def test_create_list_and_sync_connector(self, client: AsyncClient):
+        events: Queue[dict[str, Any]] = Queue()
+
+        class Handler(BaseHTTPRequestHandler):
+            def do_POST(self):  # noqa: N802 - stdlib handler signature
+                length = int(self.headers.get("Content-Length", "0"))
+                body = self.rfile.read(length).decode("utf-8") if length else ""
+                events.put(json.loads(body))
+                self.send_response(204)
+                self.end_headers()
+
+            def log_message(self, format, *args):  # noqa: A003 - stdlib handler signature
+                return
+
+        server = HTTPServer(("127.0.0.1", 0), Handler)
+        thread = threading.Thread(target=server.serve_forever, daemon=True)
+        thread.start()
+
+        created = await client.post(
+            "/v1/connectors",
+            json={
+                "name": "Discord Sync",
+                "kind": "webhook",
+                "config": {"url": f"http://127.0.0.1:{server.server_port}/hook"},
+            },
+        )
+        assert created.status_code == 201
+        connector_id = created.json()["connector_id"]
+
+        listed = await client.get("/v1/connectors")
+        assert listed.status_code == 200
+        assert any(item["connector_id"] == connector_id for item in listed.json())
+
+        first_payload = events.get(timeout=2.0)
+        assert first_payload["event"]["event_type"] == "checkpoint"
+
+        sync_res = await client.post(
+            f"/v1/connectors/{connector_id}/sync",
+            json={"message": "manual sync", "payload": {"kind": "test"}},
+        )
+        assert sync_res.status_code == 200
+        assert sync_res.json()["ok"] is True
+
+        payload = events.get(timeout=2.0)
+        server.shutdown()
+
+        assert payload["message"] == "manual sync"
 
 
 class TestPromptFlows:

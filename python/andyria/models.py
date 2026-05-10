@@ -406,6 +406,7 @@ class NodeStatus(BaseModel):
     entropy_unhealthy: bool = False
     peer_count: int = 0
     peers: List[PeerStatus] = Field(default_factory=list)
+    connector_count: int = 0
     ready: bool = True
     readiness_detail: Optional[str] = None
 
@@ -416,6 +417,48 @@ class NodeConfig(BaseModel):
     ollama_url: Optional[str] = None
     ollama_model: Optional[str] = None
     model_path: Optional[str] = None  # local GGUF path
+
+
+class ConnectorKind(str, Enum):
+    WEBHOOK = "webhook"
+    DISCORD = "discord_webhook"
+
+
+class ConnectorDefinition(BaseModel):
+    connector_id: str
+    name: str
+    kind: ConnectorKind
+    enabled: bool = True
+    config: Dict[str, Any] = Field(default_factory=dict)
+    last_synced_ns: int = 0
+    last_error: Optional[str] = None
+
+
+class ConnectorCreateRequest(BaseModel):
+    name: str
+    kind: ConnectorKind
+    config: Dict[str, Any] = Field(default_factory=dict)
+    enabled: bool = True
+
+
+class ConnectorUpdateRequest(BaseModel):
+    name: Optional[str] = None
+    kind: Optional[ConnectorKind] = None
+    config: Optional[Dict[str, Any]] = None
+    enabled: Optional[bool] = None
+
+
+class ConnectorSyncRequest(BaseModel):
+    message: str = "Manual sync from Andyria"
+    payload: Dict[str, Any] = Field(default_factory=dict)
+
+
+class ConnectorSyncResult(BaseModel):
+    connector_id: str
+    ok: bool
+    status: str
+    detail: str = ""
+    timestamp_ns: int = Field(default_factory=lambda: int(__import__("time").time_ns()))
 
 
 class NodeConfigUpdate(BaseModel):

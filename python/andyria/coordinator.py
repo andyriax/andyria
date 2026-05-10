@@ -28,6 +28,7 @@ from .atm import AutomatedThoughtMachine
 from .auto_learn import AutoLearner
 from .chain_labeler import ChainLabeler
 from .chains import ChainRegistry
+from .connectors import ConnectorRegistry
 from .dag import topological_sort
 from .entropy import EntropyBeaconFactory
 from .gist_store import GistStore
@@ -48,6 +49,11 @@ from .models import (
     EntropyBeacon,
     Event,
     EventType,
+    ConnectorCreateRequest,
+    ConnectorDefinition,
+    ConnectorSyncRequest,
+    ConnectorSyncResult,
+    ConnectorUpdateRequest,
     NodeConfig,
     NodeConfigUpdate,
     NodeStatus,
@@ -435,6 +441,7 @@ class Coordinator:
         self._chains = ChainRegistry(self._memory)
         self._promptbooks = PromptbookRegistry(self._memory)
         self._workflows = WorkflowRegistry(self._memory)
+        self._connectors = ConnectorRegistry(self._data_dir)
         self._atm = AutomatedThoughtMachine(
             inference_fn=self._atm_infer,
             emit_event_fn=self._emit_control_event_str,
@@ -513,6 +520,16 @@ class Coordinator:
         with contextlib.suppress(asyncio.CancelledError):
             await self._entropy_sampler_task
         self._entropy_sampler_task = None
+
+    def close(self) -> None:
+        """Release best-effort runtime resources.
+
+        The current connector registry uses daemon threads and persistent JSON
+        storage, so there is nothing mandatory to tear down yet. The method is
+        present so API lifespan code can shut down the coordinator cleanly as
+        the connector surface grows.
+        """
+        return None
 
     async def _entropy_sampler_loop(self) -> None:
         """Generate entropy beacons on a periodic interval for liveness sampling."""
@@ -964,6 +981,52 @@ class Coordinator:
 
     def list_tools(self) -> List[str]:
         return self._tools.list()
+
+    # ------------------------------------------------------------------
+    # Connector registry
+    # ------------------------------------------------------------------
+
+    def list_connectors(self) -> List[ConnectorDefinition]:
+        return self._connectors.list()
+
+    def get_connector(self, connector_id: str) -> Optional[ConnectorDefinition]:
+        return self._connectors.get(connector_id)
+
+    def create_connector(self, request: ConnectorCreateRequest) -> ConnectorDefinition:
+        definition = self._connectors.create(request)
+        self._emit_control_event(
+            EventType.CHECKPOINT,
+            {"connector_id": definition.connector_id, "name": definition.name, "kind": definition.kind.value},
+            {"connector_id": definition.connector_id, "connector_kind": definition.kind.value},
+        )
+        return definition
+
+    def update_connector(self, connector_id: str, request: ConnectorUpdateRequest) -> Optional[ConnectorDefinition]:
+        updated = self._connectors.update(connector_id, request)
+        if updated is not None:
+            self._emit_control_event(
+                EventType.CHECKPOINT,
+                {"connector_id": updated.connector_id, "name": updated.name, "kind": updated.kind.value},
+                {"connector_id": updated.connector_id, "connector_kind": updated.kind.value},
+            )
+        return updated
+
+    def delete_connector(self, connector_id: str) -> bool:
+        deleted = self._connectors.delete(connector_id)
+        if deleted:
+            self._emit_control_event(
+                EventType.CHECKPOINT,
+                {"connector_id": connector_id, "action": "deleted"},
+                {"connector_id": connector_id},
+            )
+        return deleted
+
+    def sync_connector(
+        self,
+        connector_id: str,
+        request: Optional[ConnectorSyncRequest] = None,
+    ) -> ConnectorSyncResult:
+        return self._connectors.sync_connector(connector_id, request=request)
 
     # ------------------------------------------------------------------
     # ATM (Automated Thought Machine)
@@ -1453,6 +1516,7 @@ class Coordinator:
 
     def _publish_event(self, event: Event, metadata: Dict[str, Any]) -> None:
         if not self._event_subscribers:
+            self._connectors.dispatch_event(event, metadata)
             return
 
         item = {"event": event, "metadata": metadata}
@@ -1469,6 +1533,7 @@ class Coordinator:
                 except queue.Full:
                     # If the consumer is still blocked, skip this event.
                     pass
+            self._connectors.dispatch_event(event, metadata)
 
     def _load_event_metadata(self, event_id: str) -> Dict[str, Any]:
         raw = self._memory.get_by_key(self._EVENT_META_NS, event_id)
@@ -1548,6 +1613,7 @@ class Coordinator:
             entropy_unhealthy=self._entropy_unhealthy,
             peer_count=len(peer_statuses),
             peers=peer_statuses,
+            connector_count=len(self._connectors.list()),
             ready=ready,
             readiness_detail=detail,
         )

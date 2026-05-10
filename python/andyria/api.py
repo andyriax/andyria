@@ -37,6 +37,11 @@ from .models import (
     ChainCreateRequest,
     ChainDefinition,
     ChainRunRequest,
+    ConnectorCreateRequest,
+    ConnectorDefinition,
+    ConnectorSyncRequest,
+    ConnectorSyncResult,
+    ConnectorUpdateRequest,
     CronJobCreate,
     CronJobInfo,
     DelegateRequest,
@@ -98,6 +103,8 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
         await _coordinator.mesh.stop()
     if _coordinator:
         await _coordinator.stop_background_tasks()
+    if _coordinator and hasattr(_coordinator, "close"):
+        _coordinator.close()
 
 
 def create_app(coordinator: Coordinator) -> FastAPI:
@@ -247,6 +254,56 @@ def create_app(coordinator: Coordinator) -> FastAPI:
         if _coordinator is None:
             raise HTTPException(status_code=503, detail="Coordinator not initialized")
         return _coordinator.status()
+
+    @app.get("/v1/connectors", response_model=List[ConnectorDefinition])
+    async def list_connectors() -> List[ConnectorDefinition]:
+        if _coordinator is None:
+            raise HTTPException(status_code=503, detail="Coordinator not initialized")
+        return _coordinator.list_connectors()
+
+    @app.post("/v1/connectors", response_model=ConnectorDefinition, status_code=201)
+    async def create_connector(request: ConnectorCreateRequest) -> ConnectorDefinition:
+        if _coordinator is None:
+            raise HTTPException(status_code=503, detail="Coordinator not initialized")
+        if not request.name.strip():
+            raise HTTPException(status_code=400, detail="Connector name is required")
+        return _coordinator.create_connector(request)
+
+    @app.get("/v1/connectors/{connector_id}", response_model=ConnectorDefinition)
+    async def get_connector(connector_id: str) -> ConnectorDefinition:
+        if _coordinator is None:
+            raise HTTPException(status_code=503, detail="Coordinator not initialized")
+        connector = _coordinator.get_connector(connector_id)
+        if connector is None:
+            raise HTTPException(status_code=404, detail="Connector not found")
+        return connector
+
+    @app.patch("/v1/connectors/{connector_id}", response_model=ConnectorDefinition)
+    async def update_connector(connector_id: str, request: ConnectorUpdateRequest) -> ConnectorDefinition:
+        if _coordinator is None:
+            raise HTTPException(status_code=503, detail="Coordinator not initialized")
+        connector = _coordinator.update_connector(connector_id, request)
+        if connector is None:
+            raise HTTPException(status_code=404, detail="Connector not found")
+        return connector
+
+    @app.delete("/v1/connectors/{connector_id}", response_model=None)
+    async def delete_connector(connector_id: str) -> Dict[str, str]:
+        if _coordinator is None:
+            raise HTTPException(status_code=503, detail="Coordinator not initialized")
+        deleted = _coordinator.delete_connector(connector_id)
+        if not deleted:
+            raise HTTPException(status_code=404, detail="Connector not found")
+        return {"status": "deleted", "connector_id": connector_id}
+
+    @app.post("/v1/connectors/{connector_id}/sync", response_model=ConnectorSyncResult)
+    async def sync_connector(connector_id: str, request: ConnectorSyncRequest) -> ConnectorSyncResult:
+        if _coordinator is None:
+            raise HTTPException(status_code=503, detail="Coordinator not initialized")
+        result = _coordinator.sync_connector(connector_id, request)
+        if not result.ok and result.status == "not_found":
+            raise HTTPException(status_code=404, detail=result.detail)
+        return result
 
     @app.get("/v1/events", response_model=List[Event])
     async def events(
