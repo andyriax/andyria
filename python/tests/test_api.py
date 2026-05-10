@@ -20,9 +20,40 @@ def tmp_data(tmp_path: Path) -> Path:
 
 
 @pytest.fixture
-def app(tmp_data: Path):
+def app(tmp_data: Path, monkeypatch: pytest.MonkeyPatch):
+    import json
+
+    import andyria.api as api_module
     from andyria.api import create_app
     from andyria.coordinator import Coordinator
+
+    monkeypatch.setenv("ANDYRIA_AUTO_BOOTSTRAP_AGENTS", "0")
+
+    fake_root = tmp_data / "runtime-root"
+    fake_api_file = fake_root / "python" / "andyria" / "api.py"
+    fake_presets = fake_root / "deploy" / "presets"
+    fake_static = fake_root / "python" / "andyria" / "static"
+    fake_presets.mkdir(parents=True, exist_ok=True)
+    (fake_presets / "agents.json").write_text(
+        json.dumps(
+            [
+                {
+                    "id": "preset-general",
+                    "name": "General Assistant",
+                    "description": "Temporary preset used by tests.",
+                    "model": "auto",
+                    "system_prompt": "You are a helpful assistant.",
+                    "tools": [],
+                }
+            ]
+        )
+    )
+    fake_api_file.parent.mkdir(parents=True, exist_ok=True)
+    fake_api_file.touch()
+    fake_static.mkdir(parents=True, exist_ok=True)
+    (fake_static / "index.html").write_text("<html><body>Andyria</body></html>")
+    (fake_static / "manage.html").write_text("<html><body>Andyria Manage</body></html>")
+    monkeypatch.setattr(api_module, "__file__", str(fake_api_file))
 
     coord = Coordinator(
         data_dir=tmp_data,
@@ -256,6 +287,30 @@ class TestAgents:
     async def test_destroy_default_agent_rejected(self, client: AsyncClient):
         destroyed = await client.delete("/v1/agents/default/destroy")
         assert destroyed.status_code == 400
+
+    @pytest.mark.asyncio
+    async def test_bootstrap_agents_force_handles_name_collision(self, client: AsyncClient):
+        presets_res = await client.get("/v1/agents/presets")
+        assert presets_res.status_code == 200
+        presets = presets_res.json()
+        assert presets
+
+        preset = presets[0]
+        preset_name = preset["name"]
+        preset_id = preset["id"]
+
+        collision = await client.post("/v1/agents", json={"name": preset_name})
+        assert collision.status_code == 201
+
+        bootstrap = await client.post("/v1/agents/bootstrap?force=true")
+        assert bootstrap.status_code == 200
+        body = bootstrap.json()
+        assert body["created"] == len(presets)
+
+        agents = (await client.get("/v1/agents", params={"include_inactive": "true"})).json()
+        matched = [agent for agent in agents if agent.get("state", {}).get("preset_id") == preset_id]
+        assert matched
+        assert all(agent["name"] != preset_name for agent in matched)
 
     @pytest.mark.asyncio
     async def test_agent_dev_workspace_unique_per_agent(self, client: AsyncClient):

@@ -305,6 +305,49 @@ ensure_ollama_model() {
   return 1
 }
 
+sync_env_defaults() {
+  local env_file=".env"
+  local template_file=".env.example"
+  local line key value
+
+  if [[ ! -f "${template_file}" ]]; then
+    warn "Missing ${template_file} — skipping env sync"
+    return 1
+  fi
+
+  if [[ ! -f "${env_file}" ]]; then
+    log "Creating runtime config from ${template_file}"
+    cp "${template_file}" "${env_file}"
+  fi
+
+  if grep -q '^ANDYRIA_PORT=' "${env_file}" 2>/dev/null; then
+    sed -i "s/^ANDYRIA_PORT=.*/ANDYRIA_PORT=${PORT}/" "${env_file}"
+  else
+    echo "ANDYRIA_PORT=${PORT}" >> "${env_file}"
+  fi
+
+  if [[ -n "${AUTO_AGENT}" ]]; then
+    if grep -q '^ANDYRIA_SEED_AGENT=' "${env_file}" 2>/dev/null; then
+      sed -i "s/^ANDYRIA_SEED_AGENT=.*/ANDYRIA_SEED_AGENT=${AUTO_AGENT}/" "${env_file}"
+    else
+      echo "ANDYRIA_SEED_AGENT=${AUTO_AGENT}" >> "${env_file}"
+    fi
+  fi
+
+  while IFS= read -r line; do
+    [[ -z "${line}" ]] && continue
+    [[ "${line}" =~ ^[[:space:]]*# ]] && continue
+    [[ "${line}" =~ ^[[:space:]]*$ ]] && continue
+    if [[ "${line}" =~ ^([A-Z0-9_]+)=(.*)$ ]]; then
+      key="${BASH_REMATCH[1]}"
+      value="${BASH_REMATCH[2]}"
+      if ! grep -q "^${key}=" "${env_file}" 2>/dev/null; then
+        echo "${key}=${value}" >> "${env_file}"
+      fi
+    fi
+  done < "${template_file}"
+}
+
 # ── Docker mode ───────────────────────────────────────────────────────────────
 install_docker() {
   stage "hydrate"
@@ -316,17 +359,7 @@ install_docker() {
     ensure_ollama_model "${DEFAULT_OLLAMA_MODEL}" || die "Ollama model '${DEFAULT_OLLAMA_MODEL}' is required but unavailable"
   fi
 
-  # Write .env if not present
-  if [[ ! -f .env ]]; then
-    log "Creating runtime config from .env.example"
-    cp .env.example .env
-    sed -i "s/^ANDYRIA_PORT=.*/ANDYRIA_PORT=${PORT}/" .env
-    if [[ -n "${AUTO_AGENT}" ]]; then
-      echo "ANDYRIA_SEED_AGENT=${AUTO_AGENT}" >> .env
-    fi
-  else
-    warn "Runtime config already exists — not overwriting"
-  fi
+  sync_env_defaults
 
   stage "launch"
   log "Building and starting containers"

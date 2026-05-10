@@ -442,6 +442,23 @@ def create_app(coordinator: Coordinator) -> FastAPI:
                     pass
         return []
 
+    def _unique_agent_name(base_name: str, existing_names: set[str], preset_id: str) -> str:
+        candidate = base_name.strip() or (preset_id or "Preset Agent")
+        if candidate.lower() not in existing_names:
+            return candidate
+
+        suffix_base = preset_id or "preset"
+        candidate = f"{candidate} ({suffix_base})"
+        if candidate.lower() not in existing_names:
+            return candidate
+
+        counter = 2
+        while True:
+            candidate = f"{base_name.strip() or (preset_id or 'Preset Agent')} ({suffix_base} {counter})"
+            if candidate.lower() not in existing_names:
+                return candidate
+            counter += 1
+
     def _bootstrap_agents_from_presets(force: bool = False) -> Dict[str, Any]:
         if _coordinator is None:
             return {
@@ -477,9 +494,11 @@ def create_app(coordinator: Coordinator) -> FastAPI:
             if preset_id and preset_id in existing_preset_ids:
                 skipped += 1
                 continue
-            if name.lower() in existing_names:
+            if name.lower() in existing_names and not force:
                 skipped += 1
                 continue
+            if force and name.lower() in existing_names:
+                name = _unique_agent_name(name, existing_names, preset_id)
 
             model = str(preset.get("model", "")).strip()
             # Let coordinator choose the active runtime model when preset uses auto.
