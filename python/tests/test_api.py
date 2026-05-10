@@ -346,7 +346,13 @@ class TestConnectors:
             def do_POST(self):  # noqa: N802 - stdlib handler signature
                 length = int(self.headers.get("Content-Length", "0"))
                 body = self.rfile.read(length).decode("utf-8") if length else ""
-                events.put(json.loads(body))
+                events.put(
+                    {
+                        "path": self.path,
+                        "auth": self.headers.get("Authorization", ""),
+                        "body": json.loads(body),
+                    }
+                )
                 self.send_response(204)
                 self.end_headers()
 
@@ -360,9 +366,14 @@ class TestConnectors:
         created = await client.post(
             "/v1/connectors",
             json={
-                "name": "Discord Sync",
-                "kind": "webhook",
-                "config": {"url": f"http://127.0.0.1:{server.server_port}/hook"},
+                "name": "Discord Bot Sync",
+                "kind": "discord_bot",
+                "config": {
+                    "token": "test-bot-token",
+                    "channel_id": "1234567890",
+                    "api_base_url": f"http://127.0.0.1:{server.server_port}/api/v10",
+                    "user_agent": "Andyria-Test/1.0",
+                },
             },
         )
         assert created.status_code == 201
@@ -373,7 +384,9 @@ class TestConnectors:
         assert any(item["connector_id"] == connector_id for item in listed.json())
 
         first_payload = events.get(timeout=2.0)
-        assert first_payload["event"]["event_type"] == "checkpoint"
+        assert first_payload["path"] == "/api/v10/channels/1234567890/messages"
+        assert first_payload["auth"] == "Bot test-bot-token"
+        assert "checkpoint" in first_payload["body"]["content"]
 
         sync_res = await client.post(
             f"/v1/connectors/{connector_id}/sync",
@@ -385,7 +398,8 @@ class TestConnectors:
         payload = events.get(timeout=2.0)
         server.shutdown()
 
-        assert payload["message"] == "manual sync"
+        assert payload["body"]["content"] == "manual sync"
+        assert payload["body"]["allowed_mentions"]["parse"] == []
 
 
 class TestPromptFlows:

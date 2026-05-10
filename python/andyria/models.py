@@ -422,6 +422,7 @@ class NodeConfig(BaseModel):
 class ConnectorKind(str, Enum):
     WEBHOOK = "webhook"
     DISCORD = "discord_webhook"
+    DISCORD_BOT = "discord_bot"
 
 
 class ConnectorDefinition(BaseModel):

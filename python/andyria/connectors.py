@@ -1,8 +1,9 @@
 """Third-party service connectors for Andyria.
 
 Connectors mirror signed control events to external systems such as Discord
-webhooks or generic HTTP endpoints. They are intentionally best-effort: the
-core coordinator never blocks on connector failures.
+webhooks, Discord bot channels, or generic HTTP endpoints. They are
+intentionally best-effort: the core coordinator never blocks on connector
+failures.
 """
 
 from __future__ import annotations
@@ -85,6 +86,21 @@ class ConnectorRegistry:
                 )
             )
 
+        discord_bot_token = os.environ.get("ANDYRIA_DISCORD_BOT_TOKEN", "").strip()
+        discord_channel_id = os.environ.get("ANDYRIA_DISCORD_CHANNEL_ID", "").strip()
+        if discord_bot_token and discord_channel_id and not any(defn.kind == ConnectorKind.DISCORD_BOT for defn in self.list()):
+            self.create(
+                ConnectorCreateRequest(
+                    name="Discord Bot",
+                    kind=ConnectorKind.DISCORD_BOT,
+                    config={
+                        "token": discord_bot_token,
+                        "channel_id": discord_channel_id,
+                        "username": os.environ.get("ANDYRIA_DISCORD_BOT_NAME", "Andyria"),
+                    },
+                )
+            )
+
     def list(self) -> List[ConnectorDefinition]:
         with self._lock:
             return sorted(self._definitions.values(), key=lambda item: item.name.lower())
@@ -148,6 +164,8 @@ class ConnectorRegistry:
         try:
             if definition.kind == ConnectorKind.DISCORD:
                 detail = self._post_discord(definition, request=request, event=event, metadata=metadata)
+            elif definition.kind == ConnectorKind.DISCORD_BOT:
+                detail = self._post_discord_bot(definition, request=request, event=event, metadata=metadata)
             else:
                 detail = self._post_webhook(definition, request=request, event=event, metadata=metadata)
             self._mark_synced(definition.connector_id)
@@ -242,6 +260,42 @@ class ConnectorRegistry:
         }
         self._post_json(url, payload)
         return f"posted discord webhook to {url}"
+
+    def _post_discord_bot(
+        self,
+        definition: ConnectorDefinition,
+        request: Optional[ConnectorSyncRequest],
+        event: Optional[Event],
+        metadata: Optional[Dict[str, Any]],
+    ) -> str:
+        channel_id = str(definition.config.get("channel_id", "")).strip()
+        token = str(definition.config.get("token", "")).strip()
+        api_base_url = str(definition.config.get("api_base_url", "https://discord.com/api/v10")).rstrip("/")
+        if not channel_id:
+            raise ValueError("Discord bot connector config requires a channel_id")
+        if not token:
+            raise ValueError("Discord bot connector config requires a token")
+
+        content = request.message if request else "Andyria event sync"
+        if event is not None:
+            content = f"{content}\n**{event.event_type.value}** `{event.id}`"
+
+        payload: Dict[str, Any] = {
+            "content": content,
+            "allowed_mentions": {"parse": []},
+        }
+        if metadata:
+            payload["metadata"] = metadata
+
+        self._post_json(
+            f"{api_base_url}/channels/{channel_id}/messages",
+            payload,
+            headers={
+                "Authorization": f"Bot {token}",
+                "User-Agent": definition.config.get("user_agent", "Andyria/1.0"),
+            },
+        )
+        return f"posted discord bot message to channel {channel_id}"
 
     def _post_json(self, url: str, payload: Dict[str, Any], headers: Optional[Dict[str, Any]] = None) -> None:
         body = json.dumps(payload, default=str).encode("utf-8")
