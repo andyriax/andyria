@@ -1376,7 +1376,7 @@ document.getElementById("agents-bootstrap-btn").addEventListener("click", async 
   try {
     const result = await api("/v1/agents/bootstrap?force=true", { method: "POST" });
     await loadAgents();
-    alert(`Preset restore complete. Created ${result.created ?? 0}, skipped ${result.skipped ?? 0}.`);
+    alert(`Preset sync complete. Created ${result.created ?? 0}, updated ${result.updated ?? 0}, skipped ${result.skipped ?? 0}.`);
   } catch(e) { alert("Failed to restore presets: " + e.message); }
 });
 

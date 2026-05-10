@@ -463,6 +463,7 @@ def create_app(coordinator: Coordinator) -> FastAPI:
         if _coordinator is None:
             return {
                 "created": 0,
+                "updated": 0,
                 "skipped": 0,
                 "reason": "Coordinator not initialized",
                 "agent_ids": [],
@@ -472,12 +473,18 @@ def create_app(coordinator: Coordinator) -> FastAPI:
         if not presets:
             return {
                 "created": 0,
+                "updated": 0,
                 "skipped": 0,
                 "reason": "No preset file found",
                 "agent_ids": [],
             }
 
         existing_agents = _coordinator.list_agents(include_inactive=True)
+        agents_by_preset_id = {
+            str(a.state.get("preset_id", "")).strip(): a
+            for a in existing_agents
+            if isinstance(a.state, dict) and a.state.get("preset_id")
+        }
 
         existing_preset_ids = {
             str(a.state.get("preset_id", "")).strip()
@@ -487,10 +494,52 @@ def create_app(coordinator: Coordinator) -> FastAPI:
         existing_names = {a.name.strip().lower() for a in existing_agents if a.name.strip()}
 
         created_ids: List[str] = []
+        updated_ids: List[str] = []
         skipped = 0
         for preset in presets:
             preset_id = str(preset.get("id", "")).strip()
             name = str(preset.get("name", "")).strip() or (preset_id or "Preset Agent")
+            existing_agent = agents_by_preset_id.get(preset_id) if preset_id else None
+            if existing_agent is not None and force:
+                existing_name = existing_agent.name.strip().lower()
+                if name.lower() in existing_names and name.lower() != existing_name:
+                    name = _unique_agent_name(name, existing_names - {existing_name}, preset_id)
+
+                model = str(preset.get("model", "")).strip()
+                model_field: Optional[str] = None if model in ("", "auto") else model
+                system_prompt = str(preset.get("system_prompt", ""))
+                tools = preset.get("tools", [])
+                if not isinstance(tools, list):
+                    tools = []
+
+                merged_state = dict(existing_agent.state) if isinstance(existing_agent.state, dict) else {}
+                merged_state.update(
+                    {
+                        "preset": True,
+                        "preset_id": preset_id,
+                        "preset_tags": preset.get("tags", []),
+                        "preset_icon": preset.get("icon", ""),
+                    }
+                )
+
+                updated = _coordinator.update_agent(
+                    existing_agent.agent_id,
+                    AgentUpdateRequest(
+                        name=name,
+                        model=model_field,
+                        system_prompt=system_prompt,
+                        tools=[str(tool) for tool in tools],
+                        state=merged_state,
+                    ),
+                )
+                if updated is not None:
+                    updated_ids.append(updated.agent_id)
+                    existing_names.discard(existing_name)
+                    existing_names.add(updated.name.strip().lower())
+                else:
+                    skipped += 1
+                continue
+
             if preset_id and preset_id in existing_preset_ids:
                 skipped += 1
                 continue
@@ -534,9 +583,10 @@ def create_app(coordinator: Coordinator) -> FastAPI:
 
         return {
             "created": len(created_ids),
+            "updated": len(updated_ids),
             "skipped": skipped,
             "reason": "ok",
-            "agent_ids": created_ids,
+            "agent_ids": created_ids + updated_ids,
         }
 
     @app.get("/v1/agents/presets", response_model=List[Dict[str, Any]])

@@ -290,27 +290,47 @@ class TestAgents:
 
     @pytest.mark.asyncio
     async def test_bootstrap_agents_force_handles_name_collision(self, client: AsyncClient):
+        import andyria.api as api_module
+
         presets_res = await client.get("/v1/agents/presets")
         assert presets_res.status_code == 200
         presets = presets_res.json()
         assert presets
 
         preset = presets[0]
-        preset_name = preset["name"]
         preset_id = preset["id"]
 
-        collision = await client.post("/v1/agents", json={"name": preset_name})
+        collision = await client.post(
+            "/v1/agents",
+            json={
+                "name": "Old Preset Agent",
+                "system_prompt": "Old old prompt",
+                "state": {
+                    "preset": True,
+                    "preset_id": preset_id,
+                    "preset_tags": ["legacy"],
+                    "preset_icon": "",
+                },
+            },
+        )
         assert collision.status_code == 201
+
+        preset_path = Path(api_module.__file__).resolve().parent.parent.parent / "deploy" / "presets" / "agents.json"
+        current_presets = json.loads(preset_path.read_text())
+        current_presets[0]["name"] = "Modernized General Assistant"
+        current_presets[0]["system_prompt"] = "You are a modernized assistant."
+        preset_path.write_text(json.dumps(current_presets, indent=2))
 
         bootstrap = await client.post("/v1/agents/bootstrap?force=true")
         assert bootstrap.status_code == 200
         body = bootstrap.json()
-        assert body["created"] == len(presets)
+        assert body["updated"] >= 1
 
         agents = (await client.get("/v1/agents", params={"include_inactive": "true"})).json()
         matched = [agent for agent in agents if agent.get("state", {}).get("preset_id") == preset_id]
         assert matched
-        assert all(agent["name"] != preset_name for agent in matched)
+        assert any(agent["name"] == "Modernized General Assistant" for agent in matched)
+        assert any(agent["system_prompt"] == "You are a modernized assistant." for agent in matched)
 
     @pytest.mark.asyncio
     async def test_agent_dev_workspace_unique_per_agent(self, client: AsyncClient):
