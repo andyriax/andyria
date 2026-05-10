@@ -17,6 +17,7 @@ RUN pip install --no-cache-dir -r requirements.txt
 
 # Application source
 COPY python/ /app/python/
+COPY deploy/presets/ /app/deploy/presets/
 RUN pip install --no-cache-dir -e /app/python/
 
 ENV ANDYRIA_DATA_DIR=/data/andyria
