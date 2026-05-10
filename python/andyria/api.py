@@ -461,14 +461,6 @@ def create_app(coordinator: Coordinator) -> FastAPI:
             }
 
         existing_agents = _coordinator.list_agents(include_inactive=True)
-        active_non_default = [a for a in existing_agents if a.active and a.agent_id != "default"]
-        if not force and active_non_default:
-            return {
-                "created": 0,
-                "skipped": len(presets),
-                "reason": "Existing non-default agents detected",
-                "agent_ids": [],
-            }
 
         existing_preset_ids = {
             str(a.state.get("preset_id", "")).strip()
