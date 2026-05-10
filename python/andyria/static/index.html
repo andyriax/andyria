@@ -427,7 +427,12 @@
       padding: 4px 10px;
       cursor: pointer;
     }
-    .topbar-cp-btn:hover { color: var(--text); border-color: var(--accent-dim); }
+    .topbar-manage-link {
+      display: inline-flex;
+      align-items: center;
+      text-decoration: none;
+    }
+    .topbar-cp-btn:hover, .topbar-manage-link:hover { color: var(--text); border-color: var(--accent-dim); }
 
     @media (max-width: 640px) {
       .layout { grid-template-columns: 1fr; }
@@ -441,6 +446,7 @@
     <header class="topbar">
       <h1>Andyria</h1>
       <span id="ready-badge" class="ready-badge">connecting…</span>
+      <a class="topbar-cp-btn topbar-manage-link" href="/manage" title="Open management console">⚙ Manage</a>
       <button class="topbar-cp-btn" id="btn-open-cp" title="Control panel">⚙ Panel</button>
     </header>
 

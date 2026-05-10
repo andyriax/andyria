@@ -442,6 +442,18 @@ def create_app(coordinator: Coordinator) -> FastAPI:
                     pass
         return []
 
+    def _preset_revision(preset: Dict[str, Any]) -> str:
+        revision_payload = {
+            "id": str(preset.get("id", "")).strip(),
+            "name": str(preset.get("name", "")).strip(),
+            "model": str(preset.get("model", "")).strip(),
+            "system_prompt": str(preset.get("system_prompt", "")),
+            "tools": preset.get("tools", []),
+            "tags": preset.get("tags", []),
+            "icon": preset.get("icon", ""),
+        }
+        return json.dumps(revision_payload, sort_keys=True, separators=(",", ":"))
+
     def _unique_agent_name(base_name: str, existing_names: set[str], preset_id: str) -> str:
         candidate = base_name.strip() or (preset_id or "Preset Agent")
         if candidate.lower() not in existing_names:
@@ -499,8 +511,17 @@ def create_app(coordinator: Coordinator) -> FastAPI:
         for preset in presets:
             preset_id = str(preset.get("id", "")).strip()
             name = str(preset.get("name", "")).strip() or (preset_id or "Preset Agent")
+            revision = _preset_revision(preset)
             existing_agent = agents_by_preset_id.get(preset_id) if preset_id else None
-            if existing_agent is not None and force:
+            existing_revision = ""
+            if existing_agent is not None and isinstance(existing_agent.state, dict):
+                existing_revision = str(existing_agent.state.get("preset_revision", "")).strip()
+
+            if existing_agent is not None and existing_revision == revision and not force:
+                skipped += 1
+                continue
+
+            if existing_agent is not None and (force or existing_revision != revision):
                 existing_name = existing_agent.name.strip().lower()
                 if name.lower() in existing_names and name.lower() != existing_name:
                     name = _unique_agent_name(name, existing_names - {existing_name}, preset_id)
@@ -517,6 +538,7 @@ def create_app(coordinator: Coordinator) -> FastAPI:
                     {
                         "preset": True,
                         "preset_id": preset_id,
+                        "preset_revision": revision,
                         "preset_tags": preset.get("tags", []),
                         "preset_icon": preset.get("icon", ""),
                     }
@@ -560,6 +582,7 @@ def create_app(coordinator: Coordinator) -> FastAPI:
             state_payload = {
                 "preset": True,
                 "preset_id": preset_id,
+                "preset_revision": revision,
                 "preset_tags": preset.get("tags", []),
                 "preset_icon": preset.get("icon", ""),
             }

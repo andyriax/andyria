@@ -333,6 +333,52 @@ class TestAgents:
         assert any(agent["system_prompt"] == "You are a modernized assistant." for agent in matched)
 
     @pytest.mark.asyncio
+    async def test_bootstrap_agents_refreshes_existing_preset_on_revision_change(self, client: AsyncClient):
+        import andyria.api as api_module
+
+        presets_res = await client.get("/v1/agents/presets")
+        assert presets_res.status_code == 200
+        presets = presets_res.json()
+        assert presets
+
+        preset = presets[0]
+        preset_id = preset["id"]
+
+        created = await client.post(
+            "/v1/agents",
+            json={
+                "name": "Legacy Preset Agent",
+                "system_prompt": "Legacy system prompt",
+                "state": {
+                    "preset": True,
+                    "preset_id": preset_id,
+                    "preset_revision": "old-revision",
+                    "preset_tags": ["legacy"],
+                    "preset_icon": "",
+                },
+            },
+        )
+        assert created.status_code == 201
+        agent_id = created.json()["agent_id"]
+
+        preset_path = Path(api_module.__file__).resolve().parent.parent.parent / "deploy" / "presets" / "agents.json"
+        current_presets = json.loads(preset_path.read_text())
+        current_presets[0]["name"] = "Revised Preset Agent"
+        current_presets[0]["system_prompt"] = "You are a revised preset assistant."
+        preset_path.write_text(json.dumps(current_presets, indent=2))
+
+        bootstrap = await client.post("/v1/agents/bootstrap")
+        assert bootstrap.status_code == 200
+        body = bootstrap.json()
+        assert body["updated"] >= 1
+
+        agent = (await client.get(f"/v1/agents/{agent_id}")).json()
+        assert agent["name"] == "Revised Preset Agent"
+        assert agent["system_prompt"] == "You are a revised preset assistant."
+        assert agent["state"]["preset_id"] == preset_id
+        assert agent["state"]["preset_revision"] != "old-revision"
+
+    @pytest.mark.asyncio
     async def test_agent_dev_workspace_unique_per_agent(self, client: AsyncClient):
         a1 = await client.post("/v1/agents", json={"name": "DevA"})
         a2 = await client.post("/v1/agents", json={"name": "DevB"})
