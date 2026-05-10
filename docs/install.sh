@@ -59,6 +59,7 @@ log()  { printf "${CYAN}[andyria]${RESET} %s\n" "$*"; }
 ok()   { printf "${GREEN}[andyria] ✓${RESET} %s\n" "$*"; }
 warn() { printf "${YELLOW}[andyria] ⚠${RESET} %s\n" "$*" >&2; }
 die()  { printf "${RED}[andyria] ✗${RESET} %s\n" "$*" >&2; exit 1; }
+stage() { log "==> $*"; }
 
 has() { command -v "$1" >/dev/null 2>&1; }
 
@@ -157,8 +158,8 @@ if [[ -z "${MODE}" ]]; then
   fi
 fi
 
-log "Install mode : ${BOLD}${MODE}${RESET}"
-log "Install dir  : ${BOLD}${INSTALL_DIR}${RESET}"
+log "Bootstrap mode : ${BOLD}${MODE}${RESET}"
+log "Runtime root   : ${BOLD}${INSTALL_DIR}${RESET}"
 log "Port         : ${BOLD}${PORT}${RESET}"
 if [[ "${EASY}" == "1" ]]; then
   log "Quick mode   : ${BOLD}enabled${RESET}"
@@ -168,12 +169,28 @@ if [[ "${YES}" != "1" ]]; then
   ask_yn "Continue with these settings?" "y" || { log "Aborted."; exit 0; }
 fi
 
-# ── Clone or update repo ──────────────────────────────────────────────────────
+# ── Sync runtime source ───────────────────────────────────────────────────────
+if [[ -d "${INSTALL_DIR}" && ! -d "${INSTALL_DIR}/.git" ]]; then
+  if [[ -n "$(find "${INSTALL_DIR}" -mindepth 1 -maxdepth 1 -print -quit 2>/dev/null)" ]]; then
+    die "Bootstrap target exists but is not a git checkout: ${INSTALL_DIR}. Choose a different --dir or clear the directory first."
+  fi
+fi
+
 if [[ -d "${INSTALL_DIR}/.git" ]]; then
-  log "Updating existing install at ${INSTALL_DIR}"
-  git -C "${INSTALL_DIR}" pull --ff-only
+  stage "sync"
+  log "Refreshing runtime source at ${INSTALL_DIR}"
+  git -C "${INSTALL_DIR}" fetch --prune origin
+  upstream_ref="$(git -C "${INSTALL_DIR}" rev-parse --abbrev-ref --symbolic-full-name @{u} 2>/dev/null || true)"
+  if [[ -n "${upstream_ref}" ]]; then
+    git -C "${INSTALL_DIR}" pull --ff-only
+  else
+    default_branch="$(git -C "${INSTALL_DIR}" remote show origin | awk '/HEAD branch/ {print $NF; exit}')"
+    default_branch="${default_branch:-main}"
+    git -C "${INSTALL_DIR}" pull --ff-only origin "${default_branch}"
+  fi
 else
-  log "Cloning Andyria into ${INSTALL_DIR}"
+  stage "initialize"
+  log "Creating runtime capsule at ${INSTALL_DIR}"
   git clone --depth 1 "${REPO_URL}" "${INSTALL_DIR}"
 fi
 
@@ -290,7 +307,8 @@ ensure_ollama_model() {
 
 # ── Docker mode ───────────────────────────────────────────────────────────────
 install_docker() {
-  log "Setting up Docker Compose environment"
+  stage "hydrate"
+  log "Hydrating Docker runtime"
 
   if [[ "${IS_TERMUX}" != "1" ]]; then
     install_or_update_ollama || die "Failed to install/update Ollama"
@@ -300,25 +318,28 @@ install_docker() {
 
   # Write .env if not present
   if [[ ! -f .env ]]; then
-    log "Creating .env from .env.example"
+    log "Creating runtime config from .env.example"
     cp .env.example .env
     sed -i "s/^ANDYRIA_PORT=.*/ANDYRIA_PORT=${PORT}/" .env
     if [[ -n "${AUTO_AGENT}" ]]; then
       echo "ANDYRIA_SEED_AGENT=${AUTO_AGENT}" >> .env
     fi
   else
-    warn ".env already exists — not overwriting"
+    warn "Runtime config already exists — not overwriting"
   fi
 
+  stage "launch"
   log "Building and starting containers"
   docker compose up -d --build
 
-  ok "Andyria running at ${GREEN}http://localhost:${PORT}${RESET}"
+  ok "Runtime online at ${GREEN}http://localhost:${PORT}${RESET}"
   ok "API docs at ${GREEN}http://localhost:${PORT}/docs${RESET}"
 }
 
 # ── Python mode ───────────────────────────────────────────────────────────────
 install_python() {
+  stage "hydrate"
+  log "Hydrating Python runtime"
   install_system_deps
 
   if [[ "${IS_TERMUX}" != "1" ]]; then
@@ -328,7 +349,7 @@ install_python() {
   fi
 
   VENV="${INSTALL_DIR}/python/.venv"
-  log "Creating virtual environment at ${VENV}"
+  log "Creating runtime capsule at ${VENV}"
   python3 -m venv "${VENV}"
   # shellcheck source=/dev/null
   source "${VENV}/bin/activate"
@@ -404,7 +425,7 @@ TERMUX
     exec "${VENV}/bin/python" -m andyria serve --config "${CONFIG_PATH}"
   fi
 
-  ok "Andyria running at ${GREEN}http://localhost:${PORT}${RESET}"
+  ok "Runtime online at ${GREEN}http://localhost:${PORT}${RESET}"
 }
 
 # ── Seed agent via API ────────────────────────────────────────────────────────
@@ -485,17 +506,18 @@ if [[ -n "${AUTO_AGENT}" ]]; then
 fi
 
 UI_URL="http://localhost:${PORT}"
-log "Opening UI: ${UI_URL}"
+log "Opening control plane: ${UI_URL}"
 open_ui "${UI_URL}"
 
 echo ""
-echo "${BOLD}${GREEN}Installation complete!${RESET}"
+echo "${BOLD}${GREEN}Runtime sealed${RESET}"
 echo ""
+echo "  Root   → ${INSTALL_DIR}"
 echo "  UI     → ${UI_URL}"
 echo "  API    → http://localhost:${PORT}/v1"
 echo "  Docs   → http://localhost:${PORT}/docs"
 echo ""
-echo "  Useful commands:"
+echo "  Runtime commands:"
 echo "    make dev          # Hot-reload dev mode + browser IDE"
 echo "    make test         # Run test suite"
 echo "    python -m andyria --help"

@@ -25,10 +25,9 @@ Andyria is a self-improving, locally-operated AI agent platform. It runs on your
 The platform fuses **chain-of-thought reasoning**, an **auto-learn loop**, a **cryptographic event DAG**, and a **peer-to-peer mesh** into a single runtime that gets smarter every session.
 
 ```bash
-# Up in 60 seconds
-git clone https://github.com/andyriax/andyria.git && cd andyria
-docker compose up -d
-# → http://localhost:7700
+# Boot or update the runtime in place
+curl -fsSL https://andyriax.github.io/andyria/install.sh | bash
+# Re-run the same command later; existing checkouts fast-forward automatically.
 ```
 
 ```bash
