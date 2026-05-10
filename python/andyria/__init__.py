@@ -14,6 +14,20 @@ from .skills import Skill, SkillRegistry
 from .soul import SoulFile
 from .todo import TodoItem, TodoStore
 
+# Distributed consensus modules
+from .fork_merge import (
+    InventoryRequest,
+    InventoryResponse,
+    EventPullRequest,
+    EventPullResponse,
+    ForkMergeCoordinator,
+)
+from .checkpoint import (
+    CheckpointSignature,
+    Checkpoint,
+    CheckpointAttestation,
+)
+
 __all__ = [
     "SoulFile",
     "PersistentMemory",
@@ -32,4 +46,13 @@ __all__ = [
     "DelegateTask",
     "ContextFileLoader",
     "PromptBuilder",
+    # Distributed consensus
+    "InventoryRequest",
+    "InventoryResponse",
+    "EventPullRequest",
+    "EventPullResponse",
+    "ForkMergeCoordinator",
+    "CheckpointSignature",
+    "Checkpoint",
+    "CheckpointAttestation",
 ]

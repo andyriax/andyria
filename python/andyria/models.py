@@ -116,6 +116,11 @@ class EventType(str, Enum):
     MESH_DREAM_SYNCED = "mesh_dream_synced"
     # Mesh growth health
     MESH_GROWTH_REPORT = "mesh_growth_report"
+    # Fork-Merge & distributed consensus
+    FORK_DETECTED = "fork_detected"
+    CHECKPOINT_CREATED = "checkpoint_created"
+    CHECKPOINT_VOTED = "checkpoint_voted"
+    CHECKPOINT_FINALIZED = "checkpoint_finalized"
 
 
 class EntropyBeacon(BaseModel):

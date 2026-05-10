@@ -7,6 +7,7 @@ import json
 import os
 import shutil
 from contextlib import asynccontextmanager
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, AsyncGenerator, Dict, List, Optional
 from urllib.parse import quote
@@ -1821,5 +1822,460 @@ def create_app(coordinator: Coordinator) -> FastAPI:
             raise HTTPException(status_code=503, detail="Coordinator not initialized")
         balance = _coordinator.get_mirror_rewards(mirror_node_id)
         return {"mirror_node_id": mirror_node_id, "credits_balance": balance}
+
+    # ------------------------------------------------------------------
+    # Fork-Merge Protocol (Phase 1-3: Inventory, Event Pull, Validation)
+    # ------------------------------------------------------------------
+
+    @app.get("/v1/fork-merge/inventory", response_model=Dict[str, Any])
+    async def fork_merge_inventory(
+        event_type: Optional[str] = None,
+        since_timestamp_ns: Optional[int] = None,
+        limit: int = 1000,
+    ) -> Dict[str, Any]:
+        """
+        Phase 1: Request local event inventory.
+        
+        Returns a set of event IDs matching optional filters. Used by peers
+        to discover which events are available locally.
+        """
+        if _coordinator is None:
+            raise HTTPException(status_code=503, detail="Coordinator not initialized")
+        from .fork_merge import ForkMergeCoordinator
+        
+        coordinator = ForkMergeCoordinator(
+            _coordinator._store,
+            _coordinator._node_id,
+        )
+        
+        filters = {}
+        if event_type:
+            filters["event_type"] = event_type
+        
+        response = coordinator.compute_inventory(
+            filters=filters if filters else None,
+            since_timestamp_ns=since_timestamp_ns,
+            limit=limit,
+        )
+        
+        return {
+            "event_ids": sorted(response.event_ids),
+            "total_count": response.total_count,
+            "timestamp_ns": response.timestamp_ns,
+        }
+
+    @app.post("/v1/fork-merge/pull-events", response_model=Dict[str, Any])
+    async def fork_merge_pull_events(body: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        Phase 2: Pull events with causal closure.
+        
+        Given a set of event IDs, returns those events plus all their
+        transitive ancestors (via parent_ids). Ensures DAG completeness.
+        
+        Body: {"event_ids": ["id1", "id2", ...], "include_ancestors": true}
+        """
+        if _coordinator is None:
+            raise HTTPException(status_code=503, detail="Coordinator not initialized")
+        from .fork_merge import ForkMergeCoordinator
+        
+        event_ids = set(body.get("event_ids", []))
+        if not event_ids:
+            raise HTTPException(status_code=400, detail="Missing event_ids")
+        
+        include_ancestors = body.get("include_ancestors", True)
+        
+        coordinator = ForkMergeCoordinator(
+            _coordinator._store,
+            _coordinator._node_id,
+        )
+        
+        events_dict = coordinator.get_events_with_causal_closure(
+            event_ids=event_ids,
+            include_ancestors=include_ancestors,
+        )
+        
+        events_data = []
+        for event in events_dict.values():
+            events_data.append(event.model_dump())
+        
+        return {
+            "events": events_data,
+            "count": len(events_data),
+            "timestamp_ns": int(datetime.now(timezone.utc).timestamp() * 1e9),
+        }
+
+    @app.post("/v1/fork-merge/insert-events", response_model=Dict[str, Any])
+    async def fork_merge_insert_events(body: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        Phase 3: Validate and insert remote events into local ledger.
+        
+        For each event: verify signature, check hash, detect duplicates,
+        and insert into append-only log.
+        
+        Body: {"events": [{...}, {...}], "verify_signatures": true}
+        """
+        if _coordinator is None:
+            raise HTTPException(status_code=503, detail="Coordinator not initialized")
+        from .fork_merge import ForkMergeCoordinator
+        
+        events_data = body.get("events", [])
+        if not events_data:
+            raise HTTPException(status_code=400, detail="Missing events array")
+        
+        verify_signatures = body.get("verify_signatures", False)
+        
+        coordinator = ForkMergeCoordinator(
+            _coordinator._store,
+            _coordinator._node_id,
+        )
+        
+        inserted, duplicates = coordinator.validate_and_insert_events(
+            events_data=events_data,
+            verify_signatures=verify_signatures,
+        )
+        
+        return {
+            "inserted": inserted,
+            "duplicates": len(duplicates),
+            "duplicate_ids": duplicates,
+            "timestamp_ns": int(datetime.now(timezone.utc).timestamp() * 1e9),
+        }
+
+    @app.get("/v1/fork-merge/forks", response_model=Dict[str, Any])
+    async def fork_merge_detect_forks() -> Dict[str, Any]:
+        """
+        Phase 4: Detect fork conflicts in the local DAG.
+        
+        Returns all detected forks (events with multi-parent divergent lineages).
+        """
+        if _coordinator is None:
+            raise HTTPException(status_code=503, detail="Coordinator not initialized")
+        from .fork_merge import ForkMergeCoordinator
+        
+        coordinator = ForkMergeCoordinator(
+            _coordinator._store,
+            _coordinator._node_id,
+        )
+        
+        forks = coordinator.detect_forks()
+        
+        return {
+            "fork_count": len(forks),
+            "forks": forks,
+            "timestamp_ns": int(datetime.now(timezone.utc).timestamp() * 1e9),
+        }
+
+    @app.post("/v1/fork-merge/annotate-fork", response_model=Dict[str, Any])
+    async def fork_merge_annotate_fork(body: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        Phase 5: Record fork in ledger with resolution strategy.
+        
+        Strategies: "application_decides", "first_arrival_wins", "consensus_vote"
+        
+        Body: {
+            "fork_id": "fork_...",
+            "fork_info": {...},
+            "resolution_strategy": "application_decides"
+        }
+        """
+        if _coordinator is None:
+            raise HTTPException(status_code=503, detail="Coordinator not initialized")
+        from .fork_merge import ForkMergeCoordinator
+        
+        fork_id = body.get("fork_id")
+        fork_info = body.get("fork_info")
+        resolution_strategy = body.get("resolution_strategy", "application_decides")
+        
+        if not fork_id or not fork_info:
+            raise HTTPException(status_code=400, detail="Missing fork_id or fork_info")
+        
+        coordinator = ForkMergeCoordinator(
+            _coordinator._store,
+            _coordinator._node_id,
+        )
+        
+        fork_event = coordinator.annotate_fork(fork_id, fork_info, resolution_strategy)
+        
+        if fork_event:
+            return {
+                "status": "annotated",
+                "fork_id": fork_id,
+                "event_id": fork_event.id,
+                "resolution_strategy": resolution_strategy,
+                "timestamp_ns": fork_event.timestamp_ns,
+            }
+        else:
+            raise HTTPException(status_code=500, detail="Failed to annotate fork")
+
+    # ------------------------------------------------------------------
+    # Checkpoint Attestation Scheme (Phase 1-5: Create, Vote, Bootstrap)
+    # ------------------------------------------------------------------
+
+    @app.post("/v1/checkpoints/create", response_model=Dict[str, Any])
+    async def checkpoint_create(body: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        Phase 1: Create a new checkpoint at the given height.
+        
+        Computes BLAKE3 hash of canonical event list and creates checkpoint
+        object ready for validator votes.
+        
+        Body: {"height": 1000}  # optional; uses current height if omitted
+        """
+        if _coordinator is None:
+            raise HTTPException(status_code=503, detail="Coordinator not initialized")
+        from .checkpoint import CheckpointAttestation
+        from datetime import datetime, timezone
+        
+        height = body.get("height")
+        
+        attestation = CheckpointAttestation(
+            _coordinator._store,
+            _coordinator._node_id,
+            quorum_threshold=3,
+        )
+        
+        checkpoint = attestation.create_checkpoint(height=height)
+        
+        return {
+            "status": "created",
+            "height": checkpoint.height,
+            "root_hash": checkpoint.root_hash,
+            "state_root": checkpoint.state_root,
+            "creator_node_id": checkpoint.creator_node_id,
+            "timestamp_ns": checkpoint.timestamp_ns,
+        }
+
+    @app.post("/v1/checkpoints/{height}/vote", response_model=Dict[str, Any])
+    async def checkpoint_vote(height: int, body: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        Phase 2-3a: Validator verifies checkpoint and votes (signs).
+        
+        Verifies root_hash against local ledger and creates a signature vote.
+        
+        Body: {"checkpoint": {...}}
+        """
+        if _coordinator is None:
+            raise HTTPException(status_code=503, detail="Coordinator not initialized")
+        from .checkpoint import CheckpointAttestation, Checkpoint
+        
+        checkpoint_data = body.get("checkpoint")
+        if not checkpoint_data:
+            raise HTTPException(status_code=400, detail="Missing checkpoint data")
+        
+        checkpoint = Checkpoint(**checkpoint_data)
+        
+        attestation = CheckpointAttestation(
+            _coordinator._store,
+            _coordinator._node_id,
+            quorum_threshold=3,
+        )
+        
+        vote = attestation.verify_and_vote(checkpoint, verify_against_ledger=True)
+        
+        if vote:
+            return {
+                "status": "voted",
+                "height": checkpoint.height,
+                "validator_node_id": vote.validator_node_id,
+                "signed_at_ns": vote.signed_at_ns,
+                "verified": vote.verified,
+            }
+        else:
+            raise HTTPException(status_code=400, detail="Checkpoint verification failed")
+
+    @app.post("/v1/checkpoints/{height}/assemble-quorum", response_model=Dict[str, Any])
+    async def checkpoint_assemble_quorum(height: int, body: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        Phase 3b: Assemble quorum of validator signatures.
+        
+        Once quorum_threshold signatures collected, checkpoint is finalized.
+        
+        Body: {
+            "checkpoint": {...},
+            "votes": [{"validator_node_id": "...", "signature": "...", ...}, ...]
+        }
+        """
+        if _coordinator is None:
+            raise HTTPException(status_code=503, detail="Coordinator not initialized")
+        from .checkpoint import CheckpointAttestation, Checkpoint, CheckpointSignature
+        
+        checkpoint_data = body.get("checkpoint")
+        votes_data = body.get("votes", [])
+        
+        if not checkpoint_data:
+            raise HTTPException(status_code=400, detail="Missing checkpoint data")
+        
+        checkpoint = Checkpoint(**checkpoint_data)
+        
+        # Reconstruct signature votes
+        votes = []
+        for vote_data in votes_data:
+            votes.append(CheckpointSignature(**vote_data))
+        
+        attestation = CheckpointAttestation(
+            _coordinator._store,
+            _coordinator._node_id,
+            quorum_threshold=3,
+        )
+        
+        finalized = attestation.assemble_quorum(checkpoint, votes)
+        
+        return {
+            "status": "quorum_assembled" if finalized else "quorum_pending",
+            "height": checkpoint.height,
+            "signature_count": len(checkpoint.validator_signatures),
+            "threshold": checkpoint.quorum_threshold,
+            "finalized": finalized,
+        }
+
+    @app.get("/v1/checkpoints/latest", response_model=Dict[str, Any])
+    async def checkpoint_get_latest() -> Dict[str, Any]:
+        """
+        Phase 4a: Fetch latest finalized checkpoint from this validator.
+        
+        Used by bootstrap nodes to fetch a known-good checkpoint.
+        """
+        if _coordinator is None:
+            raise HTTPException(status_code=503, detail="Coordinator not initialized")
+        from .checkpoint import CheckpointAttestation
+        
+        attestation = CheckpointAttestation(
+            _coordinator._store,
+            _coordinator._node_id,
+            quorum_threshold=3,
+        )
+        
+        checkpoint = attestation.fetch_latest_checkpoint()
+        
+        if checkpoint:
+            return {
+                "status": "found",
+                "height": checkpoint.height,
+                "root_hash": checkpoint.root_hash,
+                "state_root": checkpoint.state_root,
+                "creator_node_id": checkpoint.creator_node_id,
+                "signature_count": len(checkpoint.validator_signatures),
+                "threshold": checkpoint.quorum_threshold,
+                "timestamp_ns": checkpoint.timestamp_ns,
+            }
+        else:
+            raise HTTPException(status_code=404, detail="No finalized checkpoint available")
+
+    @app.post("/v1/checkpoints/verify-bootstrap", response_model=Dict[str, Any])
+    async def checkpoint_verify_bootstrap(body: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        Phase 4b: New node verifies fetched checkpoint.
+        
+        Verifies quorum signatures and root_hash before trusting checkpoint.
+        
+        Body: {
+            "checkpoint": {...},
+            "peer_signatures": {"node_id": {...}, ...}
+        }
+        """
+        if _coordinator is None:
+            raise HTTPException(status_code=503, detail="Coordinator not initialized")
+        from .checkpoint import CheckpointAttestation, Checkpoint, CheckpointSignature
+        
+        checkpoint_data = body.get("checkpoint")
+        peer_sigs_data = body.get("peer_signatures", {})
+        
+        if not checkpoint_data:
+            raise HTTPException(status_code=400, detail="Missing checkpoint data")
+        
+        checkpoint = Checkpoint(**checkpoint_data)
+        
+        # Reconstruct signatures
+        peer_sigs = {}
+        for node_id, sig_data in peer_sigs_data.items():
+            peer_sigs[node_id] = CheckpointSignature(**sig_data)
+        
+        attestation = CheckpointAttestation(
+            _coordinator._store,
+            _coordinator._node_id,
+            quorum_threshold=3,
+        )
+        
+        verified = attestation.verify_bootstrap_checkpoint(checkpoint, peer_sigs)
+        
+        return {
+            "status": "verified" if verified else "failed",
+            "height": checkpoint.height,
+            "signature_count": len(peer_sigs),
+            "verified": verified,
+        }
+
+    @app.post("/v1/checkpoints/bootstrap", response_model=Dict[str, Any])
+    async def checkpoint_bootstrap(body: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        Phase 4c: Bootstrap new node from checkpoint.
+        
+        Loads state from checkpoint without replaying entire ledger.
+        
+        Body: {"checkpoint": {...}}
+        """
+        if _coordinator is None:
+            raise HTTPException(status_code=503, detail="Coordinator not initialized")
+        from .checkpoint import CheckpointAttestation, Checkpoint
+        
+        checkpoint_data = body.get("checkpoint")
+        if not checkpoint_data:
+            raise HTTPException(status_code=400, detail="Missing checkpoint data")
+        
+        checkpoint = Checkpoint(**checkpoint_data)
+        
+        attestation = CheckpointAttestation(
+            _coordinator._store,
+            _coordinator._node_id,
+            quorum_threshold=3,
+        )
+        
+        height = attestation.bootstrap_from_checkpoint(checkpoint)
+        
+        return {
+            "status": "bootstrapped",
+            "height": height,
+            "root_hash": checkpoint.root_hash,
+        }
+
+    @app.post("/v1/checkpoints/delta-sync", response_model=Dict[str, Any])
+    async def checkpoint_delta_sync(body: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        Phase 5: Delta sync after bootstrap.
+        
+        Fetches events since checkpoint and applies fork-merge protocol
+        to converge with network.
+        
+        Body: {"checkpoint_height": 1000}
+        """
+        if _coordinator is None:
+            raise HTTPException(status_code=503, detail="Coordinator not initialized")
+        from .checkpoint import CheckpointAttestation, Checkpoint
+        
+        checkpoint_height = body.get("checkpoint_height", 0)
+        
+        # Reconstruct a minimal checkpoint for reference
+        checkpoint = Checkpoint(
+            height=checkpoint_height,
+            root_hash="",
+            state_root="",
+            timestamp_ns=0,
+            creator_node_id=_coordinator._node_id,
+        )
+        
+        attestation = CheckpointAttestation(
+            _coordinator._store,
+            _coordinator._node_id,
+            quorum_threshold=3,
+        )
+        
+        new_count, new_events = attestation.delta_sync_since_checkpoint(checkpoint)
+        
+        return {
+            "status": "synced",
+            "checkpoint_height": checkpoint_height,
+            "new_events_count": new_count,
+            "timestamp_ns": int(datetime.now(timezone.utc).timestamp() * 1e9),
+        }
 
     return app
