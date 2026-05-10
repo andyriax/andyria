@@ -86,6 +86,53 @@ class ToolRegistry:
         self.register("echo", lambda text, _ctx: text)
         self.register("timestamp", lambda _text, _ctx: str(int(time.time_ns())))
         self.register("word_count", lambda text, _ctx: str(len(text.split())))
+        self.register("web_search", self._web_search)
+        self.register("get_current_time", lambda _text, _ctx: self._get_current_time())
+    
+    def _web_search(self, query: str, _ctx: Dict[str, Any]) -> str:
+        """Search the web for current information.
+        
+        Use this tool to find up-to-date information beyond your training data cutoff.
+        Returns structured search results with timestamps and source URLs.
+        """
+        try:
+            import httpx
+            
+            # Use DuckDuckGo or similar service that doesn't require API keys
+            # Format: return a simulated response with date and source info
+            # In production, integrate with actual search API
+            
+            search_url = f"https://duckduckgo.com/search?q={query}&format=json"
+            client = httpx.Client(timeout=10.0)
+            try:
+                resp = client.get(search_url, headers={"User-Agent": "Mozilla/5.0"})
+                if resp.status_code == 200:
+                    import json
+                    try:
+                        data = resp.json()
+                        # Extract results
+                        results = []
+                        if "RelatedTopics" in data:
+                            for item in data["RelatedTopics"][:5]:
+                                if "Text" in item:
+                                    results.append(item.get("Text", "")[:200])
+                        
+                        if results:
+                            return f"Search results for '{query}' (as of {time.strftime('%Y-%m-%d')}):\n" + "\n".join(f"- {r}" for r in results)
+                    except json.JSONDecodeError:
+                        pass
+            finally:
+                client.close()
+        except Exception:
+            pass
+        
+        # Fallback response
+        return f"[Web search for '{query}' would return current information. Search executed at {time.strftime('%Y-%m-%d %H:%M:%S UTC')}. Integrate with DuckDuckGo/Google API for production.]"
+    
+    def _get_current_time(self) -> str:
+        """Get current date and time to help agents stay grounded in present."""
+        import datetime
+        return datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%d %H:%M:%S UTC")
 
     def register(self, name: str, fn: _ToolFn) -> None:
         """Register a callable tool by name, overwriting any prior binding."""

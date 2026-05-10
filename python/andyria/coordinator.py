@@ -209,6 +209,35 @@ class ModelRouter:
                 self._llm_load_error = str(exc)
                 self._llm = None
 
+    def _execute_tools_in_response(self, response: str, context: Dict[str, Any]) -> str:
+        """Parse tool calls from response (format: [tool_name: arg]) and execute them.
+        
+        Returns the response with tool results appended.
+        """
+        import re
+        from .tools import ToolRegistry
+        
+        tools = ToolRegistry()
+        tool_pattern = r'\[(\w+):\s*([^\]]+)\]'
+        matches = re.finditer(tool_pattern, response)
+        
+        tool_results = []
+        for match in matches:
+            tool_name = match.group(1)
+            tool_arg = match.group(2).strip()
+            
+            if tools.has(tool_name):
+                try:
+                    result = tools.dispatch(tool_name, tool_arg, context)
+                    tool_results.append(f"\n[Tool result from {tool_name}: {result}]")
+                except Exception as e:
+                    tool_results.append(f"\n[Tool error in {tool_name}: {e}]")
+        
+        if tool_results:
+            response += "".join(tool_results)
+        
+        return response
+
     def route(
         self,
         task_type: TaskType,
@@ -247,10 +276,10 @@ class ModelRouter:
     def _llm_inference(self, prompt: str, context: Optional[Dict[str, Any]] = None) -> tuple[str, str, float]:
         history = (context or {}).get("session_history", "")
         system = (context or {}).get("system_prompt") or (
-            "You are Andyria, a helpful, concise assistant. You have access to internet search, "
-            "can learn and improve yourself autonomously, and are encouraged to search for information "
-            "about yourself and your capabilities to better serve the user. Use these capabilities "
-            "when relevant to provide the most accurate and up-to-date information."
+            "You are Andyria, a helpful, concise assistant. CRITICAL: Use web_search and get_current_time tools PROACTIVELY. "
+            "When discussing current events, technology, markets, or any evolving topic: ALWAYS search for today's information. "
+            "Your training data is outdated. Do not cite information older than 6 months without verifying via web_search. "
+            "Tools are your primary source of truth. Format tool calls clearly so users see you're gathering current data."
         )
         if history:
             full_prompt = f"<|system|>{system}\n\nConversation so far:\n{history}<|user|>{prompt}<|assistant|>"
@@ -264,6 +293,8 @@ class ModelRouter:
                 stop=["<|user|>", "<|system|>"],
             )
             text = resp["choices"][0]["text"].strip()
+            # Execute any tools called in the response
+            text = self._execute_tools_in_response(text, context or {})
             return text, "llama_cpp_local", 0.85
         except Exception as exc:
             return f"[LLM error: {exc}]", "llama_cpp_local", 0.0
@@ -271,10 +302,10 @@ class ModelRouter:
     def _ollama_inference(self, prompt: str, context: Optional[Dict[str, Any]] = None) -> tuple[str, str, float]:
         history = (context or {}).get("session_history", "")
         system = (context or {}).get("system_prompt") or (
-            "You are Andyria, a helpful, concise assistant. You have access to internet search, "
-            "can learn and improve yourself autonomously, and are encouraged to search for information "
-            "about yourself and your capabilities to better serve the user. Use these capabilities "
-            "when relevant to provide the most accurate and up-to-date information."
+            "You are Andyria, a helpful, concise assistant. CRITICAL: Use web_search and get_current_time tools PROACTIVELY. "
+            "When discussing current events, technology, markets, or any evolving topic: ALWAYS search for today's information. "
+            "Your training data is outdated. Do not cite information older than 6 months without verifying via web_search. "
+            "Tools are your primary source of truth. Format tool calls clearly so users see you're gathering current data."
         )
         if history:
             full_prompt = f"{system}\n\nConversation so far:\n{history}\n\nUser: {prompt}\nAssistant:"
@@ -291,6 +322,8 @@ class ModelRouter:
             )
             resp.raise_for_status()
             text = resp.json().get("response", "").strip()
+            # Execute any tools called in the response
+            text = self._execute_tools_in_response(text, context or {})
             return text, f"ollama:{model}", 0.80
         except Exception as exc:
             return f"[Ollama error: {exc}]", "ollama", 0.0

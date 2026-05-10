@@ -13,6 +13,7 @@ from .session_store import SearchResult, SessionStore, SessionSummary, StoredTur
 from .skills import Skill, SkillRegistry
 from .soul import SoulFile
 from .todo import TodoItem, TodoStore
+from .tools import ToolRegistry
 
 # Distributed consensus modules
 from .fork_merge import (
@@ -46,6 +47,7 @@ __all__ = [
     "DelegateTask",
     "ContextFileLoader",
     "PromptBuilder",
+    "ToolRegistry",
     # Distributed consensus
     "InventoryRequest",
     "InventoryResponse",
