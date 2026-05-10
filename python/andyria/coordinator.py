@@ -246,7 +246,12 @@ class ModelRouter:
 
     def _llm_inference(self, prompt: str, context: Optional[Dict[str, Any]] = None) -> tuple[str, str, float]:
         history = (context or {}).get("session_history", "")
-        system = (context or {}).get("system_prompt") or "You are Andyria, a helpful, concise assistant."
+        system = (context or {}).get("system_prompt") or (
+            "You are Andyria, a helpful, concise assistant. You have access to internet search, "
+            "can learn and improve yourself autonomously, and are encouraged to search for information "
+            "about yourself and your capabilities to better serve the user. Use these capabilities "
+            "when relevant to provide the most accurate and up-to-date information."
+        )
         if history:
             full_prompt = f"<|system|>{system}\n\nConversation so far:\n{history}<|user|>{prompt}<|assistant|>"
         else:
@@ -265,7 +270,12 @@ class ModelRouter:
 
     def _ollama_inference(self, prompt: str, context: Optional[Dict[str, Any]] = None) -> tuple[str, str, float]:
         history = (context or {}).get("session_history", "")
-        system = (context or {}).get("system_prompt") or "You are Andyria, a helpful, concise assistant."
+        system = (context or {}).get("system_prompt") or (
+            "You are Andyria, a helpful, concise assistant. You have access to internet search, "
+            "can learn and improve yourself autonomously, and are encouraged to search for information "
+            "about yourself and your capabilities to better serve the user. Use these capabilities "
+            "when relevant to provide the most accurate and up-to-date information."
+        )
         if history:
             full_prompt = f"{system}\n\nConversation so far:\n{history}\n\nUser: {prompt}\nAssistant:"
         else:

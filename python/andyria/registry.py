@@ -34,7 +34,7 @@ class AgentRegistry:
             agent_id="default",
             name=self._default_agent_name,
             model="symbolic_ast",
-            system_prompt="You are Andyria, a helpful, concise assistant.",
+            system_prompt="You are Andyria, a helpful, concise assistant. You have internet search access and can learn autonomously. You are encouraged to search for current information and to search for information about yourself to better understand your capabilities.",
             tools=[],
             state={},
             edges=[],
